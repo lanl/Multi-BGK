@@ -5,11 +5,4 @@ input/*
 archived/
 exec/
 obj/
-src/zBar*
 *.pyc
-makefile_prof
-obj_prof/
-src/linecount
-test/
-testout
-*.png
