@@ -42,6 +42,7 @@ void read_input(int *nspec,
 		int *BGK_type, 
 		double *beta,
 		int *hydro_flag,
+		int *TNBFlag,
 		char *inputFilename) {
 
   char   line[100] = {"dummy"};
@@ -52,7 +53,7 @@ void read_input(int *nspec,
 
   /*Set input parameters to default values*/
 
-  set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor, ecouple, Te_start, Te_end, CL_type, ion_type, MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,  dataFreq, outputDist, RHS_tol);
+  set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor, ecouple, Te_start, Te_end, CL_type, ion_type, MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag, TNBFlag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path,inputFilename);
   printf("Opening input file %s\n",input_path);
@@ -118,6 +119,10 @@ void read_input(int *nspec,
     /* Flag to use the hydro kinetic scheme*/
     if (strcmp(line,"Hydro_flag") == 0)
       *hydro_flag = read_int(input_file);
+
+    /* Flag to use TNB*/
+    if (strcmp(line,"TNB") == 0)
+      *TNBFlag = read_int(input_file);
 
     /*Implicit solve (lagged) for the BGK operator*/
     if (strcmp(line,"Imp_exp") == 0) {
@@ -336,6 +341,7 @@ void set_default_values(int *Nx,
 			int *BGK_type, 
 			double *beta, 
 			int *hydro_flag,
+			int *TNBFlag,
 			int *dataFreq,
 			int *dumpDist,
 			double *RHS_tol
@@ -385,6 +391,8 @@ void set_default_values(int *Nx,
   *beta = 0;
   
   *hydro_flag = 0;
+
+  *TNBFlag = 0;
 
   /*Order of accuracy of space/time discretization*/
   *order = 1;

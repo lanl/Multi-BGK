@@ -28,7 +28,7 @@
 
 //BGK/RHS packages
 #include "BGK.h"
-
+#include "TNB.h"
 
 int main(int argc, char **argv) {
 
@@ -149,6 +149,7 @@ int main(int argc, char **argv) {
   int outputDist;
   int restartFlag;
   int tauFlag;
+  int TNBFlag;
   double RHS_tol;
   double RHS_min;
   double rel_BGK;
@@ -196,8 +197,8 @@ int main(int argc, char **argv) {
 	     &BGK_type, 
 	     &beta, 
 	     &hydro_kinscheme_flag,
+	     &TNBFlag,
 	     input_filename);
-
 
   char output_path[100] = {"./Data/"};
   strcat(output_path,argv[1]);
@@ -513,7 +514,7 @@ int main(int argc, char **argv) {
     //Find maximum temepratures
     for(i=0;i<numint;i++)
       for(j=0;j<nspec;j++) {
-	T_max[j] = (T_int[i*numint + j] > T_max[j]) ? T_int[i*numint + j] : T_max[j];
+	T_max[j] = (T_int[i*nspec + j] > T_max[j]) ? T_int[i*nspec + j] : T_max[j];
 	T0_max = (T_max[j] > T0_max) ? T_max[j] : T0_max;
       }
 
@@ -680,7 +681,9 @@ int main(int argc, char **argv) {
   }
 
   initialize_moments(Nv,nspec,c,wts);    
-  initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR, tauFlag, input_filename);  
+  initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR, tauFlag, TNBFlag, input_filename);  
+  if(TNBFlag)
+    initializeTNB(Nv, c, wts);
 
   if (!((restartFlag == 2) || (restartFlag == 4)))
     t = 0.0;
@@ -781,6 +784,10 @@ int main(int argc, char **argv) {
 	  for(j=0;j<nspec;j++)
 	    fprintf(outputFileBGK,"%le,",BGK_f_minus_eq[i][j]);
 	fprintf(outputFileBGK,"\n");
+
+	if(outputDist)
+	  store_distributions_homog(f_zerod, t, input_filename,restartFlag);
+
       }
       
 
@@ -1278,7 +1285,7 @@ int main(int argc, char **argv) {
   
   
   if((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, input_filename);
+    store_distributions_homog(f_zerod, t, input_filename, restartFlag);
   
   
   //clean up

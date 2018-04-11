@@ -35,6 +35,7 @@ void read_input(int *nspec,
 		int *BGK_type, 
 		double *beta, 
 		int *hydro_flag,
+		int *TNBFlag,
 		char *inputFilename);
 
 void set_default_values(int *Nx, 
@@ -56,6 +57,7 @@ void set_default_values(int *Nx,
 			int *BGK_type, 
 			double *beta, 
 			int *hydro_flag,
+			int *TNBFlag,
 			int *dataFreq,
 			int *dumpDist,
 			double *RHS_tol);

@@ -18,7 +18,7 @@ RM=rm -f
 sources_main = $(SRCDIR)main.c
 
 
-objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o
+objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o TNB.o
 
 
 pref_main_objects = $(addprefix $(OBJDIR), $(objects_main))
@@ -32,6 +32,13 @@ MultiBGK: $(pref_main_objects) $(sources_main)
 
 
 $(OBJDIR)BGK.o : $(SRCDIR)BGK.c
+	@echo "Compiling  $< ... " ; \
+	if [ -f  $@ ] ; then \
+		rm $@ ;\
+	fi ; \
+	$(CC)  -c $(CFLAGS)  $< -o $@ 2>&1 ;
+
+$(OBJDIR)TNB.o : $(SRCDIR)TNB.c
 	@echo "Compiling  $< ... " ; \
 	if [ -f  $@ ] ; then \
 		rm $@ ;\

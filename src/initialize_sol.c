@@ -18,6 +18,27 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
   int int_id;
   int vIndex,inputIndex;
 
+  printf("Initial data information\n");
+
+  for(i=0;i<nint;i++) {
+    printf("=========\n");
+    printf("Interval %d: \n",i);
+    printf("=========\n");
+    printf("x_l: %g\n\n", int_loc[i]);
+    if(i != (nint - 1))
+      printf("x_r: %g\n", int_loc[i+1]);
+    else
+      printf("x_r: %g\n", x[Nx-1]);
+    for(s=0;s<nspec;s++) {
+      printf("Species %d\n",s);
+      inputIndex = i*nspec + s;
+      printf("n: %g\n",ndens_in[inputIndex]);
+      printf("v_x: %g\n",v_in[inputIndex]);
+      printf("T: %g\n",T_in[inputIndex]);
+      printf("\n");
+    }
+  }
+
   for(l=0;l<Nx;l++) {
 
     //Figure out the interval

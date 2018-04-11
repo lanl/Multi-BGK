@@ -1,7 +1,7 @@
 
 void GetMaxwell(double m, double n, double *v, double T, double *M, int sp);
 
-void initialize_BGK(double ns, int numV, double *mass, double **vels, int order, int ec, int CL, int itype, int MorT, int tauFlag, char *filename);
+void initialize_BGK(double ns, int numV, double *mass, double **vels, int order, int ec, int CL, int itype, int MorT, int tauFlag, int TNBFlag, char *filename);
 
 void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te);
 

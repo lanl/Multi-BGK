@@ -3,6 +3,7 @@
 #include <math.h>
 #include "momentRoutines.h"
 #include "io.h"
+#include "TNB.h"
 #include "units/unit_data.c"
 #include <omp.h>
 #include <gsl/gsl_linalg.h>
@@ -18,13 +19,18 @@ static double m_e;
 static double **Q;
 static double **c;
 static double *M;
+static double *M2;
 static int ecouple;
 static int CL_type;
 static int ion_type;
 static int MT_or_TR;
 static double collmin;
 static int tauFlag;
+static int TNBFlag;
 static double t;
+
+FILE *fp;
+FILE *fp1;
 
 static double *n;
 static double *rho;
@@ -83,6 +89,26 @@ double norm2_f(double *f) {
   
 }
 
+//Units - cm
+double ionSphereRadius(double n) {
+
+  double a_i = pow(3.0/(4.0*M_PI*n),1.0/3.0); 
+  
+  return a_i;
+}
+
+double ionSphereRadius_mix(double *n, double *Z, int sp) {
+
+  int i;
+  double rho_tot = 0.0;
+
+  for(i=0;i<nspec;i++) {
+    rho_tot += Z[i]*n[i];
+  }
+
+  return pow(3.0 * Z[sp] / (4.0*M_PI*rho_tot),1.0/3.0);
+}
+
 double debyeLength_electron(double n_e, double Te) {
   double EF, lam_elec2;
 
@@ -95,30 +121,31 @@ double debyeLength_electron(double n_e, double Te) {
   return lam_elec2;
 }
 
-double debyeLength_ions(double *n, double *T) {
+double debyeLength_ions(double *n, double *T, double *Z) {
   double TotalIonDebyeLengthInverseSquared = 0.0;
   double SpeciesIonDebyeLengthSquared;;
   int sp; 
-
+  double a_sp;
   //TODO: fix for case with electrons as a species
 
   for(sp=0;sp<nspec;sp++) {
     if(n[sp] != 0.0) {
+      a_sp = ionSphereRadius_mix(n,Z,sp);
       SpeciesIonDebyeLengthSquared = T[sp] / (4.0*M_PI*E_02_CGS*n[sp]);      //cm^2
-      TotalIonDebyeLengthInverseSquared += 1.0/SpeciesIonDebyeLengthSquared; //1/cm^2;
+      TotalIonDebyeLengthInverseSquared += 1.0/(SpeciesIonDebyeLengthSquared + a_sp*a_sp); //1/cm^2;
     }
   }
 
 }
 
-double debyeLength(double *n, double *T, double n_e, double Te) {
+double debyeLength(double *n, double *T, double *Z, double n_e, double Te) {
   double ElectronDebyeLengthSquared;
   double TotalIonDebyeLengthInverseSquared;
   double EffectiveScreeningLength;
   int sp; 
 
   ElectronDebyeLengthSquared = debyeLength_electron(n_e, Te);
-  TotalIonDebyeLengthInverseSquared = debyeLength_ions(n, T);
+  TotalIonDebyeLengthInverseSquared = debyeLength_ions(n, T, Z);
 
   //improved debye length from Stanton-Murillo
   EffectiveScreeningLength = pow(1.0 / ElectronDebyeLengthSquared + TotalIonDebyeLengthInverseSquared,-0.5);
@@ -140,13 +167,6 @@ double closestApproach2(double Z, double T) {
   return closest;
 }
 
-//Units - cm
-double ionSphereRadius(double n) {
-
-  double a_i = pow(3.0/(4.0*M_PI*n),1.0/3.0); 
-  
-  return a_i;
-}
 
 void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *nuji, int i, int j) {
 
@@ -165,7 +185,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
   for(sp=0;sp<nspec;sp++)
     n_e += Z[sp]*n[sp];
 
-  lam_eff = debyeLength(n, T, n_e, Te);
+  lam_eff = debyeLength(n, T, Z, n_e, Te);
 
   //reduced mass
   if(i >= 0) {
@@ -251,7 +271,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
       if(MT_or_TR == 0) { //momentum transfer
 
 	//e-e "slow" column in NRL
-	nu11 = 2.0*n_e*logLam_ii* 5.8e-6 / pow(Te,1.5);
+	nu11 = n_e*logLam_ii* 5.8e-6 / pow(Te,1.5);
 	
 	//e-i "fast" column in NRL
 	nu12 = 2.0*3.9e-6 * n[j] * pow(Z[j],2) * logLam_ij / pow(Te,1.5);
@@ -262,7 +282,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
       }
       else if(MT_or_TR == 1) { //temperature relaxation
 
-	nu11 = 2.0*1.8e-19 * m_e*n_e*logLam_ii/pow(m_e*Te + m_e*Te,1.5);
+	nu11 = 1.8e-19 * m_e*n_e*logLam_ii/pow(m_e*Te + m_e*Te,1.5);
 
 	nu12 = 2.0*1.8e-19 * sqrt(m_e*m[j])*Z[j]*Z[j]*n[j]*logLam_ij/pow(m_e*T[j] + m[j]*Te,1.5);
 
@@ -283,7 +303,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
  
       K = m[i]*m[j]*0.5/(m[i]*T[j] + m[j]*T[i]);
 
-      g5_int = 2.0*M_PI * pow(2.0*K*Z[i]*Z[j]*E_02_CGS/mu,2) * K_11 / 4.0;  
+      g5_int = 2.0*M_PI * pow(2.0*K*Z[i]*Z[j]*E_02_CGS/mu,2) * K_11 / 4.0; 
 
       if(MT_or_TR == 0) { //momentum transfer
 	nu11 = 64.0*M_PI*n[i]*mu*sqrt(m[i]*T[i] + m[i]*T[i])/(3.0*sqrt(2.0*M_PI)*m[i]*sqrt(m[i]*m[j])) * g5_int / sqrt(ERG_TO_EV_CGS);
@@ -349,7 +369,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
   //printf("%d %d %g %g\n",i,j,1.0 / *nuij,1.0 / *nuji);
 }
 
-void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord, int ec, int CL, int itype, int MorT, int tFlag, char *filename) {
+void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord, int ec, int CL, int itype, int MorT, int tFlag, int TNB, char *filename) {
   int i;
 
   nspec = ns;
@@ -363,6 +383,7 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord, i
   ion_type = itype;
   MT_or_TR = MorT;
   tauFlag = tFlag;
+  TNBFlag = TNB;
 
   collmin = 1.0;
 
@@ -375,6 +396,7 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord, i
   }
 
   M = malloc(Nv*Nv*Nv*sizeof(double));
+  M2 = malloc(Nv*Nv*Nv*sizeof(double));
 
   //alloc moment vectors
   n = malloc(ns*sizeof(double));
@@ -497,35 +519,72 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       //if(i != j)
       //printf("i: %d j: %d tauij: %g tauji: %g Te: %g\n",i,j,1.0/nu12,1.0/nu21,Te);
 
+
+      // TNB constants
+      // T(d,n)^3He      
+      double a1 = 6.927e4;
+      double a2 = 7.454e8;
+      double a3 = 2.050e6;
+      double a4 = 5.2002e4;
+      double a5 = 0.0;
+      double b1 = 6.38e1;
+      double b2 = -9.95e-1;
+      double b3 = 6.981e-5;
+      double b4 = 1.728e-4;
+      double B_G= 34.3827;
+      mu = m[i]*m[j]/(m[i] + m[j]);
+      double c1_TNB[3];
+      int index,k,l,p;
+
       //explicit first order update            
 
       if(i == j) {
 	if(n[j] >= 1e-10) {
 	  
 	  GetMaxwell(m[i],n[i],v[i],T[i],M,i);
-#pragma omp parallel for private(k)
-	  for(k=0;k<Nv*Nv*Nv;k++)
-	    f_out[i][k] += nu11*(M[k] - f[i][k]);
+          #pragma omp parallel for private(l,p,k,index)
+	  for(l=0;l<Nv;l++)
+	    for(p=0;p<Nv;p++)
+	      for(k=0;k<Nv;k++) {
+		index = k + Nv*(p + Nv*l);
+		f_out[i][index] += nu11*(M[index] - f[i][index]);	
+		
+		  //Find velocity vector for use in TNB
+              if(TNBFlag) {
+                  c1_TNB[0]=c[i][k];
+                  c1_TNB[1]=c[i][l];
+                  c1_TNB[2]=c[i][p];
+                  f_out[i][index] -= f[i][index]*GetTNB_dd_He(mu,f[i],c1_TNB,i,i);
+                  f_out[i][index] -= f[i][index]*GetTNB_dd_T(mu,f[i],c1_TNB,i,i);
+	      }
 	}
+	    double R_BGK_DD_He,R_BGK_DD_T,R_BGK_tt;
+        
+        if(TNBFlag)
+            
+            R_BGK_DD_He    = GetReactivity_dd_He(mu,f[i],f[i],i,i);
+            R_BGK_DD_T     = GetReactivity_dd_T(mu,f[i],f[i],i,i);
+         if(R_BGK_DD_T >0.) {
+//             printf("%d %d T, DT DD_He DD_T: %g  %g %g %g %g\n",i,i,T[i],0.,R_BGK_DD_He,R_BGK_DD_T);
+             printf("%d %d Ti DD_He DD_T: %g %g %g\n",i,i,T[i],R_BGK_DD_He,R_BGK_DD_T);
+             fp1 = fopen( "TNB_DD.txt", "w" );
+             fprintf(fp1, " %5.2e %5.2e %10.6e %10.6e\n", T[i],T[j],R_BGK_DD_He,R_BGK_DD_T);
+             fclose(fp1);
+
+         }
+	}
+	
       }
       else {
-	if(!((n[i] < 1e-10) || (n[j] < 1e-10))) {
-	  
+	if(!((n[i] < 1e-10) || (n[j] < 1e-10))) {	 	  
+
 	  //Get Maxwell cross terms
 	  mixU_sq = 0.0;
 	  v2_1 = 0.0;
 	  v2_2 = 0.0;
 	  for(k=0;k<3;k++) {
 	    mixU[k] = (rho[i]*nu12*v[i][k] + rho[j]*nu21*v[j][k])/(rho[i]*nu12 + rho[j]*nu21);
-	    //mixU_sq += mixU[k]*mixU[k];
-	    //v2_1 += v[i][k]*v[i][k];
-	    //v2_2 += v[j][k]*v[j][k];
 	  }
-
-	  //original formula for mixT
-	  //mixT = (n[i]*nu12*T[i] + n[j]*nu21*T[j])/(n[i]*nu12 + n[j]*nu21) - ERG_TO_EV_CGS*(rho[i]*nu12*(mixU_sq - v2_1) + rho[j]*nu21*(mixU_sq - v2_2))/(3.0*(n[i]*nu12 + n[j]*nu21)); 
-
-
 	  
 	  //simplified formulas for mixT
 	  double vdiff2 = (v[i][0] - v[j][0])*(v[i][0] - v[j][0]) + (v[i][1] - v[j][1])*(v[i][1] - v[j][1]) + (v[i][2] - v[j][2])*(v[i][2] - v[j][2]);
@@ -543,18 +602,61 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 	    printf("%d %d %g %g %g %g %g\n",i,j,n[i],n[j],T[i],T[j],Te);
 	    exit(37);
 	  }
-	  
+
+	  if(TNBFlag)
+	   // printf("%d %d Reactivity: %g\n", i,j, GetReactivity(mu,f[i],f[j],i,j,a1,a2,a3,a4,a5,b1,b2,b3,b4,B_G));
 
 	  GetMaxwell(m[i],n[i],mixU,mixT,M,i);
-#pragma omp parallel for private(k)
-	  for(k=0;k<Nv*Nv*Nv;k++)
-	    f_out[i][k] += nu12*(M[k] - f[i][k]);
+#pragma omp parallel for private(k,l,p,index,c1_TNB)
+	  for(k=0;k<Nv;k++) 
+	    for(l=0;l<Nv;l++) 
+	      for(p=0;p<Nv;p++) {
+		index = p + Nv*(l + Nv*k);
+		
+		f_out[i][index] += nu12*(M[index] - f[i][index]);
+		
+		//Find velocity vector for use in TNB
+		if(TNBFlag) {
+		  c1_TNB[0]=c[i][k];
+		  c1_TNB[1]=c[i][l];
+		  c1_TNB[2]=c[i][p];
+		  f_out[i][index] -= f[i][index]*GetTNB_dt(mu,f[j],c1_TNB,i,j);
+          f_out[i][index] -= f[i][index]*GetTNB_dd_He(mu,f[i],c1_TNB,i,i);
+          f_out[i][index] -= f[i][index]*GetTNB_dd_T(mu,f[i],c1_TNB,i,i);
+		}	  
+	      }
 
-	  
 	  GetMaxwell(m[j],n[j],mixU,mixT,M,j);
-#pragma omp parallel for private(k)
-	  for(k=0;k<Nv*Nv*Nv;k++)
-	    f_out[j][k] += nu21*(M[k] - f[j][k]);	    
+#pragma omp parallel for private(k,l,p,index,c1_TNB)
+	  for(k=0;k<Nv;k++) 
+	    for(l=0;l<Nv;l++) 
+	      for(p=0;p<Nv;p++) {
+		index = p + Nv*(l + Nv*k);
+
+		f_out[j][index] += nu21*(M[index] - f[j][index]);
+	    
+		//Find velocity vector for use in TNB
+		if(TNBFlag) {
+		  c1_TNB[0]=c[j][k];
+		  c1_TNB[1]=c[j][l];
+		  c1_TNB[2]=c[j][p];
+		  f_out[j][index] -= f[j][index]*GetTNB_dt(mu,f[i],c1_TNB,j,i); //DT
+		}	  
+	      }
+	      
+	    double R_BGK_DT;
+        
+        if(TNBFlag)
+
+            R_BGK_DT    = GetReactivity_dt(mu,f[i],f[j],i,j);
+//
+            if(R_BGK_DT >0.) {
+                printf("%d %d Ti Tj DT : %g %g %g\n",i,j,T[i],T[j],R_BGK_DT);
+               fp = fopen( "TNB_DT.txt", "w" );
+               fprintf(fp, " %5.2e %5.2e %10.6e \n", T[i],T[j],R_BGK_DT);
+               fclose(fp);
+        }
+        
 	}
       }
       

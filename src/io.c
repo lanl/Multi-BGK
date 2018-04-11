@@ -22,31 +22,38 @@ void io_init_inhomog(int numX, int numV, int numS, double **velos) {
 }
 
 
-void store_distributions_homog(double **f, double t, char *fileName) {
+void store_distributions_homog(double **f, double t, char *fileName, int restartFlag) {
   int s;
   char name_buffer[100],grid_buffer[100];
   FILE *fid_store, *fid_grids;
 
   sprintf(grid_buffer,"Data/%s_gridinfo.dat",fileName);
   fid_grids = fopen(grid_buffer,"w");
-
-  for(s=0;s<nspec;s++) {
-    sprintf(name_buffer,"Data/%s_spec%d.dat",fileName,s);
   
+  
+  for(s=0;s<nspec;s++) {
+    if(restartFlag > 0)
+      sprintf(name_buffer,"Data/%s_spec%d.dat",fileName,s);
+    else
+      sprintf(name_buffer,"Data/%s_spec%d_time%g.dat",fileName,s,t);
+      
     fid_store = fopen(name_buffer,"w");
     
     fwrite(f[s],sizeof(double),Nv*Nv*Nv,fid_store);
-
+    
     fprintf(fid_grids,"%d %d %g\n",s, Nv, -c[s][0]);
-
+    
     fclose(fid_store);
   }
   
-  fprintf(fid_grids,"%g\n",t);
-
-  printf("Stored time %g\n",t);
-
+  if(restartFlag > 0) {
+    fprintf(fid_grids,"%g\n",t);
+    
+    printf("Stored time %g\n",t);
+  }
+  
   fclose(fid_grids);
+
 }
 
 void load_distributions_homog(double **f, char *fileName) {
