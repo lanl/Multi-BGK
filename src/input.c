@@ -42,6 +42,8 @@ void read_input(int *nspec,
 		int *BGK_type, 
 		double *beta,
 		int *hydro_flag,
+		int *input_file_data_flag,
+		char *input_file_data_filename,
 		char *inputFilename) {
 
   char   line[100] = {"dummy"};
@@ -52,7 +54,7 @@ void read_input(int *nspec,
 
   /*Set input parameters to default values*/
 
-  set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor, ecouple, Te_start, Te_end, CL_type, ion_type, MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,  dataFreq, outputDist, RHS_tol);
+  set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor, ecouple, Te_start, Te_end, CL_type, ion_type, MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag, input_file_data_flag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path,inputFilename);
   printf("Opening input file %s\n",input_path);
@@ -71,6 +73,8 @@ void read_input(int *nspec,
   while (strcmp(line,"Stop") != 0) {
 
     read_line(input_file, line);
+
+    printf("%s \n",line);
     
     /*Mesh info*/
     if (strcmp(line,"nspec") == 0) 
@@ -131,7 +135,7 @@ void read_input(int *nspec,
     /*species masses in kg*/
     if (strcmp(line,"mass") == 0) {
       if(*nspec == -1) {
-	printf("ERROR: number of species not set");
+	printf("ERROR: number of species not set\n");
 	exit(37);
       }
 	
@@ -143,7 +147,7 @@ void read_input(int *nspec,
     /*species  ionizations*/
     if (strcmp(line,"Z") == 0) {
       if(*nspec == -1) {
-	printf("ERROR: number of species not set");
+	printf("ERROR: number of species not set\n");
 	exit(37);
       }
 	
@@ -201,6 +205,11 @@ void read_input(int *nspec,
     }    
 
     /*ICs for 1D problems*/
+    if(strcmp(line,"Init_from_file") == 0) {
+      *input_file_data_flag = 1;
+      read_line(input_file,input_file_data_filename);
+    }
+      
     if (strcmp(line,"NumIntervals") == 0) {
       *numint = read_int(input_file);
 
@@ -336,6 +345,7 @@ void set_default_values(int *Nx,
 			int *BGK_type, 
 			double *beta, 
 			int *hydro_flag,
+			int *input_file_data_flag,
 			int *dataFreq,
 			int *dumpDist,
 			double *RHS_tol
@@ -385,6 +395,8 @@ void set_default_values(int *Nx,
   *beta = 0;
   
   *hydro_flag = 0;
+
+  *input_file_data_flag = 0;
 
   /*Order of accuracy of space/time discretization*/
   *order = 1;
