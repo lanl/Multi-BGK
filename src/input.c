@@ -46,7 +46,7 @@ void read_input(int *nspec,
 		char *input_file_data_filename,
 		char *inputFilename) {
 
-  char   line[100] = {"dummy"};
+  char   line[10000] = {"dummy"};
   char   input_path[100] = {"./input/"};
   FILE  *input_file;
   int i;
@@ -426,10 +426,10 @@ void check_input(const int *flag)
 /*!
  * This function reads a string of characters from a file
  */ 
-void read_line(FILE *file, char line[100])
+void read_line(FILE *file, char line[10000])
 {
 
-  fgets(line,100,file);
+  fgets(line,10000,file);
   if(line == NULL) {
     printf("\n%s\n","ERROR: read_line");
     printf("\n%s\n","Error while reading the input file!");
