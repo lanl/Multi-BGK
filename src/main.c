@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
   //initial condition parameters - 1D
   int numint;
   double *intervalLimits;
+  int input_file_data_flag = 0;
 
   double *vref;
 
@@ -160,6 +161,7 @@ int main(int argc, char **argv) {
   **********************************/  
 
   char input_filename[100];
+  char input_file_data_filename[100];
   strcpy(input_filename,argv[1]);
 
   read_input(&nspec, 
@@ -196,6 +198,8 @@ int main(int argc, char **argv) {
 	     &BGK_type, 
 	     &beta, 
 	     &hydro_kinscheme_flag,
+	     &input_file_data_flag,
+	     input_file_data_filename,
 	     input_filename);
 
 
@@ -509,17 +513,33 @@ int main(int argc, char **argv) {
 
       T0_oned[l] = 0.0;
     }
-    
-    //Find maximum temepratures
-    for(i=0;i<numint;i++)
-      for(j=0;j<nspec;j++) {
-	T_max[j] = (T_int[i*numint + j] > T_max[j]) ? T_int[i*numint + j] : T_max[j];
-	T0_max = (T_max[j] > T0_max) ? T_max[j] : T0_max;
-      }
 
-    if( (T0_max < Te_ref) && (ecouple == 1) ) 
-      T0_max = Te_ref;
-        
+    if(input_file_data_flag) {
+      printf("input_file_data_flag: %d, filename: %s\n",input_file_data_flag,input_file_data_filename);
+
+      initialize_sol_load_inhom_file(Nx, nspec, n_oned, v_oned, T_oned, input_file_data_filename);
+
+      //Find maximum temeprature
+      for(l=0;l<Nx;l++)
+	for(s=0;s<nspec;s++) {
+	  T_max[s] = (T_oned[l][s] > T_max[s]) ? T_oned[l][s] : T_max[s];
+	  T0_max = (T_max[s] > T0_max) ? T_max[s] : T0_max;
+	}
+      
+      if( (T0_max < Te_ref) && (ecouple == 1) ) 
+	T0_max = Te_ref;
+
+    }
+    else {
+      for(i=0;i<numint;i++)
+	for(j=0;j<nspec;j++) {
+	  T_max[j] = (T_int[i*numint + j] > T_max[j]) ? T_int[i*numint + j] : T_max[j];
+	  T0_max = (T_max[j] > T0_max) ? T_max[j] : T0_max;
+	}
+      
+      if( (T0_max < Te_ref) && (ecouple == 1) ) 
+	T0_max = Te_ref;
+    }
     //Stuff for poisson calc
     PoisPot = malloc(Nx*sizeof(double));
     source = malloc(Nx*sizeof(double));
@@ -674,7 +694,12 @@ int main(int argc, char **argv) {
 
     initialize_transport(Nv, Nx, nspec, x, dxarray, Lx, c, order, dt);
     
-    initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, c, m, n_oned, v_oned, T_oned);    
+    //check if we are loading moment data from a file
+    if(input_file_data_flag) {
+      initialize_sol_inhom_file(f, Nx, nspec, Nv, c, m, n_oned, v_oned, T_oned);
+    }
+    else
+      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, c, m, n_oned, v_oned, T_oned);    
   
     printf("Initial condition setup complete\n"); fflush(stdout);      
   }
