@@ -105,7 +105,7 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
 
   FILE *data_file = fopen(input_path,"r");
   
-  char line[2056] = {"dummy"};
+  char line[100000] = {"dummy"};
   char *token;
   int stopFlag = 0;
 
