@@ -976,13 +976,14 @@ int main(int argc, char **argv) {
       }
 
       //Convert to eV/cm            units       g cm^2/s^2         cm    -> eV / cm  
-      fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx-1])/(2*dx) * ERG_TO_EV_CGS);
-      for(l=1;l<Nx-1;l++) {
-	fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
+      if(dataFreq == outcount) {
+	fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx-1])/(2*dx) * ERG_TO_EV_CGS);
+	for(l=1;l<Nx-1;l++) {
+	  fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
+	}
+	fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx-2])/(2*dx) * ERG_TO_EV_CGS);
+	fprintf(outputFilePoiss,"\n");
       }
-      fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx-2])/(2*dx) * ERG_TO_EV_CGS);
-      fprintf(outputFilePoiss,"\n");
-
       
       if(order == 1) {
 	//ADVECT
