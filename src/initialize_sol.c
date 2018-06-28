@@ -130,9 +130,10 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
       }
       else {
 	read_line(data_file,line);
-	for(l=0;l<Nx;l++) {
-	  token = strtok(line," ");	    
+	token = strtok(line," ");	    
+	for(l=0;l<Nx;l++) {	  
 	  n_oned[l][sp] = atof(token);
+	  token = strtok(NULL," ");	    
 	}
       }
 
@@ -145,11 +146,12 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
       }
       else {
 	read_line(data_file,line);
+	token = strtok(line," ");	    
 	for(l=0;l<Nx;l++) {
-	  token = strtok(line," ");	    
 	  v_oned[l][sp][0] = atof(token);
 	  v_oned[l][sp][0] = 0;
 	  v_oned[l][sp][0] = 0;
+	  token = strtok(NULL," ");	    
 	}
       }
 
@@ -161,9 +163,10 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
       }
       else {
 	read_line(data_file,line);
+	token = strtok(line," ");	    
 	for(l=0;l<Nx;l++) {
-	  token = strtok(line," ");	    
 	  T_oned[l][sp] = atof(token);
+	  token = strtok(NULL," ");	    
 	}
       }
 
@@ -173,6 +176,14 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
       exit(1);
     }
       
+  }
+
+  // check data load
+  for(sp=0;sp<nspec;sp++) {
+    printf("Species %d \n",sp);
+    for(l=0;l<Nx;l++) {
+      printf("%d: n: %g v: %g T: %g\n",l,n_oned[l][sp],v_oned[l][sp][0],T_oned[l][sp]);
+    }
   }
 
 }
