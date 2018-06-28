@@ -190,7 +190,7 @@ void getColl(double *n,  double *T, double Te, double *Z, double *nuij, double *
   //    This is when the electrons are a fixed background temperature. i=-1 is just what we send when we just want 
   //    the rates back since they are not an actual species
   if (((i == 0) && (ecouple == 2)) || (i < 0)) {  
-
+    
     //Find Coulomb Logarithm
     if(CL_type == 0) { //GMS
       a_i = ionSphereRadius(n[j]); //cm
@@ -522,19 +522,20 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 	    //v2_2 += v[j][k]*v[j][k];
 	  }
 
+	  if(tauFlag == 1) {
 	  //original formula for mixT
-	  //mixT = (n[i]*nu12*T[i] + n[j]*nu21*T[j])/(n[i]*nu12 + n[j]*nu21) - ERG_TO_EV_CGS*(rho[i]*nu12*(mixU_sq - v2_1) + rho[j]*nu21*(mixU_sq - v2_2))/(3.0*(n[i]*nu12 + n[j]*nu21)); 
-
-
-	  
-	  //simplified formulas for mixT
-	  double vdiff2 = (v[i][0] - v[j][0])*(v[i][0] - v[j][0]) + (v[i][1] - v[j][1])*(v[i][1] - v[j][1]) + (v[i][2] - v[j][2])*(v[i][2] - v[j][2]);
-
-	  if(MT_or_TR == 0) {	    
-	    mixT = (m[j]*T[i] + m[i]*T[j])/(m[i] + m[j]) + (m[i]*m[j])/(6.0*(m[i] + m[j]))*ERG_TO_EV_CGS*vdiff2;
+	    mixT = (n[i]*nu12*T[i] + n[j]*nu21*T[j])/(n[i]*nu12 + n[j]*nu21) + ERG_TO_EV_CGS*(rho[i]*nu12*(v2_1 - mixU_sq) + rho[j]*nu21*(v2_2 - mixU_sq))/(3.0*(n[i]*nu12 + n[j]*nu21)); 
 	  }
 	  else {
-	    mixT = 0.5*(T[i] + T[j]) + (m[i]*m[j])/(6.0*(m[i] + m[j]))*ERG_TO_EV_CGS*vdiff2;
+	    //simplified formulas for mixT
+	    double vdiff2 = (v[i][0] - v[j][0])*(v[i][0] - v[j][0]) + (v[i][1] - v[j][1])*(v[i][1] - v[j][1]) + (v[i][2] - v[j][2])*(v[i][2] - v[j][2]);
+	    
+	    if(MT_or_TR == 0) {	    
+	      mixT = (m[j]*T[i] + m[i]*T[j])/(m[i] + m[j]) + (m[i]*m[j])/(6.0*(m[i] + m[j]))*ERG_TO_EV_CGS*vdiff2;
+	    }
+	    else {
+	      mixT = 0.5*(T[i] + T[j]) + (m[i]*m[j])/(6.0*(m[i] + m[j]))*ERG_TO_EV_CGS*vdiff2;
+	    }
 	  }
 	  
 
