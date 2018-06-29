@@ -517,9 +517,9 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 	  v2_2 = 0.0;
 	  for(k=0;k<3;k++) {
 	    mixU[k] = (rho[i]*nu12*v[i][k] + rho[j]*nu21*v[j][k])/(rho[i]*nu12 + rho[j]*nu21);
-	    //mixU_sq += mixU[k]*mixU[k];
-	    //v2_1 += v[i][k]*v[i][k];
-	    //v2_2 += v[j][k]*v[j][k];
+	    mixU_sq += mixU[k]*mixU[k];
+	    v2_1 += v[i][k]*v[i][k];
+	    v2_2 += v[j][k]*v[j][k];
 	  }
 
 	  if(tauFlag == 1) {
