@@ -1,0 +1,91 @@
+# INPUT FILE FOR MULTI BGK
+#----------------------------------------------------------
+# Number of species
+nspec
+3
+# electron
+# Sulfur(+11)
+# Flourine(+7)
+#----------------------------------------------------------
+# 0D or 1D
+dims
+0
+#----------------------------------------------------------
+# Number of nodes in each direction in velocity space
+Nv
+60
+#----------------------------------------------------------
+# Velocity discretization
+discret
+1
+#----------------------------------------------------------
+# Timestep
+Time_step
+1e-15
+#----------------------------------------------------------
+# Number of steps
+Final_time
+200000e-15
+#----------------------------------------------------------
+# Data writing frequency - number of timesteps between output snaphot
+Data_writing_frequency
+10
+#----------------------------------------------------------
+# Flavor of BGK
+BGKtype
+0
+#----------------------------------------------------------
+# Electron coupling flag
+ecouple
+2
+#----------------------------------------------------------
+# Coulomb log type
+Coulomb_type
+0
+#----------------------------------------------------------
+# ion cross section type
+Ion_coll_type
+0
+#----------------------------------------------------------
+# ion cross section type
+Ion_coll_flavor
+0
+#----------------------------------------------------------
+# Spatial/temporal order of accuracy
+Space_order
+1
+#----------------------------------------------------------
+# Implicit or explicit implementation of BGK operator
+Imp_Exp
+0
+#----------------------------------------------------------
+# Species masses (g)
+mass
+9.10938e-28
+5.3245181e-23
+3.1547588e-23
+#----------------------------------------------------------
+# Species base ionizations
+Z
+1.0
+11.0
+7.0
+#----------------------------------------------------------
+# Species number density (cc)
+n
+53e19
+6e19
+1e19
+#----------------------------------------------------------
+# Species x velo (m/s)
+v
+0.0
+0.0
+0.0
+#----------------------------------------------------------
+# Species temperature (eV)
+T
+100.0
+15.0
+15.0
+Stop
