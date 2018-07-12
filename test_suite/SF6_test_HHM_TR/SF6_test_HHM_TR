@@ -25,7 +25,7 @@ Time_step
 #----------------------------------------------------------
 # Number of steps
 Final_time
-200000e-15
+100e-15
 #----------------------------------------------------------
 # Data writing frequency - number of timesteps between output snaphot
 Data_writing_frequency
