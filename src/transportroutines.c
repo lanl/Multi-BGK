@@ -48,6 +48,168 @@ double minmod(double in1, double in2, double in3)
     return 0;
 }
 
+void initialize_transport(int numV, int numX, int nspec, double *xnodes, double *dxnodes, double Lx_val, double **vel, int ord, double timestep) {
+  N = numV;
+  nX = numX; //Remember that this is nX in the rank
+  x = xnodes;
+  dx = dxnodes;
+  ns = nspec;
+  Lx = Lx_val; 
+
+  c = vel;
+
+  order = ord;
+  dt = timestep;
+
+  int i,l;
+  f_star = malloc((nX+2*order)*sizeof(double *));
+  for(l=0;l<nX+2*order;l++){
+    f_star[l] = malloc(nspec*sizeof(double *));
+    for(i=0;i<nspec;i++)
+      f_star[l][i] = malloc(N*N*N*sizeof(double));
+  }
+  
+  x = xnodes;
+  dx = dxnodes;
+}
+
+
+/*$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
+void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
+
+  int rank, numRanks;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
+  MPI_Status status;
+
+
+  if(numRanks != 1) { 
+    printf("ERROR: code does not allow for multiple processes at present!\n");
+    exit(1);
+  }
+
+  //FILL INTERIOR GHOST CELLS
+
+  if((rank % 2) == 0) { //Have even nodes send first
+    
+    if(rank != (numRanks - 1)) // Send right data to odd nodes
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD);    
+
+    if(rank != 0) // Receive left data from odd nodes
+      MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status);
+
+
+    if(rank != 0) //Send left data to odd nodes
+      MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD);
+
+    if(rank != (numRanks - 1)) //Recieve right data from odd nodes
+      MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+
+  }
+  else { // Odd nodes recieve first
+    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status); //Receive left data from even nodes
+
+    if(rank != (numRanks-1))
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD); //Send right data to even nodes
+
+  
+    if(rank != (numRanks-1)) // Get right data from even nodes
+      MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+    
+    if(rank != 0) // Send left data to evens
+      MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD); 
+  }
+
+
+  //Now deal with boundary 
+  if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
+    MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+
+    MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+  }
+
+  if(rank == 0) { //Leftmost rank receives then sends to rank N-1
+    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+
+    MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+  }
+}
+
+void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
+
+  int rank, numRanks;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
+  MPI_Status status;
+
+
+  if(numRanks != 1) { 
+    printf("ERROR: code does not allow for multiple processes at present!\n");
+    exit(1);
+  }
+
+  //FILL INTERIOR GHOST CELLS
+
+  if((rank % 2) == 0) { //Have even nodes send first
+    
+    if(rank != (numRanks - 1)) {// Send right data to odd nodes
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD);    
+      MPI_Send(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD);    
+    }
+    if(rank != 0) {// Receive left data from odd nodes
+      MPI_Recv(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status);
+      MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status);
+    }
+
+    if(rank != 0) {//Send left data to odd nodes
+      MPI_Send(f[2][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD);
+      MPI_Send(f[3][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD);
+    }
+    if(rank != (numRanks - 1)) {//Recieve right data from odd nodes
+      MPI_Recv(f[nX+3][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+      MPI_Recv(f[nX+2][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+    }
+  }
+  else { // Odd nodes recieve first
+    MPI_Recv(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status); //Receive left data from even nodes
+    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status); //Receive left data from even nodes
+
+    if(rank != (numRanks-1)) {
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD); //Send right data to even nodes
+      MPI_Send(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD); //Send right data to even nodes
+    }
+  
+    if(rank != (numRanks-1)) {// Get right data from even nodes
+      MPI_Recv(f[nX+3][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+      MPI_Recv(f[nX+2][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+    }
+    if(rank != 0) {// Send left data to evens
+      MPI_Send(f[2][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD); 
+      MPI_Send(f[3][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD); 
+    }
+  }
+
+
+  //Now deal with boundary 
+  if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
+    MPI_Send(f[nX],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+    MPI_Send(f[nX+1],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+
+    MPI_Recv(f[nX+3],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+    MPI_Recv(f[nX+2],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+  }
+
+  if(rank == 0) { //Leftmost rank receives then sends to rank N-1
+    MPI_Recv(f[1],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+    MPI_Recv(f[0],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+
+    MPI_Send(f[2],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+    MPI_Send(f[3],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+  }
+}
+
+
+
 
 //Computes the x direction first order upwind solution FOR A SINGLE SPECIES
 void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
@@ -55,18 +217,11 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   int index;
   double CFL_NUM, CFL_NUM2;
 
-  int rank, numNodes;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&numNodes);
-  MPI_Status status;
+  fillGhostCellsPeriodic_firstorder(f,sp);
 
+  //Note - the 'real' data lives in 1...Nx, the ghost points are 0 and Nx+1
 
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
-
-  for(l=1;l<nX-1;l++)  
+  for(l=1;l<nX+1;l++)  
     //#pragma omp parallel for private(CFL_NUM,i,j,k,index)
     for(i=0;i<N;i++) {
       CFL_NUM = dt*v[i]/dx[l];
@@ -81,29 +236,6 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
 	}
     }
       
-  //boundary cases
-  //#pragma omp parallel for private(CFL_NUM,CFL_NUM2,i,j,k,index)
-  for(i=0;i<N;i++) {
-    CFL_NUM  = dt*v[i]/dx[0];
-    CFL_NUM2 = dt*v[i]/dx[nX-1];
-    for(j=0;j<N;j++) 
-      for(k=0;k<N;k++) {	
-	index = k + N*(j + N*i);
-
-	//the upwinding
-	if(i < N/2) 
-	  f_conv[0][sp][index] = f[0][sp][index] - CFL_NUM*(f[1][sp][index] - f[0][sp][index]);
-	else 
-	  f_conv[0][sp][index] = f[0][sp][index] - CFL_NUM*(f[0][sp][index] - f[nX-1][sp][index]);
-
-	//the upwinding
-	if(i < N/2) 
-	  f_conv[nX-1][sp][index] = f[nX-1][sp][index] - CFL_NUM2*(f[0][sp][index]    - f[nX-1][sp][index]);
-	else 
-	  f_conv[nX-1][sp][index] = f[nX-1][sp][index] - CFL_NUM2*(f[nX-1][sp][index] - f[nX-2][sp][index]);
-      }
-	
-  }
 }
 
 //Computes the v direction first order upwind solution FOR A SINGLE SPECIES
@@ -136,13 +268,7 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
   }
   E[nX-1] = -qm[nX-1][sp]/m*(PoisPot[0] - PoisPot[nX-2])/(2.0*dx[nX-1]);  
 
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
-
-
-  for(l=0;l<nX;l++)  
+  for(l=1;l<nX+1;l++)  
     if(E[l] > 0) {
       CFL_NUM = dt*E[l]/h_v;
       //#pragma omp parallel for private(i,j,k,index)
@@ -181,52 +307,22 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
   double slope[3];
   double CFL_NUM;
 
-  int rank, numNodes;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&numNodes);
-  MPI_Status status;
-
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }  
+  fillGhostCellsPeriodic_secondorder(f,sp);
 
   //main upwinding
   double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
 
-  for(l=0;l<nX;l++) {    
-    if(l == 0) {
-      x_l  = x[nX-1] - Lx;      
-      x_ll = x[nX-2] - Lx;
-      dx_l = dx[nX-1];
-    }
-    else if (l == 1){
-      x_l  = x[0];      
-      x_ll = x[nX-1] - Lx;
-      dx_l = dx[0];
-    }
-    else {
-      x_l  = x[l-1];      
-      x_ll = x[l-2];
-      dx_l = dx[l-1];
-    }
+  for(l=2;l<nX+2;l++) {    
+    x_l  = x[l-1];      
+    x_ll = x[l-2];
+    dx_l = dx[l-1];
+    
+    x_r  = x[l+1];
+    x_rr = x[l+2];
+    dx_r = dx[l+1];
 
-    if(l == nX-1) {
-      x_r  = x[0] + Lx;
-      x_rr = x[1] + Lx;
-      dx_r = dx[0];
-    }
-    else if(l == nX-2) {
-      x_r  = x[nX-1];
-      x_rr = x[0] + Lx;
-      dx_r = dx[nX-1];
-    }
-    else {
-      x_r  = x[l+1];
-      x_rr = x[l+2];
-      dx_r = dx[l+1];
-    }
     //#pragma omp parallel for private(i,j,k,index,CFL_NUM,f_l,f_ll,f_r,slope)
+
     for(i=N/2;i<N;i++) {	
       CFL_NUM = dt*v[i]/dx[l];      
       for(j=0;j<N;j++) 
@@ -234,23 +330,10 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
 	  index = k + N*(j + N*i);
 	  //upwind coming from the left
 	  //generate the local slopes
-	  if(l==0) {
-	    f_l  = f[nX-1][sp][index];
-	    f_ll = f[nX-2][sp][index];
-	  }
-	  else if (l==1) {
-	    f_l  = f[0][sp][index];
-	    f_ll = f[nX-1][sp][index];
-	  }
-	  else {
-	    f_l  = f[l-1][sp][index];
-	    f_ll = f[l-2][sp][index];
-	  }
+	  f_l  = f[l-1][sp][index];
+	  f_ll = f[l-2][sp][index];
 	  
-	  if(l == nX-1) 
-	    f_r  = f[0][sp][index];	  
-	  else
-	    f_r  = f[l+1][sp][index];
+	  f_r  = f[l+1][sp][index];
 	  
 	  slope[1] = minmod(2.0*(f[l][sp][index] - f_l            )/(x[l] - x_l ),
 			    2.0*(f_r             - f[l][sp][index])/(x_r  - x[l]), 
@@ -272,23 +355,10 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
 	  index = k + N*(j + N*i);
 	  //upwind coming from the right
 	  //generate the local slopes
-	  if(l==0)
-	    f_l  = f[nX-1][sp][index];
-	  else
-	    f_l  = f[l-1][sp][index];
+	  f_l  = f[l-1][sp][index];
 
-	  if(l==nX-1) {
-	    f_r  = f[0][sp][index];
-	    f_rr = f[1][sp][index];
-	  }
-	  else if (l==nX-2) {
-	    f_r  = f[nX-1][sp][index];
-	    f_rr = f[0][sp][index];
-	  }
-	  else {
-	    f_r  = f[l+1][sp][index];
-	    f_rr = f[l+2][sp][index];
-	  }
+	  f_r  = f[l+1][sp][index];
+	  f_rr = f[l+2][sp][index];
 
 	  slope[2] = minmod(2.0*(f_r  - f[l][sp][index])/(x_r - x[l]),
 			    2.0*(f_rr - f_r            )/(x_rr - x_r), 
@@ -314,11 +384,6 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
   double slope[3];
   double CFL_NUM;
 
-  int rank, numNodes;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&numNodes);
-  MPI_Status status;
-
   h_v = v[1]-v[0];
 
   //Set electric field acceleration term
@@ -342,11 +407,6 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
     printf("Error - you must use a uniform velocity grid for second order advection\n Please set discret=0 in your input file.\n");
     exit(1);
   }
-
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }  
 
   //main upwinding
   double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
@@ -441,30 +501,6 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
 }  
 
 
-void initialize_transport(int numV, int numX, int nspec, double *xnodes, double *dxnodes, double Lx_val, double **vel, int ord, double timestep) {
-  N = numV;
-  nX = numX; //really NX NODE
-  x = xnodes;
-  dx = dxnodes;
-  ns = nspec;
-  Lx = Lx_val; 
-
-  c = vel;
-
-  order = ord;
-  dt = timestep;
-
-  int i,l;
-  f_star = malloc(nX*sizeof(double *));
-  for(l=0;l<nX;l++){
-    f_star[l] = malloc(nspec*sizeof(double *));
-    for(i=0;i<nspec;i++)
-      f_star[l][i] = malloc(N*N*N*sizeof(double));
-  }
-  
-  x = xnodes;
-  dx = dxnodes;
-}
 
 //does a first order splitting, solving v first and returns the updated f
 void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp) {
