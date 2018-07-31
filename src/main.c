@@ -125,7 +125,8 @@ int main(int argc, char **argv) {
 
   //Physical grid setup - 1D
   int order;                 //spatial order of scheme, 1 or 2
-  int Nx;           
+  int Nx;                    //Total number of physical grid points
+  int Nx_rank;               //Physical grid points on the current rank (not including ghost cells)
   double Lx;                 //in cm
   double dx;
   double *x, *dxarray;
@@ -477,24 +478,24 @@ int main(int argc, char **argv) {
     //Physical grid allocation and initialization
         
     dx = Lx/Nx;
-    x = malloc(Nx*sizeof(double));
-    dxarray = malloc(Nx*sizeof(double));
+    x = malloc(Nx_rank*sizeof(double));
+    dxarray = malloc(Nx_rank*sizeof(double));
 
     
     //set up moment arrays 
-    n_oned = malloc(Nx*sizeof(double *));
-    v_oned = malloc(Nx*sizeof(double **));
-    T_oned = malloc(Nx*sizeof(double *));
+    n_oned = malloc(Nx_rank*sizeof(double *));
+    v_oned = malloc(Nx_rank*sizeof(double **));
+    T_oned = malloc(Nx_rank*sizeof(double *));
 
-    v0_oned = malloc(Nx*sizeof(double *));
-    T0_oned = malloc(Nx*sizeof(double));
+    v0_oned = malloc(Nx_rank*sizeof(double *));
+    T0_oned = malloc(Nx_rank*sizeof(double));
 
     T_max = malloc(nspec*sizeof(double));
     for(i=0;i<nspec;i++)
       T_max[i] = 0.0;
     T0_max = 0.0;
     
-    for(l=0;l<Nx;l++) {
+    for(l=order;l<Nx_rank-order;l++) {
       x[l]       = l*dx + 0.5*dx - 0.5*Lx;
       dxarray[l] = dx;
       fprintf(outputFile_x,"%+le ",x[l]);
