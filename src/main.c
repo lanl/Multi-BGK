@@ -25,6 +25,7 @@
 //Vlasov/LHS packages
 #include "poissonNonlinPeriodic.h"
 #include "transportroutines.h"
+#include "mesh.h"
 
 //BGK/RHS packages
 #include "BGK.h"
@@ -477,10 +478,16 @@ int main(int argc, char **argv) {
 
     //Physical grid allocation and initialization
         
-    dx = Lx/Nx;
-    x = malloc(Nx_rank*sizeof(double));
-    dxarray = malloc(Nx_rank*sizeof(double));
+    make_mesh(Nx, Lx, order, &Nx_rank, x, dxarray);
+    dx = Lx / Nx;
+      
 
+    /*********
+    //Old style
+    dx = Lx/Nx;
+    x = malloc(Nx*sizeof(double));
+    dxarray = malloc(Nx*sizeof(double));
+    *********/
     
     //set up moment arrays 
     n_oned = malloc(Nx_rank*sizeof(double *));
