@@ -701,10 +701,10 @@ int main(int argc, char **argv) {
     //check if we are loading moment data from a file
     //Note: This is not yet MPI-ified
     if(input_file_data_flag) {
-      initialize_sol_inhom_file(f, Nx, nspec, Nv, c, m, n_oned, v_oned, T_oned);
+      initialize_sol_inhom_file(f, Nx, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);
     }
     else
-      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, c, m, n_oned, v_oned, T_oned);    
+      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);    
   
     printf("Initial condition setup complete\n"); fflush(stdout);      
   }

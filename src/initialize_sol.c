@@ -6,10 +6,10 @@
 #include "units/unit_data.c"
 #include "input.h"
 
-void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) {
+void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, int order, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) {
 
   //accessing multid arrays
-  //f - Nx nspec Nv*Nv*Nv
+  //f - (Nx_rank+2*order) nspec Nv*Nv*Nv
   //int_loc - nint
   //rho/v/T_in - nint nspec
   //x - nv
@@ -55,14 +55,14 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
 	    vIndex = k + Nv*(j + Nv*i);	    
 
  	    if(ndens_in[inputIndex] != 0) {
-	      f[l][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
+	      f[l+order][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
 		exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
 		    ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 
 	            + (c[s][j]*c[s][j])
 		    + (c[s][k]*c[s][k]) ));
 	    }
 	    else {
-	      f[l][s][vIndex] = 0.0;
+	      f[l+order][s][vIndex] = 0.0;
 	    }
 	  }	
     }
@@ -187,10 +187,10 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
   }
 
 }
-void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) 
+void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, int order, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) 
 {
   //accessing multid arrays
-  //f - Nx nspec Nv*Nv*Nv
+  //f - (Nx+2*order) nspec Nv*Nv*Nv
   //rho/v/T_in - Nx nspec
   //x - Nx
   //m - nspec
@@ -209,14 +209,14 @@ void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, double **
 	    vIndex = k + Nv*(j + Nv*i);	    
 
  	    if(n_oned[l][s] != 0) {
-	      f[l][s][vIndex] =  n_oned[l][s]*pow(m[s]/(2.0*M_PI*T_oned[l][s]/ERG_TO_EV_CGS),1.5)*
+	      f[l+order][s][vIndex] =  n_oned[l][s]*pow(m[s]/(2.0*M_PI*T_oned[l][s]/ERG_TO_EV_CGS),1.5)*
 		exp(-(0.5*m[s]/(T_oned[l][s]/ERG_TO_EV_CGS))*
 		    ( (c[s][i]-v_oned[l][s][0])*(c[s][i]-v_oned[l][s][0]) 
 	            + (c[s][j]*c[s][j])
     	            + (c[s][k]*c[s][k]) ));
 	    }
 	    else {
-	      f[l][s][vIndex] = 0.0;
+	      f[l+order][s][vIndex] = 0.0;
 	    }
 	  }	
     }
