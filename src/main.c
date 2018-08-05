@@ -33,9 +33,7 @@
 
 int main(int argc, char **argv) {
 
-  //MPI initializer. MPI is geared toward splitting on physical mesh, choice is a legacy of using this for 1D neutral Boltzmann solver but useful to keep around for the future...
   MPI_Init(&argc, &argv);
-
 
   //get input information, set up the problem
 
@@ -126,7 +124,7 @@ int main(int argc, char **argv) {
 
   //Physical grid setup - 1D
   int order;                 //spatial order of scheme, 1 or 2
-  int Nx;                    //Total number of physical grid points
+  int Nx;                    //Total number of physical grid points across all ranks
   int Nx_rank;               //Physical grid points on the current rank (not including ghost cells)
   double Lx;                 //in cm
   double dx;
@@ -326,8 +324,8 @@ int main(int argc, char **argv) {
   if(dims == 1) {
     strcpy(x_path,output_path);
     strcat(x_path,"_x");
-    outputFile_x = fopen(x_path,"w");
-  }
+    outputFile_x = fopen(x_path,"w");}
+  
 
   printf("Input file: %s\n",input_filename);
   printf("Output filename: %s\n",output_path);
@@ -476,9 +474,8 @@ int main(int argc, char **argv) {
 
   if(dims == 1) { 
 
-    //Physical grid allocation and initialization
-        
-    make_mesh(Nx, Lx, order, &Nx_rank, x, dxarray);
+    //Physical grid allocation and initialization        
+    make_mesh(Nx, Lx, order, &Nx_rank, &x, &dxarray);
     dx = Lx / Nx;
       
 
@@ -489,7 +486,7 @@ int main(int argc, char **argv) {
     dxarray = malloc(Nx*sizeof(double));
     *********/
     
-    //set up moment arrays 
+    //allocate rank-local moment arrays 
     n_oned = malloc(Nx_rank*sizeof(double *));
     v_oned = malloc(Nx_rank*sizeof(double **));
     T_oned = malloc(Nx_rank*sizeof(double *));
@@ -502,10 +499,8 @@ int main(int argc, char **argv) {
       T_max[i] = 0.0;
     T0_max = 0.0;
     
-    for(l=order;l<Nx_rank-order;l++) {
-      x[l]       = l*dx + 0.5*dx - 0.5*Lx;
-      dxarray[l] = dx;
-      fprintf(outputFile_x,"%+le ",x[l]);
+    for(l=0;l<Nx_rank;l++) {
+      //fprintf(outputFile_x,"%+le ",x[l]);
 
       n_oned[l] = malloc(nspec*sizeof(double));
       v_oned[l] = malloc(nspec*sizeof(double *));
@@ -527,8 +522,8 @@ int main(int argc, char **argv) {
 
       initialize_sol_load_inhom_file(Nx, nspec, n_oned, v_oned, T_oned, input_file_data_filename);
 
-      //Find maximum temeprature
-      for(l=0;l<Nx;l++)
+      //Find maximum temperature
+      for(l=0;l<Nx_rank;l++)
 	for(s=0;s<nspec;s++) {
 	  T_max[s] = (T_oned[l][s] > T_max[s]) ? T_oned[l][s] : T_max[s];
 	  T0_max = (T_max[s] > T0_max) ? T_max[s] : T0_max;
@@ -548,23 +543,24 @@ int main(int argc, char **argv) {
       if( (T0_max < Te_ref) && (ecouple == 1) ) 
 	T0_max = Te_ref;
     }
-    //Stuff for poisson calc
-    PoisPot = malloc(Nx*sizeof(double));
-    source = malloc(Nx*sizeof(double));
-    T_for_zbar = malloc(Nx*sizeof(double));    
-    Te_arr = malloc(Nx*sizeof(double));
+
+
+    //Allocate for poisson calc
+    PoisPot = malloc(Nx_rank*sizeof(double));
+    source = malloc(Nx_rank*sizeof(double));
+    T_for_zbar = malloc(Nx_rank*sizeof(double));    
+    Te_arr = malloc(Nx_rank*sizeof(double));
     
-    Z_oned = malloc(Nx*sizeof (double *));
+    Z_oned = malloc(Nx_rank*sizeof (double *));
     
-    for(l=0;l<Nx;l++) {
+    for(l=0;l<Nx_rank;l++) {
       Z_oned[l] = malloc(nspec*sizeof(double));
       for(i=0;i<nspec;i++) 
 	Z_oned[l][i] = Z_max[i]; //initialized at full ionization
     }
     
     
-    //Velocity grid allocation and initialization    
-    
+    //Velocity grid allocation and initialization        
 
     //set the velocity grids
     vref = malloc(nspec*sizeof(double));
@@ -635,18 +631,18 @@ int main(int argc, char **argv) {
       free(GLWeights);
     }
      
-    io_init_inhomog(Nx,Nv,nspec,c);
+    io_init_inhomog(Nx_rank,Nv,nspec,c);
     if (outputDist == 1) {
       store_grid(input_filename);
     }
 
     //Distribution function setup    
     
-    f      = malloc(Nx*sizeof(double *));
-    f_tmp  = malloc(Nx*sizeof(double *));
-    f_conv  = malloc(Nx*sizeof(double *));
+    f      = malloc((Nx_rank + 2*order)*sizeof(double *));
+    f_tmp  = malloc((Nx_rank + 2*order)*sizeof(double *));
+    f_conv  = malloc((Nx_rank + 2*order)*sizeof(double *));
     
-    for(l=0;l<Nx;l++) {      
+    for(l=0;l<(Nx_rank + 2*order);l++) {      
       f[l]      = malloc(nspec*sizeof(double *));
       f_tmp[l]  = malloc(nspec*sizeof(double *));
       f_conv[l] = malloc(nspec*sizeof(double *));
@@ -700,9 +696,10 @@ int main(int argc, char **argv) {
 
   if(dims == 1) {
 
-    initialize_transport(Nv, Nx, nspec, x, dxarray, Lx, c, order, dt);
+    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
     
     //check if we are loading moment data from a file
+    //Note: This is not yet MPI-ified
     if(input_file_data_flag) {
       initialize_sol_inhom_file(f, Nx, nspec, Nv, c, m, n_oned, v_oned, T_oned);
     }
@@ -863,14 +860,15 @@ int main(int argc, char **argv) {
 
       outcount += 1;    
 
-      for(l=0;l<Nx;l++) {
+      //Calculate moment data in all cells
+      for(l=0;l<Nx_rank;l++) {
 	ntot = 0.0;
 	rhotot = 0.0;
 	for(i=0;i<nspec;i++) {
-	  n_oned[l][i] = getDensity(f[l][i],i);
+	  n_oned[l][i] = getDensity(f[l+order][i],i);
 	  ntot += n_oned[l][i];
 	  rhotot += m[i]*n_oned[l][i];
-	  getBulkVel(f[l][i],v_oned[l][i],n_oned[l][i],i);
+	  getBulkVel(f[l+order][i],v_oned[l][i],n_oned[l][i],i);
 	}
 	
 	//get mixture mass avg velocity
@@ -883,7 +881,7 @@ int main(int argc, char **argv) {
 	
 	//Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in eV
 	for(i=0;i<nspec;i++) {
-	  T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l][i],i);
+	  T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l+order][i],i);
 	  if(outcount == dataFreq) {
 	    fprintf(outputFileDens[i],"%le ",n_oned[l][i]); 
 	    fprintf(outputFileVelo[i],"%le ",v_oned[l][i][0]); 
@@ -908,9 +906,9 @@ int main(int argc, char **argv) {
 
       //Section to run this like the kinetic scheme for hydro
       if (hydro_kinscheme_flag == 1) {
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
-	    GetMaxwell(m[i],n_oned[l][i],v_oned[l][i],T_oned[l][i],f[l][i],i);
+	    GetMaxwell(m[i],n_oned[l][i],v_oned[l][i],T_oned[l][i],f[l+order][i],i);
       }
 
 
@@ -937,15 +935,15 @@ int main(int argc, char **argv) {
 
       if(ecouple == 1) { //electrons only in background
 	if(Te_start != Te_ref)  
-	  get_ramp_Te(Te_arr, Nx, Te_start, Te_ref, t, tfinal);
+	  get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
 	else
-	  get_uniform_Te(Te_arr, Nx, Te_ref); //fixed background temperature			
+	  get_uniform_Te(Te_arr, Nx_rank, Te_ref); //fixed background temperature			
       }
       else 
 	Te_arr = T0_oned;
 
       if(ecouple == 2) {
-	for(l=0;l<Nx;l++) {
+	for(l=0;l<Nx_rank;l++) {
 	  source[l] = 0.0;
 	  for(i=1;i<nspec;i++)  {
 	    source[l] += Z_oned[l][i]*n_oned[l][i]; //total number of free electrons in each cell
@@ -955,7 +953,7 @@ int main(int argc, char **argv) {
 
       }
       else {
-	for(l=0;l<Nx;l++) {
+	for(l=0;l<Nx_rank;l++) {
 	  source[l] = 0.0;
 	  //Get ionization
 	  zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
@@ -966,30 +964,30 @@ int main(int argc, char **argv) {
       }
       
       if (ecouple == 2) {
-	simplePoisson(Nx,source,dx,Lx,PoisPot);	  
+	simplePoisson(Nx_rank,source,dx,Lx,PoisPot);	  
       }
       else {
 	if(poissFlavor == 0) { //no E-field
-	  for(l=0;l<Nx;l++)
+	  for(l=0;l<Nx_rank;l++)
 	    PoisPot[l] = 0.0;
 	}
 	else if(poissFlavor == 11)  //Linear Yukawa
-	  PoissLinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	  PoissLinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	else if (poissFlavor == 12) //Nonlinear Yukawa
-	  PoissNonlinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	  PoissNonlinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	else if (poissFlavor == 21) //Linear Thomas-Fermi
-	  PoissLinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	  PoissLinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	else if (poissFlavor == 22) //Nonlinear Thomas-Fermi
-	  PoissNonlinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	  PoissNonlinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
       }
 
       //Convert to eV/cm            units       g cm^2/s^2         cm    -> eV / cm  
       if(dataFreq == outcount) {
-	fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx-1])/(2*dx) * ERG_TO_EV_CGS);
-	for(l=1;l<Nx-1;l++) {
+	fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx_rank-1])/(2*dx) * ERG_TO_EV_CGS);
+	for(l=1;l<Nx_rank-1;l++) {
 	  fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
 	}
-	fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx-2])/(2*dx) * ERG_TO_EV_CGS);
+	fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx_rank-2])/(2*dx) * ERG_TO_EV_CGS);
 	fprintf(outputFilePoiss,"\n");
       }
       
@@ -1002,11 +1000,11 @@ int main(int argc, char **argv) {
 	
 	//COLLIDE
 	
-	for(l=0;l<Nx;l++)  {	  
-	  BGK_ex(f[l],f_tmp[l],Z_oned[l],dt,Te_arr[l]);
+	for(l=0;l<Nx_rank;l++)  {	  
+	  BGK_ex(f[l+order],f_tmp[l+order],Z_oned[l],dt,Te_arr[l]);
 	  for(i=0;i<nspec;i++) 
 	    for(j=0;j<Nv*Nv*Nv;j++) 
-	      f[l][i][j] += dt*f_tmp[l][i][j];
+	      f[l+order][i][j] += dt*f_tmp[l+order][i][j];
 	  	  	  
 	}		
       }
@@ -1029,19 +1027,19 @@ int main(int argc, char **argv) {
 	  advectTwo_v(f,f_conv,PoisPot,Z_oned,m[i],i);
 	}
 
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f_tmp[l][i][j] = f[l][i][j] + 0.5*f_conv[l][i][j];
+	      f_tmp[l+order][i][j] = f[l+order][i][j] + 0.5*f_conv[l+order][i][j];
 
 
 	if(ecouple == 1) { //electrons only in background
 
 	  if(Te_start != Te_ref)
-	    get_ramp_Te(Te_arr,Nx,Te_start,Te_ref,t,tfinal);
+	    get_ramp_Te(Te_arr,Nx_rank,Te_start,Te_ref,t,tfinal);
 	  else
-	    get_uniform_Te(Te_arr, Nx, Te_ref); //fixed background temperature	
+	    get_uniform_Te(Te_arr, Nx_rank, Te_ref); //fixed background temperature	
 
 	}
 	else
@@ -1049,11 +1047,11 @@ int main(int argc, char **argv) {
 
 	//Recalc Poiss
 	if(ecouple == 2) {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    source[l] = 0.0;
 
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f_tmp[l][i],i);
+	      n_oned[l][i] = getDensity(f_tmp[l+order][i],i);
 	    
 	    for(i=1;i<nspec;i++) 
 	      source[l] += Z_oned[l][i]*n_oned[l][i]; //total number of free electrons in each cell
@@ -1062,9 +1060,9 @@ int main(int argc, char **argv) {
 	  
 	}
 	else {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f_tmp[l][i],i);
+	      n_oned[l][i] = getDensity(f_tmp[l+order][i],i);
 	    zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
 	    
 	    source[l] = 0.0;
@@ -1074,21 +1072,21 @@ int main(int argc, char **argv) {
 	}
 		
 	if (ecouple == 2) {
-	  simplePoisson(Nx,source,dx,Lx,PoisPot);	  
+	  simplePoisson(Nx_rank,source,dx,Lx,PoisPot);	  
 	}
 	else {
 	  if(poissFlavor == 0) { //no E-field
-	    for(l=0;l<Nx;l++) 
+	    for(l=0;l<Nx_rank;l++) 
 	      PoisPot[l] = 0.0;
 	  }
 	  else if(poissFlavor == 11)  //Linear Yukawa
-	    PoissLinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 12) //Nonlinear Yukawa
-	    PoissNonlinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 21) //Linear Thomas-Fermi
-	    PoissLinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 22) //Nonlinear Thomas-Fermi
-	    PoissNonlinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	}
 	
 	//RK2 Step 2
@@ -1097,11 +1095,11 @@ int main(int argc, char **argv) {
 	}
 	
 	
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f[l][i][j] = 0.5*(f[l][i][j] + f_tmp[l][i][j]) + 0.25*f_conv[l][i][j];
+	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.25*f_conv[l+order][i][j];
 	
 
 	//Next strang step - x advection with timestep dt/2
@@ -1111,40 +1109,40 @@ int main(int argc, char **argv) {
 	  advectTwo_x(f,f_conv,i);
 	}
 
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f_tmp[l][i][j] = f[l][i][j] + 0.5*f_conv[l][i][j];
+	      f_tmp[l+order][i][j] = f[l+order][i][j] + 0.5*f_conv[l+order][i][j];
 
 	//RK2 Step 2
 	for(i=0;i<nspec;i++) {
 	  advectTwo_x(f_tmp,f_conv,i);
 	}
 	
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f[l][i][j] = 0.5*(f[l][i][j] + f_tmp[l][i][j]) + 0.25*f_conv[l][i][j];
+	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.25*f_conv[l+order][i][j];
 
 	
 	
 	//Next Strang step - RK2 for collision with timstep dt	
 
 	
-	for(l=0;l<Nx;l++)  {	  
+	for(l=0;l<Nx_rank;l++)  {	  
 	  //Step 1
-	  BGK_ex(f[l],f_conv[l],Z_oned[l],dt,Te_arr[l]);
+	  BGK_ex(f[l+order],f_conv[l+order],Z_oned[l],dt,Te_arr[l]);
 	  for(i=0;i<nspec;i++) 
 	    for(j=0;j<Nv*Nv*Nv;j++) 
-	      f_tmp[l][i][j] = f[l][i][j] + dt*f_conv[l][i][j];
+	      f_tmp[l+order][i][j] = f[l+order][i][j] + dt*f_conv[l+order][i][j];
 	  
 	  //Step 2
-	  BGK_ex(f_tmp[l],f_conv[l],Z_oned[l],dt,Te_arr[l]);
+	  BGK_ex(f_tmp[l+order],f_conv[l+order],Z_oned[l],dt,Te_arr[l]);
 	  for(i=0;i<nspec;i++) 
 	    for(j=0;j<Nv*Nv*Nv;j++) 
-	      f[l][i][j] = 0.5*(f[l][i][j] + f_tmp[l][i][j]) + 0.5*dt*f_conv[l][i][j];
+	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.5*dt*f_conv[l+order][i][j];
 	  
 	}
 	    	
@@ -1157,21 +1155,21 @@ int main(int argc, char **argv) {
 	  advectTwo_x(f,f_conv,i);
 	}
 	
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f_tmp[l][i][j] = f[l][i][j] + 0.5*f_conv[l][i][j];
+	      f_tmp[l+order][i][j] = f[l+order][i][j] + 0.5*f_conv[l+order][i][j];
 
 	//RK2 Step 2
 	for(i=0;i<nspec;i++) {
 	  advectTwo_x(f_tmp,f_conv,i);
 	}
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f[l][i][j] = 0.5*(f[l][i][j] + f_tmp[l][i][j]) + 0.25*f_conv[l][i][j];
+	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.25*f_conv[l+order][i][j];
 
 
 
@@ -1182,18 +1180,18 @@ int main(int argc, char **argv) {
 
 	if(ecouple == 1) { //electrons only in background
 	  if(Te_start != Te_ref)
-	    get_ramp_Te(Te_arr,Nx,Te_start,Te_ref,t,tfinal);
+	    get_ramp_Te(Te_arr,Nx_rank,Te_start,Te_ref,t,tfinal);
 	  else
-	    get_uniform_Te(Te_arr, Nx, Te_ref); //fixed background temperature	
+	    get_uniform_Te(Te_arr, Nx_rank, Te_ref); //fixed background temperature	
 	}
 	else
 	  Te_arr = T0_oned;
 
 	if(ecouple == 2) {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    source[l] = 0.0;
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f[l][i],i);
+	      n_oned[l][i] = getDensity(f[l+order][i],i);
 
 	    for(i=1;i<nspec;i++) 
 	      source[l] += Z_oned[l][i]*n_oned[l][i]; //total number of free electrons in each cell
@@ -1201,9 +1199,9 @@ int main(int argc, char **argv) {
 	  }
 	}
 	else {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f[l][i],i);
+	      n_oned[l][i] = getDensity(f[l+order][i],i);
 	    zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
 	    source[l] = 0.0;
 	    for(i=0;i<nspec;i++) 
@@ -1212,21 +1210,21 @@ int main(int argc, char **argv) {
 	}
 
 	if (ecouple == 2) {
-	  simplePoisson(Nx,source,dx,Lx,PoisPot);	  
+	  simplePoisson(Nx_rank,source,dx,Lx,PoisPot);	  
 	}
 	else {
 	  if(poissFlavor == 0) { //no E-field
-	    for(l=0;l<Nx;l++)
+	    for(l=0;l<Nx_rank;l++)
 	      PoisPot[l] = 0.0;
 	  }
 	  else if(poissFlavor == 11)  //Linear Yukawa
-	    PoissLinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 12) //Nonlinear Yukawa
-	    PoissNonlinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 21) //Linear Thomas-Fermi
-	    PoissLinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 22) //Nonlinear Thomas-Fermi
-	    PoissNonlinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	}
 	
 	//RK2 Step 1
@@ -1234,29 +1232,29 @@ int main(int argc, char **argv) {
 	  advectTwo_v(f,f_conv,PoisPot,Z_oned,m[i],i);
 	}
 	
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f_tmp[l][i][j] = f[l][i][j] + 0.5*f_conv[l][i][j];
+	      f_tmp[l+order][i][j] = f[l+order][i][j] + 0.5*f_conv[l+order][i][j];
 
 	//Recalc Poiss
 
 	if(ecouple == 1) { //electrons only in background
 	  if(Te_start != Te_ref)
-	    get_ramp_Te(Te_arr,Nx,Te_start,Te_ref,t,tfinal);
+	    get_ramp_Te(Te_arr,Nx_rank,Te_start,Te_ref,t,tfinal);
 	  else
-	    get_uniform_Te(Te_arr, Nx, Te_ref); //fixed background temperature	
+	    get_uniform_Te(Te_arr, Nx_rank, Te_ref); //fixed background temperature	
 	}
 	else
 	  Te_arr = T0_oned;
 
 	if(ecouple == 2) {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    source[l] = 0.0;
 
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f_tmp[l][i],i);
+	      n_oned[l][i] = getDensity(f_tmp[l+order][i],i);
 	    for(i=0;i<nspec;i++) 
 	      source[l] += Z_oned[l][i]*n_oned[l][i]; //total number of free electrons in each cell
 	    source[l] -= n_oned[l][0];
@@ -1264,9 +1262,9 @@ int main(int argc, char **argv) {
 
 	}
 	else {
-	  for(l=0;l<Nx;l++) {
+	  for(l=0;l<Nx_rank;l++) {
 	    for(i=0;i<nspec;i++)
-	      n_oned[l][i] = getDensity(f_tmp[l][i],i);
+	      n_oned[l][i] = getDensity(f_tmp[l+1][i],i);
 	    zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
 	    source[l] = 0.0;
 	    for(i=0;i<nspec;i++) 
@@ -1275,37 +1273,34 @@ int main(int argc, char **argv) {
 	}
 	
 	if (ecouple == 2) {
-	  simplePoisson(Nx,source,dx,Lx,PoisPot);	  
+	  simplePoisson(Nx_rank,source,dx,Lx,PoisPot);	  
 	}
 	else {
 	  if(poissFlavor == 0) { //no E-field
-	    for(l=0;l<Nx;l++)
+	    for(l=0;l<Nx_rank;l++)
 	      PoisPot[l] = 0.0;
 	  }
 	  else if(poissFlavor == 11)  //Linear Yukawa
-	    PoissLinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 12) //Nonlinear Yukawa
-	    PoissNonlinPeriodic1D(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 21) //Linear Thomas-Fermi
-	    PoissLinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissLinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	  else if (poissFlavor == 22) //Nonlinear Thomas-Fermi
-	    PoissNonlinPeriodic1D_TF(Nx,source,dx,Lx,PoisPot,Te_arr);
+	    PoissNonlinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
 	}
 	
 	//RK2 Step 2
 	for(i=0;i<nspec;i++) {
 	  advectTwo_v(f_tmp,f_conv,PoisPot,Z_oned,m[i],i);
 	}
-	for(l=0;l<Nx;l++)
+	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    //#pragma omp parallel for private(j)
 	    for(j=0;j<Nv*Nv*Nv;j++)
-	      f[l][i][j] = 0.5*(f[l][i][j] + f_tmp[l][i][j]) + 0.25*f_conv[l][i][j];
-	
-      }
-      
+	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.25*f_conv[l+order][i][j];	
+      }      
     }   
-
     t += dt;
     nT++;
   }
@@ -1350,7 +1345,7 @@ int main(int argc, char **argv) {
     fclose(outputFile_x);
     fclose(outputFilePoiss);
     
-    for(l=0;l<Nx;l++) {      
+    for(l=0;l<Nx_rank;l++) {      
       free(n_oned[l]);
       free(T_oned[l]);
       free(v0_oned[l]);

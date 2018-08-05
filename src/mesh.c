@@ -2,8 +2,9 @@
 
 #include "mesh.h"
 #include <mpi.h>
+#include <stdlib.h>
 
-int get_Rank_Nx(int,int,int);
+int get_Rank_Nx(int, int,int);
 double get_x_left(int,double,double,int,int);
 
 /*
@@ -33,13 +34,13 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **
   double x_start;
   double x_count;
 
-  MPI_COMM_size(MPI_COMM_WORLD,&numRanks);
-  MPI_COMM_rank(MPI_COMM_WORLD,&rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
   dx_zone = Lx / Nx;
 
   if(numRanks > 1) {
-    *Nx_rank = getRankNx(Nx, rank, numRanks);
+    *Nx_rank = get_Rank_Nx(Nx, rank, numRanks);
   }
   else {
     *Nx_rank = Nx;
@@ -59,8 +60,21 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **
 
   if(order == 1) {
     (*dx)[0] = dx_zone;
-    (*x)[0] = 
-    
+    (*x)[0] = (*x)[1] - dx_zone;
+    (*dx)[numZones-1] = dx_zone;
+    (*x)[numZones-1] = (*x)[numZones-2] + dx_zone;
+  }    
+
+  if(order == 2) {
+    (*dx)[1] = dx_zone;
+    (*x)[1] = (*x)[2] - dx_zone;
+    (*dx)[0] = dx_zone;
+    (*x)[0] = (*x)[1] - dx_zone;
+    (*dx)[numZones-2] = dx_zone;
+    (*x)[numZones-2] = (*x)[numZones-3] + dx_zone;
+    (*dx)[numZones-1] = dx_zone;
+    (*x)[numZones-1] = (*x)[numZones-2] + dx_zone;
+  }    
 
 }
   
@@ -68,7 +82,7 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **
 /*
 This calculates the number of physical zones on each rank, based on the total number of zones and ranks available
 */
-double get_Rank_Nx(int Nx, int rank, int numRanks)
+int get_Rank_Nx(int Nx, int rank, int numRanks)
 {
   int remainder; 
   int Nx_rank_base;
