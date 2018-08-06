@@ -35,6 +35,13 @@ int main(int argc, char **argv) {
 
   MPI_Init(&argc, &argv);
 
+  int rank, numRanks;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
+  MPI_Status status;
+  int rankCounter;
+  double momentBuffer[3];
+
   //get input information, set up the problem
 
     ////////////////
@@ -251,33 +258,34 @@ int main(int argc, char **argv) {
 
   FILE *outputFileTime;
 
-  for(i=0;i<nspec;i++) {
-    strcpy(dens_path,output_path);
-    sprintf(name_tmp,"_dens%d",i);
-    strcat(dens_path,name_tmp);
-    if ((restartFlag == 2) || (restartFlag == 4))
-      outputFileDens[i] = fopen(dens_path,"a");
-    else
-      outputFileDens[i] = fopen(dens_path,"w");
-
-    strcpy(velo_path,output_path);
-    sprintf(name_tmp,"_velo%d",i);
-    strcat(velo_path,name_tmp);
-    if ((restartFlag == 2) || (restartFlag == 4))
-      outputFileVelo[i] = fopen(velo_path,"a");
-    else
-      outputFileVelo[i] = fopen(velo_path,"w");
-
-    strcpy(temp_path,output_path);
-    sprintf(name_tmp,"_temp%d",i);
-    strcat(temp_path,name_tmp);
-    if  ((restartFlag == 2) || (restartFlag == 4))
-      outputFileTemp[i] = fopen(temp_path,"a");
-    else
-      outputFileTemp[i] = fopen(temp_path,"w");
-
+  if((dims == 0) || (rank == 0)) {
+    for(i=0;i<nspec;i++) {
+      strcpy(dens_path,output_path);
+      sprintf(name_tmp,"_dens%d",i);
+      strcat(dens_path,name_tmp);
+      if ((restartFlag == 2) || (restartFlag == 4))
+	outputFileDens[i] = fopen(dens_path,"a");
+      else
+	outputFileDens[i] = fopen(dens_path,"w");
+      
+      strcpy(velo_path,output_path);
+      sprintf(name_tmp,"_velo%d",i);
+      strcat(velo_path,name_tmp);
+      if ((restartFlag == 2) || (restartFlag == 4))
+	outputFileVelo[i] = fopen(velo_path,"a");
+      else
+	outputFileVelo[i] = fopen(velo_path,"w");
+      
+      strcpy(temp_path,output_path);
+      sprintf(name_tmp,"_temp%d",i);
+      strcat(temp_path,name_tmp);
+      if  ((restartFlag == 2) || (restartFlag == 4))
+	outputFileTemp[i] = fopen(temp_path,"a");
+      else
+	outputFileTemp[i] = fopen(temp_path,"w");
+      
+    }
   }
-
 
   //Set up file to store the times
   strcpy(time_path,output_path);
@@ -292,22 +300,25 @@ int main(int argc, char **argv) {
   sprintf(name_tmp,"_BGK");
   strcat(BGK_path,name_tmp);
 
-  if ((restartFlag == 2) || (restartFlag == 4)) 
-    outputFileTime = fopen(time_path,"a");
-  else
-    outputFileTime = fopen(time_path,"w");
+  if((dims == 0) || (rank == 0)) {
 
-  if ((restartFlag == 2) || (restartFlag == 4)) {
-    outputFileH = fopen(H_path,"a");
-    outputFileBGK = fopen(BGK_path,"a");
+    if ((restartFlag == 2) || (restartFlag == 4)) 
+      outputFileTime = fopen(time_path,"a");
+    else
+      outputFileTime = fopen(time_path,"w");
+    
+    if ((restartFlag == 2) || (restartFlag == 4)) {
+      outputFileH = fopen(H_path,"a");
+      outputFileBGK = fopen(BGK_path,"a");
+    }
+ 
+    else {
+      outputFileTime = fopen(time_path,"w");
+      outputFileH = fopen(H_path,"w");
+      outputFileBGK = fopen(BGK_path,"w");
+    }
   }
-  else {
-    outputFileTime = fopen(time_path,"w");
-    outputFileH = fopen(H_path,"w");
-    outputFileBGK = fopen(BGK_path,"w");
-  }
-
-  
+      
 
   //Set up file to store E-field
   strcpy(poiss_path,output_path);
@@ -630,7 +641,7 @@ int main(int argc, char **argv) {
       free(GLGrid);
       free(GLWeights);
     }
-     
+         
     io_init_inhomog(Nx_rank,Nv,nspec,c);
     if (outputDist == 1) {
       store_grid(input_filename);
@@ -764,7 +775,7 @@ int main(int argc, char **argv) {
       //Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in eV
       for(i=0;i<nspec;i++)
 	T_zerod[i] = getTemp(m[i],n_zerod[i],v_zerod[i],f_zerod[i],i);
-      
+           
       //calculate mixture temperature (not the same as what goes into the Maxwellians)
       T0 = 0.0;
       for(i=0;i<nspec;i++) {
@@ -806,13 +817,13 @@ int main(int argc, char **argv) {
 	  outcount = 0;
 	}
 	fprintf(outputFileH,"%le\n",(Htot - Htot_prev)/dt);
-		
+	
 	for(i=0;i<nspec;i++)
 	  for(j=0;j<nspec;j++)
 	    fprintf(outputFileBGK,"%le,",BGK_f_minus_eq[i][j]);
 	fprintf(outputFileBGK,"\n");
       }
-      
+    
 
       //check to make sure that we don't need to stop
       RHS_min = 1.0e37;
@@ -879,16 +890,40 @@ int main(int argc, char **argv) {
 	  v0_oned[l][j] = v0_oned[l][j]/rhotot;
 	}
 	
-	//Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in eV
-	for(i=0;i<nspec;i++) {
-	  T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l+order][i],i);
-	  if(outcount == dataFreq) {
-	    fprintf(outputFileDens[i],"%le ",n_oned[l][i]); 
-	    fprintf(outputFileVelo[i],"%le ",v_oned[l][i][0]); 
-	    fprintf(outputFileTemp[i],"%le ",T_oned[l][i]); 
+	//MPI-ified output. Note that this is super clunky and will need refactoring
+	if(rank == 0) {
+	  for(i=0;i<nspec;i++) {
+	    T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l+order][i],i);
+	    if(outcount == dataFreq) {
+	      fprintf(outputFileDens[i],"%le ",n_oned[l][i]); 
+	      fprintf(outputFileVelo[i],"%le ",v_oned[l][i][0]); 
+	      fprintf(outputFileTemp[i],"%le ",T_oned[l][i]); 
+	    }
+	  }
+	  
+	  for(rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+	    for(l=0;l<Nx_rank;l++) {
+	      for(s=0;s<nspec;s++) {
+		
+		MPI_Recv(momentBuffer, 3, MPI_DOUBLE, rankCounter, (s*Nx_rank + l), MPI_COMM_WORLD, &status);		
+		fprintf(outputFileDens[s], "%le ",momentBuffer[0]);
+		fprintf(outputFileVelo[s], "%le ",momentBuffer[1]);
+		fprintf(outputFileTemp[s], "%le ",momentBuffer[2]);
+	      }
+	    }
 	  }
 	}
-	
+	else {
+	  for(l=0;l<Nx_rank;l++) {
+	    for(s=0;s<nspec;s++) {	      
+	      momentBuffer[0] = n_oned[l][s];
+	      momentBuffer[1] = v_oned[l][s][0];
+	      momentBuffer[2] = T_oned[l][s];
+	      MPI_Send(momentBuffer, 3, MPI_DOUBLE, 0, (s*Nx_rank + l), MPI_COMM_WORLD);
+	    }
+	  }	
+	}
+
 	if(ecouple == 2) 
 	  T0_oned[l] = T_oned[l][0];
 	else {
@@ -912,19 +947,21 @@ int main(int argc, char **argv) {
       }
 
 
-      if(outcount == dataFreq) {
+      if(rank == 0) {
+	if(outcount == dataFreq) {
+	  
+	  fprintf(outputFileTime,"%le\n",t);
+	  for(i=0;i<nspec;i++) {
+	    fprintf(outputFileDens[i],"\n"); 
+	    fprintf(outputFileVelo[i],"\n"); 
+	    fprintf(outputFileTemp[i],"\n"); 
+	  }                
 
-	fprintf(outputFileTime,"%le\n",t);
-	for(i=0;i<nspec;i++) {
-	  fprintf(outputFileDens[i],"\n"); 
-	  fprintf(outputFileVelo[i],"\n"); 
-	  fprintf(outputFileTemp[i],"\n"); 
-	}                
-
-	if(outputDist == 1)
-	  store_distributions_inhomog(f, input_filename, nT);
+	  if(outputDist == 1)
+	    store_distributions_inhomog(f, input_filename, nT);
 
 	outcount = 0;
+	}
       }
 
       /**************
@@ -982,15 +1019,17 @@ int main(int argc, char **argv) {
       }
 
       //Convert to eV/cm            units       g cm^2/s^2         cm    -> eV / cm  
-      if(dataFreq == outcount) {
-	fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx_rank-1])/(2*dx) * ERG_TO_EV_CGS);
-	for(l=1;l<Nx_rank-1;l++) {
-	  fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
+      if((rank == 0) && (poissFlavor == 0)) {
+	if(dataFreq == outcount) {
+	  fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx_rank-1])/(2*dx) * ERG_TO_EV_CGS);
+	  for(l=1;l<Nx_rank-1;l++) {
+	    fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
+	  }
+	  fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx_rank-2])/(2*dx) * ERG_TO_EV_CGS);
+	  fprintf(outputFilePoiss,"\n");
 	}
-	fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx_rank-2])/(2*dx) * ERG_TO_EV_CGS);
-	fprintf(outputFilePoiss,"\n");
       }
-      
+
       if(order == 1) {
 	//ADVECT
 
@@ -1304,6 +1343,7 @@ int main(int argc, char **argv) {
     t += dt;
     nT++;
   }
+  
   
   
   if((dims == 0) && (restartFlag > 0))
