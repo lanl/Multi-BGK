@@ -558,16 +558,17 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                   f_out[i][index] -= f[i][index]*GetTNB_dd_T(mu,f[i],c1_TNB,i,i);
 	      }
 	}
-	    double R_BGK_DD_He,R_BGK_DD_T,R_BGK_tt;
+	    double R_BGK_DD_He,R_BGK_DD_T,R_BGK_tt,R_BGK_DD;
         
         if(TNBFlag)
             
             R_BGK_DD_He    = GetReactivity_dd_He(mu,f[i],f[i],i,i);
             R_BGK_DD_T     = GetReactivity_dd_T(mu,f[i],f[i],i,i);
-         if(R_BGK_DD_T >0.) {
+            R_BGK_DD       = R_BGK_DD_He+R_BGK_DD_T;
+         if(R_BGK_DD >0.) {
 //             printf("%d %d T, DT DD_He DD_T: %g  %g %g %g %g\n",i,i,T[i],0.,R_BGK_DD_He,R_BGK_DD_T);
              printf("%d %d Ti DD_He DD_T: %g %g %g\n",i,i,T[i],R_BGK_DD_He,R_BGK_DD_T);
-             fp1 = fopen( "TNB_DD.txt", "w" );
+             fp1 = fopen( "TNB_DD.txt", "a" );
              fprintf(fp1, " %5.2e %5.2e %10.6e %10.6e\n", T[i],T[j],R_BGK_DD_He,R_BGK_DD_T);
              fclose(fp1);
 
@@ -621,8 +622,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 		  c1_TNB[1]=c[i][l];
 		  c1_TNB[2]=c[i][p];
 		  f_out[i][index] -= f[i][index]*GetTNB_dt(mu,f[j],c1_TNB,i,j);
-          f_out[i][index] -= f[i][index]*GetTNB_dd_He(mu,f[i],c1_TNB,i,i);
-          f_out[i][index] -= f[i][index]*GetTNB_dd_T(mu,f[i],c1_TNB,i,i);
+        //   f_out[i][index] -= f[i][index]*GetTNB_dd_He(mu,f[i],c1_TNB,i,i);
+        //   f_out[i][index] -= f[i][index]*GetTNB_dd_T(mu,f[i],c1_TNB,i,i);
 		}	  
 	      }
 
@@ -652,7 +653,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 //
             if(R_BGK_DT >0.) {
                 printf("%d %d Ti Tj DT : %g %g %g\n",i,j,T[i],T[j],R_BGK_DT);
-               fp = fopen( "TNB_DT.txt", "w" );
+               fp = fopen( "TNB_DT.txt", "a" );
                fprintf(fp, " %5.2e %5.2e %10.6e \n", T[i],T[j],R_BGK_DT);
                fclose(fp);
         }
