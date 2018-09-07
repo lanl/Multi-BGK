@@ -61,10 +61,6 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   MPI_Status status;
 
 
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
 
   for(l=1;l<nX-1;l++)  
     //#pragma omp parallel for private(CFL_NUM,i,j,k,index)
@@ -136,12 +132,6 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
   }
   E[nX-1] = -qm[nX-1][sp]/m*(PoisPot[0] - PoisPot[nX-2])/(2.0*dx[nX-1]);  
 
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
-
-
   for(l=0;l<nX;l++)  
     if(E[l] > 0) {
       CFL_NUM = dt*E[l]/h_v;
@@ -186,10 +176,6 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
   MPI_Comm_size(MPI_COMM_WORLD,&numNodes);
   MPI_Status status;
 
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }  
 
   //main upwinding
   double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
@@ -342,11 +328,6 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm, do
     printf("Error - you must use a uniform velocity grid for second order advection\n Please set discret=0 in your input file.\n");
     exit(1);
   }
-
-  if(numNodes != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }  
 
   //main upwinding
   double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
