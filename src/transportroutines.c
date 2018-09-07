@@ -82,6 +82,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
   MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
   MPI_Status status;
 
+  int i;
 
   if(numRanks != 1) { 
     printf("ERROR: code does not allow for multiple processes at present!\n");
@@ -92,47 +93,76 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   if((rank % 2) == 0) { //Have even nodes send first
     
-    if(rank != (numRanks - 1)) // Send right data to odd nodes
+    if(rank != (numRanks - 1)) { // Send right data to odd nodes 
+      printf("Rank %d sending to right\n", rank);
       MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD);    
-
-    if(rank != 0) // Receive left data from odd nodes
+    }
+    if(rank != 0) {// Receive left data from odd nodes
+      printf("Rank %d recieving from left\n", rank);
       MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status);
+    }
 
-
-    if(rank != 0) //Send left data to odd nodes
+    if(rank != 0) {//Send left data to odd nodes
+      printf("Rank %d sending to left\n", rank);
       MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD);
+    }
 
-    if(rank != (numRanks - 1)) //Recieve right data from odd nodes
+    if(rank != (numRanks - 1)) {//Recieve right data from odd nodes
+      printf("Rank %d recieving from right\n", rank);
       MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+    }
 
   }
   else { // Odd nodes recieve first
-    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status); //Receive left data from even nodes
 
-    if(rank != (numRanks-1))
+    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,rank-1,0,MPI_COMM_WORLD,&status); //Receive left data from even nodes
+    printf("Rank %d recieving from left\n", rank);
+
+    if(rank != (numRanks-1)) {
+      printf("Rank %d sending to right\n", rank);
       MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,rank+1,0,MPI_COMM_WORLD); //Send right data to even nodes
+    }
+  
+    if(rank != (numRanks-1)) {// Get right data from even nodes
+      printf("Rank %d recieving from right\n", rank);
+      MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
+    }
+
+    if(rank != 0) {// Send left data to evens
+      printf("Rank %d sending to left\n", rank);
+      MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD); 
+    }
+  }
+
+  if(numRanks != 1) {
+    //Now deal with boundary 
+    if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
+      
+      printf("Rank %d sending to 0\n", rank);
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+      
+      printf("Rank %d recieving from 0\n", rank);
+      MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+    }
+    
+    if(rank == 0) { //Leftmost rank receives then sends to rank N-1
+      
+      printf("Rank %d recieving from N-1\n", rank);
+      MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+      
+      printf("Rank %d sending to 0\n", rank);
+      MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+    }
+  }
+  else { //single rank case, no MPI needed
+    for(i=0;i<N*N*N;i++) {
+      f[0][sp][i]    = f[nX][sp][i];
+      f[nX+1][sp][i] = f[1][sp][i];
+    }
+
+  }
 
   
-    if(rank != (numRanks-1)) // Get right data from even nodes
-      MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,rank+1,1,MPI_COMM_WORLD,&status);
-    
-    if(rank != 0) // Send left data to evens
-      MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,rank-1,1,MPI_COMM_WORLD); 
-  }
-
-
-  //Now deal with boundary 
-  if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
-    MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-
-    MPI_Recv(f[nX+1][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
-  }
-
-  if(rank == 0) { //Leftmost rank receives then sends to rank N-1
-    MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
-
-    MPI_Send(f[1][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-  }
 }
 
 void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
@@ -141,7 +171,7 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
   MPI_Status status;
-
+  int i;
 
   if(numRanks != 1) { 
     printf("ERROR: code does not allow for multiple processes at present!\n");
@@ -191,21 +221,34 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
 
 
   //Now deal with boundary 
-  if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
-    MPI_Send(f[nX],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-    MPI_Send(f[nX+1],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
 
-    MPI_Recv(f[nX+3],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
-    MPI_Recv(f[nX+2],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+  if (numRanks != 1) {
+    if(rank == (numRanks-1)) { //Rightmost rank sends to then receives from rank 0
+      MPI_Send(f[nX][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+      MPI_Send(f[nX+1][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+      
+      MPI_Recv(f[nX+3][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+      MPI_Recv(f[nX+2][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+    }
+    
+    if(rank == 0) { //Leftmost rank receives then sends to rank N-1
+      MPI_Recv(f[1][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+      MPI_Recv(f[0][sp],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
+      
+      MPI_Send(f[2][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+      MPI_Send(f[3][sp],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+    }
   }
-
-  if(rank == 0) { //Leftmost rank receives then sends to rank N-1
-    MPI_Recv(f[1],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
-    MPI_Recv(f[0],N*N*N,MPI_DOUBLE,numRanks-1,2,MPI_COMM_WORLD,&status);
-
-    MPI_Send(f[2],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-    MPI_Send(f[3],N*N*N,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
+  else { //single rank case. no MPI needed
+    printf("Setting ghost cells, one rank\n");
+    for(i=0;i<N*N*N;i++) {
+      f[1][sp][i] = f[nX][sp][i];
+      f[0][sp][i] = f[nX+1][sp][i];
+      f[nX+3][sp][i] = f[2][sp][i];
+      f[nX+2][sp][i] = f[3][sp][i];
+    }
   }
+  
 }
 
 

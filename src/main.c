@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
 
     if(numRanks > 1) {
       printf("Error - only use multiple MPI ranks if running a 1D problem");
-      error(37);
+      exit(37);
     }
 
     v0_zerod[0] = 0.0;
@@ -932,7 +932,7 @@ int main(int argc, char **argv) {
 	  for(rankCounter = 1; rankCounter < numRanks; rankCounter++) {
 	    for(l=0;l<Nx_rank;l++) {
 	      for(s=0;s<nspec;s++) {
-		
+		printf("Rank 0 waiting on rank %d\n",rankCounter);
 		MPI_Recv(momentBuffer, 3, MPI_DOUBLE, rankCounter, (s*Nx_rank + l), MPI_COMM_WORLD, &status);		
 		fprintf(outputFileDens[s], "%le ",momentBuffer[0]);
 		fprintf(outputFileVelo[s], "%le ",momentBuffer[1]);
@@ -947,6 +947,7 @@ int main(int argc, char **argv) {
 	      momentBuffer[0] = n_oned[l][s];
 	      momentBuffer[1] = v_oned[l][s][0];
 	      momentBuffer[2] = T_oned[l][s];
+	      printf("Rank %d sending item %d species %d\n",rank, l, s);
 	      MPI_Send(momentBuffer, 3, MPI_DOUBLE, 0, (s*Nx_rank + l), MPI_COMM_WORLD);
 	    }
 	  }	
