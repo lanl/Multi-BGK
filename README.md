@@ -17,6 +17,17 @@ make
 
 to build the `main' multiBGK code, which can do 1D-3V or 0D-3V, for an arbitrary number of species.
 
+------------
+Note for developers
+-----------
+
+When you install this package, please also install the clang formatting git hooks. From the root of the repo, simply run
+
+./tools/install-hooks.sh .
+
+If you have clang-format installed on your machine, it will check your commits and fix the formatting on them to keep things consistent. If something violates the clang format, it will give you instructions to add a patch to fix it. After applying the patch, re-add and re-commit the code and it should pass through.
+
+**NOTE** - if clang-format is not installed, this won't do anything or even print a warning, which is annoying. 
 
 ------------
 Command line
