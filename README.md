@@ -56,16 +56,20 @@ you can pick two things for `tauflag`
 0: Runs original version, choosing the tau based on the collision rate formulas and the flags in the input files
 1: Loads tau values from the file Data/input_filename_tau.dat
 This assumes the taus are written out in human-readable format (non-binary), one per line in the file, e.g.
-```1.23742e-12
+```
+1.23742e-12
 4.18151e-13
 2.12590e-10
-3.1251e-5```
+3.1251e-5
+```
 
 This is in row major ordering, so the example above would correspond to
-```tau[0][0]
+```
+tau[0][0]
 tau[0][1]
 tau[1][0]
-tau[1][1]```
+tau[1][1]
+```
 
 -----------
 # INPUT FILES
