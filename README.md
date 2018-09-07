@@ -2,14 +2,14 @@ This is LANL code C17146
 
 -------------------------
 
-Setup stuff
+# Setup stuff
 
 You need to create the following directories in the same directory as the makefile
 
-`obj/
+```obj/
 exec/
 input/
-Data/`
+Data/```
 
 
 To build the code, simply type
@@ -19,7 +19,7 @@ make
 to build the 'main' multiBGK code, which can do 1D-3V or 0D-3V, for an arbitrary number of species.
 
 ------------
-Note for developers
+# Note for developers
 -----------
 
 When you install this package, please also install the clang formatting git hooks. From the root of the repo, simply run
@@ -31,7 +31,7 @@ If you have `clang-format` installed on your machine, it will check your commits
 **NOTE** - if `clang-format` is not installed, this won't do anything or even print a warning, which is annoying. 
 
 ------------
-Command line
+# Command line
 ------------
 
 To run the code with a given input file in the input/ directory, type
@@ -54,25 +54,25 @@ you can pick two things for `tauflag`
 0: Runs original version, choosing the tau based on the collision rate formulas and the flags in the input files
 1: Loads tau values from the file Data/input_filename_tau.dat
 This assumes the taus are written out in human-readable format (non-binary), one per line in the file, e.g.
-`1.23742e-12
+```1.23742e-12
 4.18151e-13
 2.12590e-10
-3.1251e-5`
+3.1251e-5```
 
 This is in row major ordering, so the example above would correspond to
-`tau[0][0]
+```tau[0][0]
 tau[0][1]
 tau[1][0]
-tau[1][1]`
+tau[1][1]```
 
 -----------
-INPUT FILES
+# INPUT FILES
 -----------
 
 The input files look for certain keywords, then their values listed in the following line(s). Keywords are
 
 
----Species info
+## Species info
 
 `nspec`                  - number of species 
 
@@ -80,7 +80,7 @@ The input files look for certain keywords, then their values listed in the follo
 
 `Z`                      - Atomic number for each species (e.g. 1 for H). 
 
----physical space info
+## physical space info
 
 `dims`                   - 0 for 0D-3V 
 		       - 1 for 1D-3V 
@@ -89,7 +89,7 @@ The input files look for certain keywords, then their values listed in the follo
 
 `Lx`                     - width of physical space (in cm) (default 1e-6)
 
----Velocity space info
+## Velocity space info
 
 `Nv`                     - number of velocity grid points in one direction. Total number is Nv*Nv*Nv (default 40)
 
@@ -99,7 +99,7 @@ The input files look for certain keywords, then their values listed in the follo
 `v_width`                - width of velocity grid, in terms of a multiple each species's thermal speed (default 6)
 
 
----Time info
+## Time info
 
 `Time_step`              - time step (in sec)  (default 1e-16)
 
@@ -108,7 +108,7 @@ The input files look for certain keywords, then their values listed in the follo
 `Space_order`            - Whether to use first or second order method for time stepping/discretization (Int 1 or 2)
 
 
---- Electric field info
+##  Electric field info
 
 `poiss`                  - type of Poisson solver to use for 1D problems
 		       - 0: no Poisson solve (E field set to 0) 
@@ -126,7 +126,7 @@ The input files look for certain keywords, then their values listed in the follo
 
 
 
---- Collision info
+## Collision info
 
 `BGKtype`		       - Flag that determines which multi-BGK model to use
 		       	 + 0 - Haack, Hauck, Murillo (default)
@@ -150,7 +150,7 @@ The input files look for certain keywords, then their values listed in the follo
 		       - 1: use temperature relaxation rates to determin nu
 
 
----OD Setup
+## OD Setup
 
 `n`                      - reads in initial number densities for each species in cc. Only used for 0D.
 
@@ -159,7 +159,7 @@ The input files look for certain keywords, then their values listed in the follo
 `T`                      - reads in initial temperatures for each species in eV. Only used for 0D.
 
 
----1D Setup
+## 1D Setup
 
 This initializes to Maxwellians in specific intervals
 
@@ -179,7 +179,7 @@ This initializes to Maxwellians in specific intervals
 
 Example - for MOD-MD initial condition on domain of [-1e-4, 1e-4]:
 
-`
+```
 NumIntervals
 2
 Interval
@@ -227,9 +227,9 @@ T_i
 10.0
 10.0
 End_init
-`
+```
 
---- output options
+## output options
 
 
 `Data_writing_frequency` - Number of time steps between writes to output files (Int) (default 1)
@@ -242,7 +242,7 @@ End_init
 
 `RHS_tol`		       - This sets the threshold in which the relative error(s) between f and f_eq indicate that we should stop. We compute ||f - f_eq||^2_{ij} / ||f_init - f_eq,init||^2_{ij}, which is a decreasing quantity. Default value is 0.5. 
 
----In development
+## In development
 
 `Imp_exp`		       - Whether to do implicit or explicit time discretization of BGK (0 for exp, 1 for imp)
 		       - default is 0		       
