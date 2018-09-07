@@ -24,8 +24,7 @@ static double *x, *dx, **c;
 static double ***f_star;
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
-double min(double in1, double in2)
-{
+double min(double in1, double in2) {
   return in1 < in2 ? in1 : in2;
 }
 
