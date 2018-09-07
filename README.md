@@ -6,10 +6,12 @@ This is LANL code C17146
 
 You need to create the following directories in the same directory as the makefile
 
-```obj/
+```
+obj/
 exec/
 input/
-Data/```
+Data/
+```
 
 
 To build the code, simply type
