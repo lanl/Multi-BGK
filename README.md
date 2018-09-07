@@ -88,8 +88,10 @@ The input files look for certain keywords, then their values listed in the follo
 
 ## physical space info
 
-`dims`                   - 0 for 0D-3V 
-		       - 1 for 1D-3V 
+`dims`
+
+* 0 for 0D-3V 
+* 1 for 1D-3V 
 
 `Nx`                     - number of grid points in physical space (default 32)
 
@@ -99,8 +101,9 @@ The input files look for certain keywords, then their values listed in the follo
 
 `Nv`                     - number of velocity grid points in one direction. Total number is Nv*Nv*Nv (default 40)
 
-`discret`		  - 0 for uniform velocity grid
-		         - 1 for gauss legendre velocity grid (default, but not recommended for 1D3V problems)
+`discret`
+* 0 for uniform velocity grid
+* 1 for gauss legendre velocity grid (default, but not recommended for 1D3V problems)
 
 `v_width`                - width of velocity grid, in terms of a multiple each species's thermal speed (default 6)
 
@@ -117,43 +120,52 @@ The input files look for certain keywords, then their values listed in the follo
 ##  Electric field info
 
 `poiss`                  - type of Poisson solver to use for 1D problems
-		       - 0: no Poisson solve (E field set to 0) 
-		       - 11: Linearized Yukawa model
-		       - 12: Nonlinear Yukawa model
-		       - 21: Linearized Thomas-Fermi model
-		       - 22: Nonlinear Thomas-Fermi model (default)		
+
+* 0: no Poisson solve (E field set to 0) 
+* 11: Linearized Yukawa model
+* 12: Nonlinear Yukawa model
+* 21: Linearized Thomas-Fermi model
+* 22: Nonlinear Thomas-Fermi model (default)		
 
 
 `Te_start` 	       - Initial background electron temperature, used if ecouple = 1
 
 `Te_end`  	       - Final background electron temperature, used if ecouple = 1
-		       - If Te_end != Te_start, the electron temperature is linearly ramped 
-		       - from Te_star to Te_end over the simulation time.
+
+* If Te_end != Te_start, the electron temperature is linearly ramped from Te_star to Te_end over the simulation time.
 
 
 
 ## Collision info
 
 `BGKtype`		       - Flag that determines which multi-BGK model to use
-		       	 + 0 - Haack, Hauck, Murillo (default)
-			 + 1 - Greene
-			 + 2 - NRL
+
+* 0 - Haack, Hauck, Murillo (default)
+* 1 - Greene
+* 2 - NRL
 
 `beta`		       - Free parameter used in Greene BGK model (default 0)
 
 `ecouple` 	       - Flag to determine how to deal with electrons. 
-		       - 0: All species are ions (default)
-		       - 1: electrons as background show up in collision operators. 
-		       - 2: electrons are a species, MUST BE SPECIES 0, to tell what collision rates to use.
 
-`Coulomb_type`	       - 0: use GMS coulomb log when appropriate (default)
-		       - 1: use NRL coulomb log when appropriate
+* 0: All species are ions (default)
+* 1: electrons as background show up in collision operators. 
+* 2: electrons are a species, MUST BE SPECIES 0, to tell what collision rates to use.
 
-`Ion_coll_type`	       - 0: Use Stanton-Murillo cross section data to derive collision rates, Landau-Spitzer if electrons are involved (default)
-		       - 1: Use NRL collision rates		       
+`Coulomb_type`
 
-`Ion_coll_flavor`	       - 0: use momentum relaxation rates to determine nu (default)
-		       - 1: use temperature relaxation rates to determin nu
+* 0: use GMS coulomb log when appropriate (default)
+* 1: use NRL coulomb log when appropriate
+
+`Ion_coll_type`
+
+* 0: Use Stanton-Murillo cross section data to derive collision rates, Landau-Spitzer if electrons are involved (default)
+* 1: Use NRL collision rates		       
+
+`Ion_coll_flavor`
+
+* 0: use momentum relaxation rates to determine nu (default)
+* 1: use temperature relaxation rates to determin nu
 
 
 ## OD Setup
@@ -241,21 +253,25 @@ End_init
 `Data_writing_frequency` - Number of time steps between writes to output files (Int) (default 1)
 
 `Dump_distro`            - Flag for outputting the full vdf for 1D-3V at the writing frequency rate
-		       - Set to 1 to include distribution functions whenever output is written to disk
-		       - default is 0
-		       - I think this is only implemented for 1D-3V right now
-		       - WARNING: this can generate a ton of data if you are not careful with how often you report your data. Make sure you do not have a writing frequency of e.g. 1 if you use this.
+
+* Set to 1 to include distribution functions whenever output is written to disk
+* default is 0
+* I think this is only implemented for 1D-3V right now
+* WARNING: this can generate a ton of data if you are not careful with how often you report your data. Make sure you do not have a writing frequency of e.g. 1 if you use this.
 
 `RHS_tol`		       - This sets the threshold in which the relative error(s) between f and f_eq indicate that we should stop. We compute ||f - f_eq||^2_{ij} / ||f_init - f_eq,init||^2_{ij}, which is a decreasing quantity. Default value is 0.5. 
 
 ## In development
 
 `Imp_exp`		       - Whether to do implicit or explicit time discretization of BGK (0 for exp, 1 for imp)
-		       - default is 0		       
-		       - Note - this is a placeholder, implicit currently does not work
 
-`hydro_flag`             - 0: run the code as designed (default)
-		       - 1: Reset the distribution function to its local Maxwellian, ala Kinetic scheme
+* default is 0		       
+*  Note - this is a placeholder, implicit currently does not work
+
+`hydro_flag`
+
+* 0: run the code as designed (default)
+* 1: Reset the distribution function to its local Maxwellian, ala Kinetic scheme
 
 The order you put these in the file mostly does not matter, though you do need nspec before anything that requires knowing the number of species (e.g. masses)
 
