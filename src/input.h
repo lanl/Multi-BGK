@@ -1,5 +1,5 @@
-#ifndef _INPUT_H
-#define _INPUT_H
+#include <stdio.h>
+#include <stdlib.h>
 
 void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 double *v_sigma, int *discret, int *poissFlavor, double **m,
@@ -33,5 +33,3 @@ void read_line_no_adv(FILE *file, char line[80]);
 size_t read_int_no_adv(FILE *file);
 
 double read_double_no_adv(FILE *file);
-
-#endif
