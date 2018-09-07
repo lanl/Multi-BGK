@@ -338,8 +338,10 @@ int main(int argc, char **argv) {
     outputFile_x = fopen(x_path,"w");}
   
 
-  printf("Input file: %s\n",input_filename);
-  printf("Output filename: %s\n",output_path);
+  if(rank == 0) {
+    printf("Input file: %s\n",input_filename);
+    printf("Output filename: %s\n",output_path);
+  }
 
 
 
@@ -351,6 +353,11 @@ int main(int argc, char **argv) {
   
   //// 0D Case ////
   if(dims == 0) {    
+
+    if(numRanks > 1) {
+      printf("Error - only use multiple MPI ranks if running a 1D problem");
+      error(37);
+    }
 
     v0_zerod[0] = 0.0;
     v0_zerod[1] = 0.0;
@@ -425,7 +432,9 @@ int main(int argc, char **argv) {
       
       if(discret == 0) {           //uniform velocity grid
 	for(i=0;i<nspec;i++) {
-	  printf("Setting up uniform velocity grid for species %d with temps %g %g \n",i,T_zerod[i],T0);
+	  if(rank == 0) {
+	    printf("Setting up uniform velocity grid for species %d with temps %g %g \n",i,T_zerod[i],T0);
+	  }
 	  dv = 2.0*Lv[i]/(Nv-1.0);
 	  for(j=0;j<Nv;j++) {
 	    c[i][j] = -Lv[i] + dv*j;
@@ -445,7 +454,9 @@ int main(int argc, char **argv) {
 	gauss_legendre_tbl(Nv,GLGrid,GLWeights,1e-10);
 	
 	for(i=0;i<nspec;i++) {
-	  printf("Setting up gauss point velo grid for species %d with temps %g %g \n",i,T_zerod[i],T0);
+	  if(rank == 0) {
+	    printf("Setting up gauss point velo grid for species %d with temps %g %g \n",i,T_zerod[i],T0);
+	  }
 	  
 	  A = Lv[i];
 	  B = 0.0;
@@ -480,7 +491,9 @@ int main(int argc, char **argv) {
       f_zerod[i] = malloc(Nv*Nv*Nv*sizeof(double));
       f_zerod_tmp[i] = malloc(Nv*Nv*Nv*sizeof(double));
     }
-    printf("Done allocating for 0D\n");
+    if(rank == 0) {
+      printf("Done allocating for 0D\n");
+    }
   }
 
   if(dims == 1) { 
@@ -529,7 +542,9 @@ int main(int argc, char **argv) {
     }
 
     if(input_file_data_flag) {
-      printf("input_file_data_flag: %d, filename: %s\n",input_file_data_flag,input_file_data_filename);
+      if(rank == 0) {
+	printf("input_file_data_flag: %d, filename: %s\n",input_file_data_flag,input_file_data_filename);
+      }
 
       initialize_sol_load_inhom_file(Nx, nspec, n_oned, v_oned, T_oned, input_file_data_filename);
 
@@ -594,7 +609,9 @@ int main(int argc, char **argv) {
     if(discret == 0) {           //uniform velocity grid
       double dv;
       for(i=0;i<nspec;i++) {
-	printf("Setting up uniform velocity grid for species %d with temps %g %g \n",i,T_max[i],T0_max);
+	if(rank == 0) {
+	  printf("Setting up uniform velocity grid for species %d with temps %g %g \n",i,T_max[i],T0_max);
+	}
 	dv = 2.0*Lv[i]/(Nv-1.0);
 	for(j=0;j<Nv;j++) {
 	  c[i][j] = -Lv[i] + dv*j;
@@ -614,7 +631,9 @@ int main(int argc, char **argv) {
       gauss_legendre_tbl(Nv,GLGrid,GLWeights,1e-10);
 	
       for(i=0;i<nspec;i++) {
-	printf("Setting up gauss point velo grid for species %d with temps %g %g \n",i,T_max[i],T0_max);
+	if(rank == 0) {
+	  printf("Setting up gauss point velo grid for species %d with temps %g %g \n",i,T_max[i],T0_max);
+	}
 	
 	A = Lv[i];
 	B = 0.0;
@@ -674,6 +693,8 @@ int main(int argc, char **argv) {
 
   if(dims == 0) {
 
+    
+
     printf("Setting initial conditions for 0D\n");
 
     if((restartFlag == 2) || (restartFlag == 4)) {
@@ -717,7 +738,9 @@ int main(int argc, char **argv) {
     else
       initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);    
   
-    printf("Initial condition setup complete\n"); fflush(stdout);      
+    if(rank == 0) {
+      printf("Initial condition setup complete\n"); fflush(stdout);      
+    }
   }
 
   initialize_moments(Nv,nspec,c,wts);    
@@ -728,7 +751,9 @@ int main(int argc, char **argv) {
  
   if (restartFlag > 2) {
     //Check to see if we need to store initial BGK error data
-    printf("Setting initial BGK norm\n");
+    if(rank == 0) {
+      printf("Setting initial BGK norm\n");
+    }
     zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
     BGK_norm(f_zerod, BGK_f_minus_eq_init, Z_zerod, dt, T0);
   }
@@ -742,7 +767,10 @@ int main(int argc, char **argv) {
 
   //Setup complete, begin main loop
   while(t < tfinal) {
-    printf("At time %g of %g\n",t,tfinal);
+
+    if(rank == 0) {
+      printf("At time %g of %g\n",t,tfinal);
+    }
 
     if(dims == 0) {
       //GET MOMENTS
