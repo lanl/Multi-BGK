@@ -84,11 +84,6 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   int i;
 
-  if(numRanks != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
-
   //FILL INTERIOR GHOST CELLS
 
   if((rank % 2) == 0) { //Have even nodes send first
@@ -159,10 +154,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
       f[0][sp][i]    = f[nX][sp][i];
       f[nX+1][sp][i] = f[1][sp][i];
     }
-
   }
-
-  
 }
 
 void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
@@ -172,11 +164,6 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
   MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
   MPI_Status status;
   int i;
-
-  if(numRanks != 1) { 
-    printf("ERROR: code does not allow for multiple processes at present!\n");
-    exit(1);
-  }
 
   //FILL INTERIOR GHOST CELLS
 
@@ -240,15 +227,13 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
     }
   }
   else { //single rank case. no MPI needed
-    printf("Setting ghost cells, one rank\n");
     for(i=0;i<N*N*N;i++) {
-      f[1][sp][i] = f[nX][sp][i];
-      f[0][sp][i] = f[nX+1][sp][i];
-      f[nX+3][sp][i] = f[2][sp][i];
-      f[nX+2][sp][i] = f[3][sp][i];
+      f[1][sp][i] = f[nX+1][sp][i];
+      f[0][sp][i] = f[nX][sp][i];
+      f[nX+2][sp][i] = f[2][sp][i];
+      f[nX+3][sp][i] = f[3][sp][i];
     }
-  }
-  
+  }  
 }
 
 

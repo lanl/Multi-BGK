@@ -563,16 +563,15 @@ int main(int argc, char **argv) {
 
     }
     else {
-      for(i=0;i<numint;i++)
+      for(i=0;i<numint;i++) {
 	for(j=0;j<nspec;j++) {
-	  T_max[j] = (T_int[i*numint + j] > T_max[j]) ? T_int[i*numint + j] : T_max[j];
+	  T_max[j] = (T_int[i*nspec + j] > T_max[j]) ? T_int[i*nspec + j] : T_max[j];
 	  T0_max = (T_max[j] > T0_max) ? T_max[j] : T0_max;
-	}
-      
+	}      
+      }
       if( (T0_max < Te_ref) && (ecouple == 1) ) 
 	T0_max = Te_ref;
     }
-
 
     //Allocate for poisson calc
     PoisPot = malloc(Nx_rank*sizeof(double));
@@ -1195,18 +1194,16 @@ int main(int argc, char **argv) {
 	    for(j=0;j<Nv*Nv*Nv;j++)
 	      f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]) + 0.25*f_conv[l+order][i][j];
 
-	
-	
 	//Next Strang step - RK2 for collision with timstep dt	
-
 	
 	for(l=0;l<Nx_rank;l++)  {	  
+
 	  //Step 1
 	  BGK_ex(f[l+order],f_conv[l+order],Z_oned[l],dt,Te_arr[l]);
 	  for(i=0;i<nspec;i++) 
 	    for(j=0;j<Nv*Nv*Nv;j++) 
 	      f_tmp[l+order][i][j] = f[l+order][i][j] + dt*f_conv[l+order][i][j];
-	  
+
 	  //Step 2
 	  BGK_ex(f_tmp[l+order],f_conv[l+order],Z_oned[l],dt,Te_arr[l]);
 	  for(i=0;i<nspec;i++) 

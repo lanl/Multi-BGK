@@ -3,6 +3,7 @@
 #include "mesh.h"
 #include <mpi.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 int get_Rank_Nx(int, int,int);
 double get_x_left(int,double,double,int,int);
@@ -61,7 +62,8 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
   
   for(zone=order; zone < numZones-order; zone++) {
     (*dx)[zone] = dx_zone;
-    (*x)[zone] = x_count + dx_zone; 
+    x_count = x_count + dx_zone;
+    (*x)[zone] = x_count; 
   }
 
   if(order == 1) {
@@ -81,6 +83,9 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
     (*dx)[numZones-1] = dx_zone;
     (*x)[numZones-1] = (*x)[numZones-2] + dx_zone;
   }    
+
+  for(zone=0;zone < numZones;zone++)
+    printf("Zone %d x %g dx %g\n",zone, (*x)[zone]*1e5, (*dx)[zone]*1e5);
 
 }
   
