@@ -1,34 +1,89 @@
 # INPUT FILE FOR MULTI BGK
+
+# SPECIES INFO
+
 #----------------------------------------------------------
 # Number of species
 nspec
 2
 # Hydrogen
 # Carbon
+
+#----------------------------------------------------------
+# Species masses (g)
+mass
+1.660538921e-24
+1.9926467052e-23
+
+#----------------------------------------------------------
+# Species base ionizations
+Z
+1.0
+6.0
+
+# PHYSICAL SPACE
+
 #----------------------------------------------------------
 # 0D or 1D
 dims
 0
+
+# INITIAL CONDITIONS
+
+#----------------------------------------------------------
+# Species number density (cc)
+n
+1e23
+1e23
+#----------------------------------------------------------
+# Species x velo (cm/s)
+v
+0.0
+1.26e5
+#----------------------------------------------------------
+# Species temperature (eV)
+T
+12.0
+10.0
+
+
+# VELOCITY SPACE
+
+#----------------------------------------------------------
+# Velo discretization
+discret
+0
+
 #----------------------------------------------------------
 # Number of nodes in each direction in velocity space
 Nv
 40
-#----------------------------------------------------------
-# Velo discretization
-discret
-1
+
+#width of velocity domain, in thermal speed
+v_width
+6
+
+
+# TIME INFO
+
 #----------------------------------------------------------
 # Timestep
 Time_step
 0.01e-15
+
 #----------------------------------------------------------
 # Number of steps
 Final_time
 1e-15
+
 #----------------------------------------------------------
-# Data writing frequency - number of timesteps between output snaphot
-Data_writing_frequency
+# Spatial/temporal order of accuracy
+Space_order
 1
+
+
+# COLLISION INFO
+
 #----------------------------------------------------------
 # Flavor of BGK
 BGKtype
@@ -50,36 +105,18 @@ Ion_coll_type
 Ion_coll_flavor
 1
 #----------------------------------------------------------
-# Spatial/temporal order of accuracy
-Space_order
+
+
+# OUTPUT INFO
+
+#----------------------------------------------------------
+# Data writing frequency - number of timesteps between output snaphot
+Data_writing_frequency
 1
 #----------------------------------------------------------
-# Implicit or explicit implementation of BGK operator
-Imp_Exp
+# Should I dump the distribution funciton as well?
+Dump_distro
 0
-#----------------------------------------------------------
-# Species masses (g)
-mass
-1.67353e-24
-1.9926467052e-23
-#----------------------------------------------------------
-# Species base ionizations
-Z
-1.0
-6.0
-#----------------------------------------------------------
-# Species number density (cc)
-n
-1e23
-1e23
-#----------------------------------------------------------
-# Species x velo (m/s)
-v
-0.0
-1.26e5
-#----------------------------------------------------------
-# Species temperature (eV)
-T
-12.0
-10.0
+
+
 Stop
