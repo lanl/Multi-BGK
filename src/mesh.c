@@ -19,17 +19,19 @@ order - order of discretization. There are <order> ghost cells on either side
 
 Outputs
 Nx_rank             - number of physical grid zones on this rank
+Nx_ranks            - array of Nx on each rank
 x[Nx_rank+2*order]  - the location of the zone centers on this rank, including ghost cells
 dx[Nx_rank+2*order] - the width of the zones. For now this code sets every zone to be the same width
                       dx = Lx/ Nx, but this is left as an array to make future changes easier
 
 */
-void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **dx) {
+void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, double **x, double **dx) {
 
   int rank;
   int numRanks;
   int numZones;
   int zone;
+  int rankCount;
   double dx_zone;
   double x_start;
   double x_count;
@@ -40,6 +42,9 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **
   dx_zone = Lx / Nx;
 
   if(numRanks > 1) {
+    for(rankCount = 0; rankCount < numRanks; rankCount++) {
+      (*Nx_ranks)[rankCount] = get_Rank_Nx(Nx, rankCount, numRanks);
+    }
     *Nx_rank = get_Rank_Nx(Nx, rank, numRanks);
   }
   else {
@@ -50,6 +55,7 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, double **x, double **
   x_start = get_x_left(Nx, Lx, dx_zone, rank, numRanks);
   x_count = x_start - 0.5*dx_zone;
 
+  *Nx_ranks = malloc(numRanks * sizeof(int));
   *x = malloc(numZones * sizeof(double));
   *dx = malloc(numZones * sizeof(double));
   

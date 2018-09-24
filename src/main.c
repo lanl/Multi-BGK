@@ -40,7 +40,8 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD,&numRanks);
   MPI_Status status;
   int rankCounter;
-  double momentBuffer[3];
+  double *momentBuffer;
+  int *Nx_ranks;
 
   //get input information, set up the problem
 
@@ -499,7 +500,9 @@ int main(int argc, char **argv) {
   if(dims == 1) { 
 
     //Physical grid allocation and initialization        
-    make_mesh(Nx, Lx, order, &Nx_rank, &x, &dxarray);
+    make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
+    if(rank == 0) 
+      momentBuffer = malloc(3*(Nx_rank+1)*sizeof(int));
     dx = Lx / Nx;
       
 
@@ -895,7 +898,6 @@ int main(int argc, char **argv) {
       }
     }
     else if(dims == 1) {
-      //GET MOMENTS
 
       outcount += 1;    
 
@@ -917,42 +919,11 @@ int main(int argc, char **argv) {
 	    v0_oned[l][j] += m[i]*n_oned[l][i]*v_oned[l][i][j];
 	  v0_oned[l][j] = v0_oned[l][j]/rhotot;
 	}
-	
-	//MPI-ified output. Note that this is super clunky and will need refactoring
-	if(rank == 0) {
-	  for(i=0;i<nspec;i++) {
-	    T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l+order][i],i);
-	    if(outcount == dataFreq) {
-	      fprintf(outputFileDens[i],"%le ",n_oned[l][i]); 
-	      fprintf(outputFileVelo[i],"%le ",v_oned[l][i][0]); 
-	      fprintf(outputFileTemp[i],"%le ",T_oned[l][i]); 
-	    }
-	  }
-	  
-	  for(rankCounter = 1; rankCounter < numRanks; rankCounter++) {
-	    for(l=0;l<Nx_rank;l++) {
-	      for(s=0;s<nspec;s++) {
-		printf("Rank 0 waiting on rank %d\n",rankCounter);
-		MPI_Recv(momentBuffer, 3, MPI_DOUBLE, rankCounter, (s*Nx_rank + l), MPI_COMM_WORLD, &status);		
-		fprintf(outputFileDens[s], "%le ",momentBuffer[0]);
-		fprintf(outputFileVelo[s], "%le ",momentBuffer[1]);
-		fprintf(outputFileTemp[s], "%le ",momentBuffer[2]);
-	      }
-	    }
-	  }
-	}
-	else {
-	  for(l=0;l<Nx_rank;l++) {
-	    for(s=0;s<nspec;s++) {	      
-	      momentBuffer[0] = n_oned[l][s];
-	      momentBuffer[1] = v_oned[l][s][0];
-	      momentBuffer[2] = T_oned[l][s];
-	      printf("Rank %d sending item %d species %d\n",rank, l, s);
-	      MPI_Send(momentBuffer, 3, MPI_DOUBLE, 0, (s*Nx_rank + l), MPI_COMM_WORLD);
-	    }
-	  }	
-	}
+      }
+    
 
+      // Set T0 in all cells
+      for(l=0;l<Nx_rank;l++) {  
 	if(ecouple == 2) 
 	  T0_oned[l] = T_oned[l][0];
 	else {
@@ -967,38 +938,21 @@ int main(int argc, char **argv) {
 	  T0_oned[l] = T0_oned[l]/ntot;    
 	}
       }
+      
 
-      //Section to run this like the kinetic scheme for hydro
+      //Flag - do we want to run this like the kinetic scheme for hydro
       if (hydro_kinscheme_flag == 1) {
 	for(l=0;l<Nx_rank;l++)
 	  for(i=0;i<nspec;i++)
 	    GetMaxwell(m[i],n_oned[l][i],v_oned[l][i],T_oned[l][i],f[l+order][i],i);
       }
-
-
-      if(rank == 0) {
-	if(outcount == dataFreq) {
-	  
-	  fprintf(outputFileTime,"%le\n",t);
-	  for(i=0;i<nspec;i++) {
-	    fprintf(outputFileDens[i],"\n"); 
-	    fprintf(outputFileVelo[i],"\n"); 
-	    fprintf(outputFileTemp[i],"\n"); 
-	  }                
-
-	  if(outputDist == 1)
-	    store_distributions_inhomog(f, input_filename, nT);
-
-	outcount = 0;
-	}
-      }
-
+      
+      
       /**************
        ELECTRIC FIELD CALCULATION
        Note that the poisson solve gives e*phi (in ergs), not phi, more convenient for units issues
-       ************/
-    
-
+      ************/
+            
       if(ecouple == 1) { //electrons only in background
 	if(Te_start != Te_ref)  
 	  get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
@@ -1007,7 +961,7 @@ int main(int argc, char **argv) {
       }
       else 
 	Te_arr = T0_oned;
-
+      
       if(ecouple == 2) {
 	for(l=0;l<Nx_rank;l++) {
 	  source[l] = 0.0;
@@ -1047,21 +1001,68 @@ int main(int argc, char **argv) {
 	  PoissNonlinPeriodic1D_TF(Nx_rank,source,dx,Lx,PoisPot,Te_arr);
       }
 
-      //Convert to eV/cm            units       g cm^2/s^2         cm    -> eV / cm  
-      if((rank == 0) && (poissFlavor == 0)) {
-	if(dataFreq == outcount) {
-	  fprintf(outputFilePoiss,"%le ",-(PoisPot[1]-PoisPot[Nx_rank-1])/(2*dx) * ERG_TO_EV_CGS);
-	  for(l=1;l<Nx_rank-1;l++) {
-	    fprintf(outputFilePoiss,"%le ",-(PoisPot[l+1]-PoisPot[l-1])/(2*dx) * ERG_TO_EV_CGS);
-	  }
-	  fprintf(outputFilePoiss,"%le ",-(PoisPot[0]-PoisPot[Nx_rank-2])/(2*dx) * ERG_TO_EV_CGS);
-	  fprintf(outputFilePoiss,"\n");
-	}
-      }
+      if((numRanks > 1) && (poissFlavor != 0)) {
+	printf("Error - MPI not implemented for poisson solve");
+	exit(1);
+      }       
+      
+      //Moments and initial electric field calculated - save if needed
 
+      //MPI-ified output.
+      if(rank == 0) {
+	for(l=0;l<Nx_rank; l++) {
+	  for(i=0;i<nspec;i++) {
+	    T_oned[l][i] = getTemp(m[i],n_oned[l][i],v_oned[l][i],f[l+order][i],i);
+	    if(outcount == dataFreq) {
+	      fprintf(outputFileDens[i],"%le ",n_oned[l][i]); 
+	      fprintf(outputFileVelo[i],"%le ",v_oned[l][i][0]); 
+	      fprintf(outputFileTemp[i],"%le ",T_oned[l][i]); 
+	    }
+	  }
+	}
+
+	//get from other ranks
+	for(rankCounter = 1; rankCounter < numRanks; rankCounter++) {	  
+	  for(s=0;s<nspec;s++) {
+	    MPI_Recv(momentBuffer, 3*Nx_ranks[rankCounter], MPI_DOUBLE, rankCounter, s, MPI_COMM_WORLD, &status);
+	    for(l=0;l<Nx_ranks[rankCounter];l++) {
+	      fprintf(outputFileDens[s], "%le ",momentBuffer[0 + 3*l]);
+	      fprintf(outputFileVelo[s], "%le ",momentBuffer[1 + 3*l]);
+	      fprintf(outputFileTemp[s], "%le ",momentBuffer[2 + 3*l]);
+	    }
+	  }
+	}
+
+	//Close out this timestep
+	fprintf(outputFileTime,"%le\n",t);
+	for(i=0;i<nspec;i++) {
+	  fprintf(outputFileDens[i],"\n"); 
+	  fprintf(outputFileVelo[i],"\n"); 
+	  fprintf(outputFileTemp[i],"\n"); 
+	  fprintf(outputFilePoiss,"\n");
+	}                
+	
+	if(outputDist == 1)
+	  store_distributions_inhomog(f, input_filename, nT);
+	
+	outcount = 0;
+      }    
+      else { //send to rank 0 for output purposes
+	for(s=0;s<nspec;s++) {	      
+	  for(l=0;l<Nx_rank;l++) {
+	    momentBuffer[0 + 3*l] = n_oned[l][s];
+	    momentBuffer[1 + 3*l] = v_oned[l][s][0];
+	    momentBuffer[2 + 3*l] = T_oned[l][s];
+	  }
+	  MPI_Send(momentBuffer, 3*Nx_rank, MPI_DOUBLE, 0, s, MPI_COMM_WORLD);
+	}    
+      }
+	
+      //IO done, advance to the actual solution...
+      
       if(order == 1) {
 	//ADVECT
-
+	
 	for(i=0;i<nspec;i++) {
 	  advectOne(f,PoisPot,Z_oned,m[i],i);
 	}
