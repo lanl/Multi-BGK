@@ -42,6 +42,9 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
 
   dx_zone = Lx / Nx;
 
+
+  *Nx_ranks = malloc(numRanks * sizeof(int));
+
   if(numRanks > 1) {
     for(rankCount = 0; rankCount < numRanks; rankCount++) {
       (*Nx_ranks)[rankCount] = get_Rank_Nx(Nx, rankCount, numRanks);
@@ -56,7 +59,6 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
   x_start = get_x_left(Nx, Lx, dx_zone, rank, numRanks);
   x_count = x_start - 0.5*dx_zone;
 
-  *Nx_ranks = malloc(numRanks * sizeof(int));
   *x = malloc(numZones * sizeof(double));
   *dx = malloc(numZones * sizeof(double));
   
@@ -83,9 +85,6 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
     (*dx)[numZones-1] = dx_zone;
     (*x)[numZones-1] = (*x)[numZones-2] + dx_zone;
   }    
-
-  for(zone=0;zone < numZones;zone++)
-    printf("Zone %d x %g dx %g\n",zone, (*x)[zone]*1e5, (*dx)[zone]*1e5);
 
 }
   
@@ -125,7 +124,7 @@ double get_x_left(int Nx, double Lx, double dx, int rank, int numRanks) {
   Lx_rank_L = (Nx_rank_base+1) * dx;
 
   if (rank < remainder) // it is on the left side
-    return rank * Lx_rank_R;
+    return rank * Lx_rank_R - 0.5*Lx;
   else
-    return remainder * Lx_rank_R + (rank - remainder) * Lx_rank_L;
+    return remainder * Lx_rank_R + (rank - remainder) * Lx_rank_L - 0.5 * Lx;
 }

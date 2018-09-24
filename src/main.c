@@ -245,6 +245,9 @@ int main(int argc, char **argv) {
   FILE **outputFileTemp = malloc(nspec*sizeof(FILE *));
   FILE *outputFileH;
   FILE *outputFileBGK;
+  FILE *outputFileTime;
+  FILE *outputFile_x;
+  FILE *outputFilePoiss;
   
   H_spec = malloc(nspec*sizeof(double));
   H_spec_prev = malloc(nspec*sizeof(double));
@@ -257,7 +260,6 @@ int main(int argc, char **argv) {
 
 
 
-  FILE *outputFileTime;
 
   if((dims == 0) || (rank == 0)) {
     for(i=0;i<nspec;i++) {
@@ -320,29 +322,25 @@ int main(int argc, char **argv) {
     }
   }
       
+  if((rank == 0) && (dims == 1)) {
+    //Set up file to store E-field
+    strcpy(poiss_path,output_path);
+    strcat(poiss_path,"_poiss");
 
-  //Set up file to store E-field
-  strcpy(poiss_path,output_path);
-  strcat(poiss_path,"_poiss");
-  FILE *outputFilePoiss;
-  if(dims == 1) {
     if ((restartFlag == 2) || (restartFlag == 4))
       outputFilePoiss = fopen(poiss_path,"a");
     else
       outputFilePoiss = fopen(poiss_path,"w");
-  }
-  //store physical mesh
-  FILE *outputFile_x;
-  if(dims == 1) {
+    
+    //store physical mesh
+    FILE *outputFile_x;
     strcpy(x_path,output_path);
     strcat(x_path,"_x");
-    outputFile_x = fopen(x_path,"w");}
-  
-
-  if(rank == 0) {
-    printf("Input file: %s\n",input_filename);
-    printf("Output filename: %s\n",output_path);
+    outputFile_x = fopen(x_path,"w");    
   }
+  
+  printf("Input file: %s\n",input_filename);
+  printf("Output filename: %s\n",output_path);
 
 
 
@@ -505,7 +503,6 @@ int main(int argc, char **argv) {
       momentBuffer = malloc(3*(Nx_rank+1)*sizeof(int));
     dx = Lx / Nx;
       
-
     /*********
     //Old style
     dx = Lx/Nx;
@@ -662,7 +659,7 @@ int main(int argc, char **argv) {
       free(GLGrid);
       free(GLWeights);
     }
-         
+
     io_init_inhomog(Nx_rank,Nv,nspec,c);
     if (outputDist == 1) {
       store_grid(input_filename);
@@ -694,8 +691,6 @@ int main(int argc, char **argv) {
   //initial condition initialization
 
   if(dims == 0) {
-
-    
 
     printf("Setting initial conditions for 0D\n");
 
@@ -731,14 +726,14 @@ int main(int argc, char **argv) {
   if(dims == 1) {
 
     initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
-    
+   
     //check if we are loading moment data from a file
     //Note: This is not yet MPI-ified
     if(input_file_data_flag) {
-      initialize_sol_inhom_file(f, Nx, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);
+      initialize_sol_inhom_file(f, Nx_rank, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);
     }
     else
-      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx, x, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);    
+      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int, T_int, Nx_rank, x, nspec, Nv, order, c, m, n_oned, v_oned, T_oned);    
   
     if(rank == 0) {
       printf("Initial condition setup complete\n"); fflush(stdout);      
