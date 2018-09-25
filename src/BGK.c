@@ -112,6 +112,8 @@ double debyeLength_ions(double *n, double *T) {
           1.0 / SpeciesIonDebyeLengthSquared; // 1/cm^2;
     }
   }
+
+  return TotalIonDebyeLengthInverseSquared;
 }
 
 double debyeLength(double *n, double *T, double n_e, double Te) {
@@ -209,8 +211,9 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 
       b90_2 = closestApproach2(Z[j], T[j]);
 
-      logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
-                                 (lambda_db + b90_2)); // GMS CL
+      logLam =
+          0.5 *
+          log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
       logLam_ii = logLam;
       logLam_ij = logLam;
     } else if (CL_type == 1) { // NRL
@@ -348,8 +351,9 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
                     ERG_TO_EV_CGS; // de broglie wavelength squared - cm^2
 
         b90_2 = pow(Z[j] * E_02_CGS / T[j], 2); // closest approach - cm^2
-        logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
-                                   (lambda_db + b90_2)); // GMS CL
+        logLam =
+            0.5 *
+            log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
         logLam_ii = logLam;
         logLam_ij = logLam;
       } else if (CL_type == 1) { // NRL
@@ -577,9 +581,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             // original formula for mixT
             mixT = (n[i] * nu12 * T[i] + n[j] * nu21 * T[j]) /
                        (n[i] * nu12 + n[j] * nu21) +
-                   ERG_TO_EV_CGS *
-                       (rho[i] * nu12 * (v2_1 - mixU_sq) +
-                        rho[j] * nu21 * (v2_2 - mixU_sq)) /
+                   ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
+                                    rho[j] * nu21 * (v2_2 - mixU_sq)) /
                        (3.0 * (n[i] * nu12 + n[j] * nu21));
           } else {
             // simplified formulas for mixT
@@ -592,9 +595,9 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                      (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
                          vdiff2;
             } else {
-              mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) /
-                                               (6.0 * (m[i] + m[j])) *
-                                               ERG_TO_EV_CGS * vdiff2;
+              mixT = 0.5 * (T[i] + T[j]) +
+                     (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
+                         vdiff2;
             }
           }
 
@@ -1315,8 +1318,9 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
                 (m[j] * T[i] + m[i] * T[j]) / (m[i] + m[j]) +
                 (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
           } else {
-            mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) / (6.0 * (m[i] + m[j])) *
-                                             ERG_TO_EV_CGS * vdiff2;
+            mixT =
+                0.5 * (T[i] + T[j]) +
+                (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
           }
 
           if (mixT < 0) {
