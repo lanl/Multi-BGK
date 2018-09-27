@@ -862,6 +862,7 @@ int main(int argc, char **argv) {
 
       // Calculate moment data in all cells
       for (l = 0; l < Nx_rank; l++) {
+
         ntot = 0.0;
         rhotot = 0.0;
         for (i = 0; i < nspec; i++) {
@@ -970,23 +971,21 @@ int main(int argc, char **argv) {
       // Moments and initial electric field calculated - save if needed
 
       // MPI-ified output.
-      if ((outcount == dataFreq) || t == 0.0) {
+
+      if (outcount == dataFreq) {
         if (rank == 0) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++) {
               T_oned[l][i] =
                   getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
-              if (outcount == dataFreq) {
-                fprintf(outputFileDens[i], "%le ", n_oned[l][i]);
-                fprintf(outputFileVelo[i], "%le ", v_oned[l][i][0]);
-                fprintf(outputFileTemp[i], "%le ", T_oned[l][i]);
-              }
+              fprintf(outputFileDens[i], "%le ", n_oned[l][i]);
+              fprintf(outputFileVelo[i], "%le ", v_oned[l][i][0]);
+              fprintf(outputFileTemp[i], "%le ", T_oned[l][i]);
             }
           }
 
           // get from other ranks
           for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
-            printf("Calculating rank %d quantities\n", rankCounter);
             for (s = 0; s < nspec; s++) {
               MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
                        rankCounter, s, MPI_COMM_WORLD, &status);
@@ -1032,11 +1031,13 @@ int main(int argc, char **argv) {
       if (order == 1) {
         // ADVECT
 
+        printf("Rank %d: First order - advecting\n", rank);
         for (i = 0; i < nspec; i++) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
         // COLLIDE
+        printf("First order - colliding\n");
 
         for (l = 0; l < Nx_rank; l++) {
           BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
