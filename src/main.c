@@ -988,7 +988,7 @@ int main(int argc, char **argv) {
           for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
             for (s = 0; s < nspec; s++) {
               MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
-                       rankCounter, s, MPI_COMM_WORLD, &status);
+                       rankCounter, 100 + s, MPI_COMM_WORLD, &status);
               for (l = 0; l < Nx_ranks[rankCounter]; l++) {
                 fprintf(outputFileDens[s], "%le ", momentBuffer[0 + 3 * l]);
                 fprintf(outputFileVelo[s], "%le ", momentBuffer[1 + 3 * l]);
@@ -1019,7 +1019,7 @@ int main(int argc, char **argv) {
               momentBuffer[1 + 3 * l] = v_oned[l][s][0];
               momentBuffer[2 + 3 * l] = T_oned[l][s];
             }
-            MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, s,
+            MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                      MPI_COMM_WORLD);
           }
 
