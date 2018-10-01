@@ -76,51 +76,56 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   int i;
 
+  int left_ghost = 0;
+  int left_actual = 1;
+  int right_actual = nX;
+  int right_ghost = nX + 1;
+
   // FILL INTERIOR GHOST CELLS
 
   if ((rank % 2) == 0) { // Have even nodes send first
 
     if (rank != (numRanks - 1)) { // Send right data to odd nodes
       //printf("Rank %d sending to right\n", rank);
-      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
+      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, rank + 1, 0 + 4*sp, MPI_COMM_WORLD);
     }
     if (rank != 0) { // Receive left data from odd nodes
       //printf("Rank %d recieving from left\n", rank);
-      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD,
+      MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, rank - 1, 1 + 4*sp, MPI_COMM_WORLD,
                &status);
     }
 
     if (rank != 0) { // Send left data to odd nodes
       //printf("Rank %d sending to left\n", rank);
-      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 2, MPI_COMM_WORLD);
+      MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, rank - 1, 2 + 4*sp, MPI_COMM_WORLD);
     }
 
     if (rank != (numRanks - 1)) { // Recieve right data from odd nodes
       //printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 3,
+      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, rank + 1, 3 + 4*sp,
                MPI_COMM_WORLD, &status);
     }
 
   } else { // Odd nodes recieve first
 
     //printf("Rank %d recieving from left\n", rank);
-    MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD,
+    MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, rank - 1, 0 + 4*sp, MPI_COMM_WORLD,
              &status); // Receive left data from even nodes
 
     if (rank != (numRanks - 1)) {
       //printf("Rank %d sending to right\n", rank);
-      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, rank + 1, 1,
+      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, rank + 1, 1 + 4*sp,
                MPI_COMM_WORLD); // Send right data to even nodes
     }
 
     if (rank != (numRanks - 1)) { // Get right data from even nodes
       //printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 2,
+      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, rank + 1, 2 + 4*sp,
                MPI_COMM_WORLD, &status);
     }
 
     //printf("Rank %d sending to left\n", rank);
-    MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 3, MPI_COMM_WORLD);
+    MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, rank - 1, 3 + 4*sp, MPI_COMM_WORLD);
   }
 
   if (numRanks != 1) {
@@ -129,27 +134,27 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         (numRanks - 1)) { // Rightmost rank sends to then receives from rank 0
 
       //printf("Rank %d sending to 0\n", rank);
-      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD);
+      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, 0, 5 + 4*sp, MPI_COMM_WORLD);
 
       //printf("Rank %d recieving from 0\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD,
+      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, 0, 6 + 4*sp, MPI_COMM_WORLD,
                &status);
     }
 
     if (rank == 0) { // Leftmost rank receives then sends to rank N-1
 
       //printf("Rank %d recieving from N-1\n", rank);
-      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 4, MPI_COMM_WORLD,
+      MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 5 + 4*sp, MPI_COMM_WORLD,
                &status);
 
       //printf("Rank %d sending to N-1\n", rank);
-      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 5,
+      MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 6 + 4*sp,
                MPI_COMM_WORLD);
     }
   } else { // single rank case, no MPI needed
     for (i = 0; i < N * N * N; i++) {
-      f[0][sp][i] = f[nX][sp][i];
-      f[nX + 1][sp][i] = f[1][sp][i];
+      f[left_ghost][sp][i] = f[right_actual][sp][i];
+      f[right_ghost][sp][i] = f[left_actual][sp][i];
     }
   }
 }

@@ -297,7 +297,6 @@ int main(int argc, char **argv) {
       outputFilePoiss = fopen(poiss_path, "w");
 
     // store physical mesh
-    FILE *outputFile_x;
     strcpy(x_path, output_path);
     strcat(x_path, "_x");
     outputFile_x = fopen(x_path, "w");
@@ -660,7 +659,6 @@ int main(int argc, char **argv) {
       load_distributions_homog(f_zerod, input_filename);
       printf("Loaded distribution from %s.dat\n", input_filename);
     } else {
-      int index;
       for (l = 0; l < nspec; l++) {
         if (v_zerod[l][0] > Lv[l]) { // adjust velocity grid...
           printf("Shifting by %g\n", v_zerod[l][0]);
