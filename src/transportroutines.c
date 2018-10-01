@@ -81,46 +81,46 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
   if ((rank % 2) == 0) { // Have even nodes send first
 
     if (rank != (numRanks - 1)) { // Send right data to odd nodes
-      printf("Rank %d sending to right\n", rank);
+      //printf("Rank %d sending to right\n", rank);
       MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
     }
     if (rank != 0) { // Receive left data from odd nodes
-      printf("Rank %d recieving from left\n", rank);
-      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD,
+      //printf("Rank %d recieving from left\n", rank);
+      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD,
                &status);
     }
 
     if (rank != 0) { // Send left data to odd nodes
-      printf("Rank %d sending to left\n", rank);
-      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD);
+      //printf("Rank %d sending to left\n", rank);
+      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 2, MPI_COMM_WORLD);
     }
 
     if (rank != (numRanks - 1)) { // Recieve right data from odd nodes
-      printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 1,
+      //printf("Rank %d recieving from right\n", rank);
+      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 3,
                MPI_COMM_WORLD, &status);
     }
 
   } else { // Odd nodes recieve first
 
-    printf("Rank %d recieving from left\n", rank);
+    //printf("Rank %d recieving from left\n", rank);
     MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD,
              &status); // Receive left data from even nodes
 
     if (rank != (numRanks - 1)) {
-      printf("Rank %d sending to right\n", rank);
-      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, rank + 1, 0,
+      //printf("Rank %d sending to right\n", rank);
+      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, rank + 1, 1,
                MPI_COMM_WORLD); // Send right data to even nodes
     }
 
     if (rank != (numRanks - 1)) { // Get right data from even nodes
-      printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 1,
+      //printf("Rank %d recieving from right\n", rank);
+      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, rank + 1, 2,
                MPI_COMM_WORLD, &status);
     }
 
-    printf("Rank %d sending to left\n", rank);
-    MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD);
+    //printf("Rank %d sending to left\n", rank);
+    MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, rank - 1, 3, MPI_COMM_WORLD);
   }
 
   if (numRanks != 1) {
@@ -128,22 +128,22 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     if (rank ==
         (numRanks - 1)) { // Rightmost rank sends to then receives from rank 0
 
-      printf("Rank %d sending to 0\n", rank);
-      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD);
+      //printf("Rank %d sending to 0\n", rank);
+      MPI_Send(f[nX][sp], N * N * N, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD);
 
-      printf("Rank %d recieving from 0\n", rank);
-      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
+      //printf("Rank %d recieving from 0\n", rank);
+      MPI_Recv(f[nX + 1][sp], N * N * N, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD,
                &status);
     }
 
     if (rank == 0) { // Leftmost rank receives then sends to rank N-1
 
-      printf("Rank %d recieving from N-1\n", rank);
-      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 2, MPI_COMM_WORLD,
+      //printf("Rank %d recieving from N-1\n", rank);
+      MPI_Recv(f[0][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 4, MPI_COMM_WORLD,
                &status);
 
-      printf("Rank %d sending to N-1\n", rank);
-      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 2,
+      //printf("Rank %d sending to N-1\n", rank);
+      MPI_Send(f[1][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 5,
                MPI_COMM_WORLD);
     }
   } else { // single rank case, no MPI needed

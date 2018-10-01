@@ -1031,14 +1031,11 @@ int main(int argc, char **argv) {
       if (order == 1) {
         // ADVECT
 
-        printf("Rank %d: First order - advecting\n", rank);
         for (i = 0; i < nspec; i++) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
         // COLLIDE
-        printf("First order - colliding\n");
-
         for (l = 0; l < Nx_rank; l++) {
           BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
           for (i = 0; i < nspec; i++)
@@ -1353,7 +1350,7 @@ int main(int argc, char **argv) {
 
   // clean up
 
-  // universal to both
+  // universal to both 0D and 1D
   for (i = 0; i < nspec; i++) {
     free(c[i]);
     free(wts[i]);
@@ -1363,15 +1360,17 @@ int main(int argc, char **argv) {
   free(vref);
   free(Lv);
 
-  for (i = 0; i < nspec; i++) {
-    fclose(outputFileDens[i]);
-    fclose(outputFileVelo[i]);
-    fclose(outputFileTemp[i]);
+  if (rank == 0) {
+    for (i = 0; i < nspec; i++) {
+      fclose(outputFileDens[i]);
+      fclose(outputFileVelo[i]);
+      fclose(outputFileTemp[i]);
+    }
+    free(outputFileDens);
+    free(outputFileVelo);
+    free(outputFileTemp);
   }
-  free(outputFileDens);
-  free(outputFileVelo);
-  free(outputFileTemp);
-
+  
   if (dims == 0) {
     for (i = 0; i < nspec; i++) {
       free(f_zerod[i]);
@@ -1383,8 +1382,10 @@ int main(int argc, char **argv) {
     free(x);
     free(dxarray);
 
-    fclose(outputFile_x);
-    fclose(outputFilePoiss);
+    if(rank == 0) {
+      fclose(outputFile_x);
+      fclose(outputFilePoiss);
+    }
 
     for (l = 0; l < Nx_rank; l++) {
       free(n_oned[l]);
@@ -1420,6 +1421,9 @@ int main(int argc, char **argv) {
     free(H_spec);
     free(H_spec_prev);
   }
+
+
+  MPI_Finalize();
 
   return 0;
 }
