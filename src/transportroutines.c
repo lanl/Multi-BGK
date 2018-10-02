@@ -312,12 +312,14 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   // Thus the acceleration term units are cm / s^2
 
   double *E = malloc((nX+1) * sizeof(double)); // size to nX+1 to ensure that l loop has enough memory
-  for (int i=0; i<nX+1; i++) E[i] = 0.0;
+  for (i=0; i<nX+1; i++) E[i] = 0.0;
 
   // BC's should be applied to phi before running this; phi needs to be size to at least nX+2
+  /*
   for (i = 1; i < nX + 1; i++) {
     E[i] = -qm[i][sp] / m * (PoisPot[i + 1] - PoisPot[i - 1]) / (2.0 * dx[i]);
   }
+  */
 
   for (l = 1; l < nX + 1; l++) {
     if (E[l] > 0) {
