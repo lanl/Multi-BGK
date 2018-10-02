@@ -55,9 +55,9 @@ void initialize_transport(int numV, int numX, int nspec, double *xnodes,
   dt = timestep;
 
   int i, l;
-  f_star = malloc((nX + 2 * order) * sizeof(double *));
+  f_star = (double ***) malloc((nX + 2 * order) * sizeof(double **));
   for (l = 0; l < nX + 2 * order; l++) {
-    f_star[l] = malloc(nspec * sizeof(double *));
+    f_star[l] = (double **) malloc(nspec * sizeof(double *));
     for (i = 0; i < nspec; i++)
       f_star[l][i] = malloc(N * N * N * sizeof(double));
   }
@@ -80,82 +80,82 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
   int left_actual = 1;
   int right_actual = nX;
   int right_ghost = nX + 1;
+  int up_nbr, down_nbr;
 
-  // FILL INTERIOR GHOST CELLS
+  double xlocal[N*N*N];
+  double xremote[N*N*N];
 
-  if ((rank % 2) == 0) { // Have even nodes send first
+  /* Processors 0 and 1 exchange, 2 and 3 exchange, etc.  Then
+     1 and 2 exchange, 3 and 4, etc.  The formula for this is
+     if (even) exchng up else down
+     if (odd)  exchng up else down
+  */
+  /* Note the use of xlocal[i] for &xlocal[i][0] */
+  /* Note that we use MPI_PROC_NULL to remove the if statements that
+     would be needed without MPI_PROC_NULL */
+  up_nbr = rank + 1;
+  if (up_nbr >= numRanks) up_nbr = 0;
+  down_nbr = rank - 1;
+  if (down_nbr < 0) down_nbr = numRanks-1;
 
-    if (rank != (numRanks - 1)) { // Send right data to odd nodes
-      //printf("Rank %d sending to right\n", rank);
-      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, rank + 1, 0 + 4*sp, MPI_COMM_WORLD);
-    }
-    if (rank != 0) { // Receive left data from odd nodes
-      //printf("Rank %d recieving from left\n", rank);
-      MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, rank - 1, 1 + 4*sp, MPI_COMM_WORLD,
-               &status);
-    }
+  if ((rank % 2) == 0) {
 
-    if (rank != 0) { // Send left data to odd nodes
-      //printf("Rank %d sending to left\n", rank);
-      MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, rank - 1, 2 + 4*sp, MPI_COMM_WORLD);
-    }
+    for (i=0; i<N*N*N; i++)
+      xlocal[i] = f[right_actual][sp][i];
+    
+    /* exchange up */
+    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
+		  &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
+		  MPI_COMM_WORLD, &status );
 
-    if (rank != (numRanks - 1)) { // Recieve right data from odd nodes
-      //printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, rank + 1, 3 + 4*sp,
-               MPI_COMM_WORLD, &status);
-    }
+    for (i=0; i<N*N*N; i++)
+      f[right_ghost][sp][i] = xremote[i];
+  }
+  else {
 
-  } else { // Odd nodes recieve first
+    for (i=0; i<N*N*N; i++)
+      xlocal[i] = f[left_actual][sp][i];
+    
+    /* exchange down */
+    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 0,
+		  &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 0, 
+		  MPI_COMM_WORLD, &status );
 
-    //printf("Rank %d recieving from left\n", rank);
-    MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, rank - 1, 0 + 4*sp, MPI_COMM_WORLD,
-             &status); // Receive left data from even nodes
-
-    if (rank != (numRanks - 1)) {
-      //printf("Rank %d sending to right\n", rank);
-      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, rank + 1, 1 + 4*sp,
-               MPI_COMM_WORLD); // Send right data to even nodes
-    }
-
-    if (rank != (numRanks - 1)) { // Get right data from even nodes
-      //printf("Rank %d recieving from right\n", rank);
-      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, rank + 1, 2 + 4*sp,
-               MPI_COMM_WORLD, &status);
-    }
-
-    //printf("Rank %d sending to left\n", rank);
-    MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, rank - 1, 3 + 4*sp, MPI_COMM_WORLD);
+    for (i=0; i<N*N*N; i++)
+      f[left_ghost][sp][i] = xremote[i];
+	
   }
 
-  if (numRanks != 1) {
-    // Now deal with boundary
-    if (rank ==
-        (numRanks - 1)) { // Rightmost rank sends to then receives from rank 0
+  MPI_Barrier(MPI_COMM_WORLD);
 
-      //printf("Rank %d sending to 0\n", rank);
-      MPI_Send(f[right_actual][sp], N * N * N, MPI_DOUBLE, 0, 5 + 4*sp, MPI_COMM_WORLD);
+  // Do the second set of exchanges
+  if ((rank % 2) == 1) {
 
-      //printf("Rank %d recieving from 0\n", rank);
-      MPI_Recv(f[right_ghost][sp], N * N * N, MPI_DOUBLE, 0, 6 + 4*sp, MPI_COMM_WORLD,
-               &status);
-    }
+    for (i=0; i<N*N*N; i++)
+      xlocal[i] = f[right_actual][sp][i];
+    
+    /* exchange up */
+    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
+  		  &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
+  		  MPI_COMM_WORLD, &status );
 
-    if (rank == 0) { // Leftmost rank receives then sends to rank N-1
+    for (i=0; i<N*N*N; i++)
+      f[right_ghost][sp][i] = xremote[i];
+	
+  }
+  else {
 
-      //printf("Rank %d recieving from N-1\n", rank);
-      MPI_Recv(f[left_ghost][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 5 + 4*sp, MPI_COMM_WORLD,
-               &status);
+   for (i=0; i<N*N*N; i++)
+      xlocal[i] = f[left_actual][sp][i];
+    
+    /* exchange down */
+    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
+  		  &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
+  		  MPI_COMM_WORLD, &status );
 
-      //printf("Rank %d sending to N-1\n", rank);
-      MPI_Send(f[left_actual][sp], N * N * N, MPI_DOUBLE, numRanks - 1, 6 + 4*sp,
-               MPI_COMM_WORLD);
-    }
-  } else { // single rank case, no MPI needed
-    for (i = 0; i < N * N * N; i++) {
-      f[left_ghost][sp][i] = f[right_actual][sp][i];
-      f[right_ghost][sp][i] = f[left_actual][sp][i];
-    }
+    for (i=0; i<N*N*N; i++)
+      f[left_ghost][sp][i] = xremote[i];
+    
   }
 }
 
@@ -257,11 +257,12 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   int index;
   double CFL_NUM, CFL_NUM2;
 
+  // Update ghost with current solution, prior to transport
   fillGhostCellsPeriodic_firstorder(f, sp);
 
   // Note - the 'real' data lives in 1...Nx, the ghost points are 0 and Nx+1
 
-  for (l = 1; l < nX + 1; l++)
+  for (l = 1; l < nX + 1; l++) {
     //#pragma omp parallel for private(CFL_NUM,i,j,k,index)
     for (i = 0; i < N; i++) {
       CFL_NUM = dt * v[i] / dx[l];
@@ -279,6 +280,11 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
                 CFL_NUM * (f[l][sp][index] - f[l - 1][sp][index]);
         }
     }
+  }
+
+  // Get updated ghost solution
+  fillGhostCellsPeriodic_firstorder(f_conv, sp);
+  
 }
 
 // Computes the v direction first order upwind solution FOR A SINGLE SPECIES
@@ -305,15 +311,15 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   //
   // Thus the acceleration term units are cm / s^2
 
-  double *E = malloc(nX * sizeof(double));
-  E[0] = -qm[0][sp] / m * (PoisPot[1] - PoisPot[nX - 1]) / (2.0 * dx[0]);
-  for (i = 1; i < nX - 1; i++) {
+  double *E = malloc((nX+1) * sizeof(double)); // size to nX+1 to ensure that l loop has enough memory
+  for (int i=0; i<nX+1; i++) E[i] = 0.0;
+
+  // BC's should be applied to phi before running this; phi needs to be size to at least nX+2
+  for (i = 1; i < nX + 1; i++) {
     E[i] = -qm[i][sp] / m * (PoisPot[i + 1] - PoisPot[i - 1]) / (2.0 * dx[i]);
   }
-  E[nX - 1] =
-      -qm[nX - 1][sp] / m * (PoisPot[0] - PoisPot[nX - 2]) / (2.0 * dx[nX - 1]);
 
-  for (l = 1; l < nX + 1; l++)
+  for (l = 1; l < nX + 1; l++) {
     if (E[l] > 0) {
       CFL_NUM = dt * E[l] / h_v;
       //#pragma omp parallel for private(i,j,k,index)
@@ -321,14 +327,23 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
         for (j = 0; j < N; j++)
           for (k = 0; k < N; k++) {
             index = k + N * (j + N * i);
-            if (i != 0)
+	    if (index >= N*N*N || index < 0) {
+	      printf("Index out of range");
+	      exit(1);
+	    }
+            if (i != 0) {
+	      if (k + N * (j + N * (i - 1)) >= N*N*N || k + N * (j + N * (i - 1)) < 0) {
+		printf("Index out of range");
+		exit(1);
+	      }
+
               f_conv[l][sp][index] =
-                  f[l][sp][index] -
-                  CFL_NUM *
+		f[l][sp][index]- CFL_NUM *
                       (f[l][sp][index] - f[l][sp][k + N * (j + N * (i - 1))]);
-            else
+            } else {
               f_conv[l][sp][index] =
-                  f[l][sp][index] - CFL_NUM * (f[l][sp][index]);
+		f[l][sp][index] - CFL_NUM * (f[l][sp][index]);
+	    }
           }
     } else {
       CFL_NUM = dt * E[l] / h_v;
@@ -339,16 +354,23 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
             index = k + N * (j + N * i);
             if (i != (N - 1))
               f_conv[l][sp][index] =
-                  f[l][sp][index] -
-                  CFL_NUM * (f[l][sp][k + N * (j + N * (i + 1))] -
+		f[l][sp][index] -
+	    CFL_NUM * (f[l][sp][k + N * (j + N * (i + 1))] -
                              f[l][sp][k + N * (j + N * i)]);
             else
               f_conv[l][sp][index] =
-                  f[l][sp][index] + CFL_NUM * (f[l][sp][index]);
+		f[l][sp][index] + CFL_NUM * (f[l][sp][index]);
           }
     }
+  }
 
   free(E);
+}
+
+// does a first order splitting, solving v first and returns the updated f
+void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp) {
+  upwindOne_v(f, f_star, PoisPot, qm, m, c[sp], sp);
+  upwindOne_x(f_star, f, c[sp], sp);
 }
 
 // Computes x portion of second order upwind solution, with minmod
@@ -558,17 +580,11 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   free(E);
 }
 
-// does a first order splitting, solving v first and returns the updated f
-void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp) {
-  upwindOne_v(f, f_star, PoisPot, qm, m, c[sp], sp);
-  upwindOne_x(f_star, f, c[sp], sp);
-}
-
 // Defunct, do not use. This is a placeholder for a first order time splitting,
 // but with high-resolution methods for each piece
 void advectTwo(double ***f, double *PoisPot, double **qm, double m, int sp) {
   upwindTwo_v(f, f_star, PoisPot, qm, m, c[sp], sp);
-  upwindTwo_x(f_star, f, c[sp], sp);
+  upwindTwo_x(f, f, c[sp], sp);
 }
 
 // This returns the *update* to f as f_conv for the x transport piece

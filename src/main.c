@@ -896,6 +896,22 @@ int main(int argc, char **argv) {
           }
           T0_oned[l] = T0_oned[l] / ntot;
         }
+	for (k = 0; k < numRanks; k++) {
+	  if (k == rank) {
+	    for (i = 0; i < nspec; i++) {
+	      if (isnan(n_oned[l][i])) {
+		printf("Something weird is going on: What did Jan Say? The Michael Scott "
+		       "Story. By Michael Scott. With Dwight Schrute.\n NaN detected \n");
+		for (j = 0; j < nspec; j++) {
+		  printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: %g\n", rank, l, i, j, n_oned[l][j], v0_oned[l][j], T_oned[l][j],
+			 Z_oned[l][j], Te_arr[l]);
+		}
+		exit(1);
+	      }
+	    }
+	  }
+	  MPI_Barrier(MPI_COMM_WORLD);
+	}
       }
 
       // Flag - do we want to run this like the kinetic scheme for hydro
