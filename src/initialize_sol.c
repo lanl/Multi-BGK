@@ -110,7 +110,7 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
   int stopFlag = 0;
 
   int sp; 
-  int i, l;
+  int l;
 
   while(!stopFlag) {
     read_line(data_file,line);
@@ -197,7 +197,6 @@ void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, int order
   //c - nspec nv
 
   int i,j,k,l,s;
-  int int_id;
   int vIndex;
 
   for(l=0;l<Nx;l++) {

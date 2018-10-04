@@ -59,7 +59,6 @@ int main(int argc, char **argv) {
 
   // species charges
   double **Z_oned, *Z_max, *Z_zerod;
-  double E_max;
 
   // Flags for BGK collision rates
   int ecouple, CL_type, ion_type, MT_or_TR;
@@ -92,7 +91,6 @@ int main(int argc, char **argv) {
   double **BGK_f_minus_eq, **BGK_f_minus_eq_init;
 
   double T0;
-  double Te;
   double *Te_arr, *Te_arr_allranks;
   double Te_ref; // background electron temperature for interface problem
   double Te_start;
@@ -122,8 +120,6 @@ int main(int argc, char **argv) {
   int discret;    // 0 - uniform, 1 - gauss
   double *Lv;     // semi-length, domain is [-Lv,Lv]
   double v_sigma; // width of velocity domains in terms of thermal speeds
-  double vmax;
-  double dvmin;
   double **c; // first dimension is species, second is 1D velo grid points. Full
               // velo pt is e.g. (v[0][i], v[0][j], v[0][k])
   double **wts; // first dimension is species, second is 1D velo grid points.
@@ -139,7 +135,6 @@ int main(int argc, char **argv) {
   double dx;
   double *x, *dxarray;
 
-  double **dens; // for poisson
   double *PoisPot, *PoisPot_allranks;
   double *source, *source_buf, *source_allranks;
   int poissFlavor;
@@ -149,11 +144,7 @@ int main(int argc, char **argv) {
   double tfinal;
   double t;
   int nT;
-  double CFL1, CFL2, CFL3;
-  double E_curr;
-  double tau_min;
   int im_ex;
-  int cfl_count = 0;
   int outcount = 0;
   int dataFreq;
   int outputDist;
@@ -857,7 +848,8 @@ int main(int argc, char **argv) {
           for (j = 0; j < Nv * Nv * Nv; j++)
             f_zerod[i][j] += dt * f_zerod_tmp[i][j];
       } else {
-        BGK_im(f_zerod, Z_max, dt, T0);
+        printf("Error - implicit solve for BGK not yet implemented. Please use im_ex = 0 in your input file\n");
+        exit(1);
       }
     } else if (dims == 1) {
 

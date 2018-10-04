@@ -12,14 +12,8 @@ static int nX;
 static int ns;
 static int order;
 static double Lx;
-static double L_v;
 static double h_v;
 static double dt;
-static int ICChoice;
-static double TWall;
-static double VWall;
-static double T0, T1;
-static double V0, V1;
 static double *x, *dx, **c;
 static double ***f_star;
 
@@ -265,7 +259,7 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
 void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   int i, j, k, l;
   int index;
-  double CFL_NUM, CFL_NUM2;
+  double CFL_NUM;
 
   // Update ghost with current solution, prior to transport
   fillGhostCellsPeriodic_firstorder(f, sp);
@@ -308,7 +302,6 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   int rank, numNodes;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &numNodes);
-  MPI_Status status;
   // int numamt;
 
   // Set electric field acceleration term
@@ -500,7 +493,6 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   }
 
   // main upwinding
-  double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
   double up2, up1, neut, down1, down2;
 
   for (l = 0; l < nX; l++) {

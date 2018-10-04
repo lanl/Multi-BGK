@@ -78,7 +78,7 @@ void load_distributions_homog(double **f, char *fileName) {
 void store_grid(char *fileName) {
   int s;
   char grid_buffer[100];
-  FILE *fid_store, *fid_grids;
+  FILE *fid_grids;
 
   sprintf(grid_buffer,"Data/%s_gridinfo.dat",fileName);
   fid_grids = fopen(grid_buffer,"w");

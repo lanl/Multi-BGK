@@ -684,14 +684,11 @@ void simplePoisson(int N, double *source, double dx, double Lx, double *phi)
   //solves A*phiVec = RHS
   gsl_linalg_LU_decomp(A,Permut,&signum);
   gsl_linalg_LU_solve(A,Permut,RHS,phiVec);
-  
-  double phitot = 0.0;
- 
+   
   //put results in phi and convert to ergs
   for(i=0;i<N;i++) {
     phi[i] = gsl_vector_get(phiVec,i)/ERG_TO_EV_CGS;
   }
-  //printf("phitot: %g\n",phitot);
 
   gsl_vector_free(phiVec);
   gsl_vector_free(RHS);
