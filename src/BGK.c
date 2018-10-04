@@ -900,13 +900,12 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
   double ntot, rhotot;
 
   // Maxwellian params
-  double mixU[3], mixU_sq;
+  double mixU[3];
 
   double mixT;
-  double v2_1, v2_2;
 
   // coll operator stuff
-  double nu11, nu12, nu21;
+  double nu12, nu21;
 
   double *f_diff = malloc(Nv * Nv * Nv * sizeof(double));
 
@@ -968,15 +967,11 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
 
-          if (i == j)
-            nu11 = nu12;
         } else {
-          nu11 = 0.0;
           nu12 = 0.0;
           nu21 = 0.0;
         }
       } else if (tauFlag == 1) {
-        nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
       } else {
@@ -1002,9 +997,6 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
         if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
 
           // Get Maxwell cross terms
-          mixU_sq = 0.0;
-          v2_1 = 0.0;
-          v2_2 = 0.0;
           for (k = 0; k < 3; k++) {
             mixU[k] = (rho[i] * nu12 * v[i][k] + rho[j] * nu21 * v[j][k]) /
                       (rho[i] * nu12 + rho[j] * nu21);
