@@ -85,77 +85,87 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
   double xlocal[N*N*N];
   double xremote[N*N*N];
 
-  /* Processors 0 and 1 exchange, 2 and 3 exchange, etc.  Then
-     1 and 2 exchange, 3 and 4, etc.  The formula for this is
-     if (even) exchng up else down
-     if (odd)  exchng up else down
-  */
-  /* Note the use of xlocal[i] for &xlocal[i][0] */
-  /* Note that we use MPI_PROC_NULL to remove the if statements that
-     would be needed without MPI_PROC_NULL */
-  up_nbr = rank + 1;
-  if (up_nbr >= numRanks) up_nbr = 0;
-  down_nbr = rank - 1;
-  if (down_nbr < 0) down_nbr = numRanks-1;
-
-  if ((rank % 2) == 0) {
-
-    for (i=0; i<N*N*N; i++)
-      xlocal[i] = f[right_actual][sp][i];
-    
-    /* exchange up */
-    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
-		  &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
-		  MPI_COMM_WORLD, &status );
-
-    for (i=0; i<N*N*N; i++)
-      f[right_ghost][sp][i] = xremote[i];
+  //If just one rank, no MPI communication is needed
+  if(numRanks == 1) {
+    for(i=0;i<N*N*N;i++) {
+      f[left_ghost][sp][i] = f[right_actual][sp][i];
+      f[right_ghost][sp][i] = f[left_actual][sp][i];
+    }      
   }
   else {
 
-    for (i=0; i<N*N*N; i++)
-      xlocal[i] = f[left_actual][sp][i];
+    /* Processors 0 and 1 exchange, 2 and 3 exchange, etc.  Then
+       1 and 2 exchange, 3 and 4, etc.  The formula for this is
+       if (even) exchng up else down
+       if (odd)  exchng up else down
+    */
+    /* Note the use of xlocal[i] for &xlocal[i][0] */
+    /* Note that we use MPI_PROC_NULL to remove the if statements that
+       would be needed without MPI_PROC_NULL */
+    up_nbr = rank + 1;
+    if (up_nbr >= numRanks) up_nbr = 0;
+    down_nbr = rank - 1;
+    if (down_nbr < 0) down_nbr = numRanks-1;
     
-    /* exchange down */
-    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 0,
-		  &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 0, 
+    if ((rank % 2) == 0) {
+      
+      for (i=0; i<N*N*N; i++)
+        xlocal[i] = f[right_actual][sp][i];
+      
+      /* exchange up */
+      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
+                    &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
+                    MPI_COMM_WORLD, &status );
+      
+      for (i=0; i<N*N*N; i++)
+        f[right_ghost][sp][i] = xremote[i];
+    }
+    else {
+      
+      for (i=0; i<N*N*N; i++)
+        xlocal[i] = f[left_actual][sp][i];
+      
+      /* exchange down */
+      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 0,
+                    &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 0, 
 		  MPI_COMM_WORLD, &status );
-
-    for (i=0; i<N*N*N; i++)
-      f[left_ghost][sp][i] = xremote[i];
-	
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  // Do the second set of exchanges
-  if ((rank % 2) == 1) {
-
-    for (i=0; i<N*N*N; i++)
-      xlocal[i] = f[right_actual][sp][i];
+      
+      for (i=0; i<N*N*N; i++)
+        f[left_ghost][sp][i] = xremote[i];
+      
+    }
     
-    /* exchange up */
-    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
-  		  &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
-  		  MPI_COMM_WORLD, &status );
-
-    for (i=0; i<N*N*N; i++)
-      f[right_ghost][sp][i] = xremote[i];
-	
-  }
-  else {
-
-   for (i=0; i<N*N*N; i++)
-      xlocal[i] = f[left_actual][sp][i];
+    MPI_Barrier(MPI_COMM_WORLD);
     
-    /* exchange down */
-    MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
-  		  &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
-  		  MPI_COMM_WORLD, &status );
-
-    for (i=0; i<N*N*N; i++)
-      f[left_ghost][sp][i] = xremote[i];
-    
+    // Do the second set of exchanges
+    if ((rank % 2) == 1) {
+      
+      for (i=0; i<N*N*N; i++)
+        xlocal[i] = f[right_actual][sp][i];
+      
+      /* exchange up */
+      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
+                    &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
+                    MPI_COMM_WORLD, &status );
+      
+      for (i=0; i<N*N*N; i++)
+        f[right_ghost][sp][i] = xremote[i];
+      
+    }
+    else {
+      
+      for (i=0; i<N*N*N; i++)
+        xlocal[i] = f[left_actual][sp][i];
+      
+      /* exchange down */
+      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
+                    &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
+                    MPI_COMM_WORLD, &status );
+      
+      for (i=0; i<N*N*N; i++)
+        f[left_ghost][sp][i] = xremote[i];
+      
+    }
   }
 }
 
@@ -586,7 +596,7 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
 // but with high-resolution methods for each piece
 void advectTwo(double ***f, double *PoisPot, double **qm, double m, int sp) {
   upwindTwo_v(f, f_star, PoisPot, qm, m, c[sp], sp);
-  upwindTwo_x(f, f, c[sp], sp);
+  upwindTwo_x(f_star, f, c[sp], sp);
 }
 
 // This returns the *update* to f as f_conv for the x transport piece
