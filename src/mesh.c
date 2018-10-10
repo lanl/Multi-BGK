@@ -124,7 +124,7 @@ double get_x_left(int Nx, double Lx, double dx, int rank, int numRanks) {
   Lx_rank_L = (Nx_rank_base+1) * dx;
 
   if (rank < remainder) // it is on the left side
-    return rank * Lx_rank_R - 0.5*Lx;
+    return rank * Lx_rank_L - 0.5*Lx;
   else
-    return remainder * Lx_rank_R + (rank - remainder) * Lx_rank_L - 0.5 * Lx;
+    return remainder * Lx_rank_L + (rank - remainder) * Lx_rank_R - 0.5 * Lx;
 }
