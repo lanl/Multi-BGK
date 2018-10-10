@@ -94,8 +94,8 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
        if (odd)  exchng up else down
     */
     /* Note the use of xlocal[i] for &xlocal[i][0] */
-    /* Note that we use MPI_PROC_NULL to remove the if statements that
-       would be needed without MPI_PROC_NULL */
+    /* An edge case is when there are an odd number of ranks - then the last (even) node is sending to 0, which is also an even node. */
+
     up_nbr = rank + 1;
     if (up_nbr >= numRanks) up_nbr = 0;
     down_nbr = rank - 1;
@@ -103,44 +103,76 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     
     if ((rank % 2) == 0) {
       
-      for (i=0; i<N*N*N; i++)
-        xlocal[i] = f[right_actual][sp][i];
+      if(rank != numRanks - 1) {
+        for (i=0; i<N*N*N; i++)
+          xlocal[i] = f[right_actual][sp][i];
+        
+        /* exchange up */
+        MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 1, MPI_COMM_WORLD);
+
+        MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 2, MPI_COMM_WORLD, &status);
       
-      /* exchange up */
-      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
-                    &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 0, 
-                    MPI_COMM_WORLD, &status );
       
-      for (i=0; i<N*N*N; i++)
-        f[right_ghost][sp][i] = xremote[i];
+        for (i=0; i<N*N*N; i++)
+          f[right_ghost][sp][i] = xremote[i];
+      }
     }
     else {
       
       for (i=0; i<N*N*N; i++)
-        xlocal[i] = f[left_actual][sp][i];
-      
+          xlocal[i] = f[left_actual][sp][i];
+        
       /* exchange down */
-      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 0,
-                    &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 0, 
-		  MPI_COMM_WORLD, &status );
+      MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1, MPI_COMM_WORLD, &status);
+      
+      MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 2, MPI_COMM_WORLD);
       
       for (i=0; i<N*N*N; i++)
-        f[left_ghost][sp][i] = xremote[i];
-      
+        f[left_ghost][sp][i] = xremote[i];      
+          
     }
     
+    //Deal with edge case - boundary for odd numRanks case
+    if(numRanks % 2 == 1) {
+  
+      if(rank == 0) {
+        for(i=0;i<N*N*N;i++) 
+          xlocal[i] = f[left_actual][sp][i];
+        
+        MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, numRanks-1, 1, MPI_COMM_WORLD, &status);
+
+        MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, numRanks-1, 2, MPI_COMM_WORLD);
+        
+        for(i=0;i<N*N*N;i++)
+          f[left_ghost][sp][i] = xremote[i];
+      }
+      else if(rank == numRanks - 1) {
+        
+        for(i=0;i<N*N*N;i++)
+          xlocal[i] = f[right_actual][sp][i];
+      
+        MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
+        
+        MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &status);
+        for(i=0;i<N*N*N;i++) 
+          f[right_ghost][sp][i] = xremote[i];
+      }
+    }  
+     
     MPI_Barrier(MPI_COMM_WORLD);
     
     // Do the second set of exchanges
-    if ((rank % 2) == 1) {
+    //In this case, there will always be an even rank to the right (because 0 is even)
+    // However we could again have the case where rank 0 and numRanks-1 are both even. This is taken care of above.
+    if ((rank % 2) == 1) { 
       
       for (i=0; i<N*N*N; i++)
         xlocal[i] = f[right_actual][sp][i];
       
       /* exchange up */
-      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
-                    &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 1,
-                    MPI_COMM_WORLD, &status );
+      MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, up_nbr, 3, MPI_COMM_WORLD);
+      
+      MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 4, MPI_COMM_WORLD, &status );
       
       for (i=0; i<N*N*N; i++)
         f[right_ghost][sp][i] = xremote[i];
@@ -148,18 +180,22 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     }
     else {
       
-      for (i=0; i<N*N*N; i++)
-        xlocal[i] = f[left_actual][sp][i];
-      
-      /* exchange down */
-      MPI_Sendrecv( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
-                    &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1,
-                    MPI_COMM_WORLD, &status );
-      
-      for (i=0; i<N*N*N; i++)
-        f[left_ghost][sp][i] = xremote[i];
-      
+      if((numRanks % 2 == 0) || (rank != 0)) { //this case was dealt with above
+        for (i=0; i<N*N*N; i++)
+          xlocal[i] = f[left_actual][sp][i];
+        
+        /* exchange down */
+        MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 3, MPI_COMM_WORLD, &status );
+        
+        MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 4, MPI_COMM_WORLD);
+        
+        for (i=0; i<N*N*N; i++)
+          f[left_ghost][sp][i] = xremote[i];
+      }
     }
+  
+    //Ghost cells complete, just wait for all ranks to catch up
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 }
 

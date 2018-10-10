@@ -907,7 +907,6 @@ int main(int argc, char **argv) {
 	      }
 	    }
 	  }
-	  MPI_Barrier(MPI_COMM_WORLD);
 	}
       }
 
@@ -966,6 +965,7 @@ int main(int argc, char **argv) {
       // Set up the source/RHS array for the Poisson solve
 
       if(rank == 0) {
+
         for (l=0; l < Nx_rank; l++) {
           source_allranks[l] = source[l];        
           Te_arr_allranks[l] = Te_arr[l];
@@ -993,7 +993,9 @@ int main(int argc, char **argv) {
         }
         MPI_Send(source_buf, 2*Nx_rank, MPI_DOUBLE, 0, 200+rank, MPI_COMM_WORLD);
       }
-    
+      
+      //Wait until all source stuff is sent
+      MPI_Barrier(MPI_COMM_WORLD);
 
       if(rank == 0) { // Rank 0 performs the Poisson Solve
 
@@ -1064,7 +1066,6 @@ int main(int argc, char **argv) {
             for(l=0; l < Nx_ranks[rankCounter]; l++) {
               source_buf[l+order] = PoisPot_allranks[rankOffset + l];
             }
-            
             MPI_Send(source_buf, Nx_ranks[rankCounter]+2*order, MPI_DOUBLE, rankCounter, rankCounter, MPI_COMM_WORLD); 
             
             rankOffset += Nx_ranks[rankCounter];
@@ -1085,7 +1086,6 @@ int main(int argc, char **argv) {
           for(l=0; l < Nx_ranks[numRanks]; l++) {
             source_buf[l + order] = PoisPot_allranks[rankOffset + l];
           }
-          
           MPI_Send(source_buf, Nx_ranks[numRanks-1]+2*order, MPI_DOUBLE, numRanks-1, numRanks - 1, MPI_COMM_WORLD); 
         }
       }
@@ -1161,6 +1161,8 @@ int main(int argc, char **argv) {
         }
       }
       // IO done, advance to the actual solution...
+
+      MPI_Barrier(MPI_COMM_WORLD);
 
       if (order == 1) {
         // ADVECT
