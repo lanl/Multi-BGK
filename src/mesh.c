@@ -42,7 +42,6 @@ void make_mesh(int Nx, double Lx, int order, int *Nx_rank, int **Nx_ranks, doubl
 
   dx_zone = Lx / Nx;
 
-
   *Nx_ranks = malloc(numRanks * sizeof(int));
 
   if(numRanks > 1) {

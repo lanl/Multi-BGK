@@ -38,7 +38,7 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
 	v_oned[l][s][0] = v_in[inputIndex];
 	v_oned[l][s][1] = 0.0;
 	v_oned[l][s][2] = 0.0;
-	T_oned[l][s] = T_in[inputIndex];	     
+	T_oned[l][s] = T_in[inputIndex];	
       }
       else {
 	n_oned[l][s] = 0.0;
@@ -54,7 +54,7 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
 	  for(k=0;k<Nv;k++) {
 	    vIndex = k + Nv*(j + Nv*i);	    
 
- 	    if(ndens_in[inputIndex] != 0) {
+ 	    if(ndens_in[inputIndex] != 0.0) {
 	      f[l+order][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
 		exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
 		    ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 

@@ -112,7 +112,6 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
         MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, up_nbr, 2, MPI_COMM_WORLD, &status);
       
-      
         for (i=0; i<N*N*N; i++)
           f[right_ghost][sp][i] = xremote[i];
       }
@@ -120,13 +119,13 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     else {
       
       for (i=0; i<N*N*N; i++)
-          xlocal[i] = f[left_actual][sp][i];
+        xlocal[i] = f[left_actual][sp][i];
         
       /* exchange down */
       MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 1, MPI_COMM_WORLD, &status);
       
       MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 2, MPI_COMM_WORLD);
-      
+
       for (i=0; i<N*N*N; i++)
         f[left_ghost][sp][i] = xremote[i];      
           
@@ -142,7 +141,6 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, numRanks-1, 1, MPI_COMM_WORLD, &status);
 
         MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, numRanks-1, 2, MPI_COMM_WORLD);
-        
         for(i=0;i<N*N*N;i++)
           f[left_ghost][sp][i] = xremote[i];
       }
@@ -154,6 +152,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
         
         MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, &status);
+
         for(i=0;i<N*N*N;i++) 
           f[right_ghost][sp][i] = xremote[i];
       }
@@ -180,7 +179,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     }
     else {
       
-      if((numRanks % 2 == 0) || (rank != 0)) { //this case was dealt with above
+      if (! ( (numRanks % 2 == 1) && (rank == 0) ) ) { //this case was dealt with above
         for (i=0; i<N*N*N; i++)
           xlocal[i] = f[left_actual][sp][i];
         
@@ -188,7 +187,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Recv( &xremote[0], N*N*N, MPI_DOUBLE, down_nbr, 3, MPI_COMM_WORLD, &status );
         
         MPI_Send( &xlocal[0], N*N*N, MPI_DOUBLE, down_nbr, 4, MPI_COMM_WORLD);
-        
+
         for (i=0; i<N*N*N; i++)
           f[left_ghost][sp][i] = xremote[i];
       }
@@ -350,15 +349,14 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   //
   // Thus the acceleration term units are cm / s^2
 
-  double *E = malloc((nX+1) * sizeof(double)); // size to nX+1 to ensure that l loop has enough memory
-  for (i=0; i<nX+1; i++) E[i] = 0.0;
 
-  // BC's should be applied to phi before running this; phi needs to be size to at least nX+2
-  /*
-  for (i = 1; i < nX + 1; i++) {
-    E[i] = -qm[i][sp] / m * (PoisPot[i + 1] - PoisPot[i - 1]) / (2.0 * dx[i]);
-  }
-  */
+  //Calculate the electric field from the potential.
+  //Note that E is sized to nX+2 to ensure that l loop has enough memory
+  //Also note that qm / Z is defined on nX, not nX+2
+  double *E = malloc((nX+2) * sizeof(double)); 
+  for (l = 1; l < nX + 1; l++) {
+    E[l] = -qm[l-1][sp] / m * (PoisPot[l + 1] - PoisPot[l - 1]) / (2.0 * dx[l]);
+  }  
 
   for (l = 1; l < nX + 1; l++) {
     if (E[l] > 0) {

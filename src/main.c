@@ -924,17 +924,17 @@ int main(int argc, char **argv) {
       convenient for units issues
       ************/
 
-      /*
+      
       if (ecouple == 1) { // electrons only in background
         if (Te_start != Te_ref)
           get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
         else
           get_uniform_Te(Te_arr, Nx_rank,
                          Te_ref); // fixed background temperature
-      } else
-      */
-      Te_arr = T0_oned;
-        /*
+      } else      
+        Te_arr = T0_oned;
+
+      /*
       if (ecouple == 2) {
         for (l = 0; l < Nx_rank; l++) {
           source[l] = 0.0;
@@ -946,7 +946,7 @@ int main(int argc, char **argv) {
           source[l] -= n_oned[l][0]; // electrons
         }
 
-        } else { */
+        } else { */      
     
       // Calculate ionization data
       for (l = 0; l < Nx_rank; l++) {
@@ -1015,8 +1015,11 @@ int main(int argc, char **argv) {
         else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
           PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks, Te_arr_allranks);
         //}
+
       }
       
+      
+
       //Distribute back to the other ranks
       if(rank == 0) {
         rankOffset = 0;
@@ -1041,13 +1044,15 @@ int main(int argc, char **argv) {
             PoisPot[Nx_rank+3] = PoisPot_allranks[Nx_rank+1];
           }
         }
+
+        //Set main body of PoisPot
         for(l=0; l < Nx_rank; l++) {
           PoisPot[l + order] = PoisPot_allranks[l];
         }
+          
+        rankOffset = Nx_rank;
 
         if(numRanks > 1) {
-          
-          rankOffset = Nx_rank;
           
           for(rankCounter = 1; rankCounter < numRanks-1; rankCounter++) {
             
@@ -1063,13 +1068,17 @@ int main(int argc, char **argv) {
               source_buf[Nx_ranks[rankCounter] + 3] = PoisPot_allranks[rankOffset + Nx_ranks[rankCounter] + 1];
             }
             
+            //Set main body of PoisPot on rankCounter
             for(l=0; l < Nx_ranks[rankCounter]; l++) {
               source_buf[l+order] = PoisPot_allranks[rankOffset + l];
             }
+
             MPI_Send(source_buf, Nx_ranks[rankCounter]+2*order, MPI_DOUBLE, rankCounter, rankCounter, MPI_COMM_WORLD); 
             
             rankOffset += Nx_ranks[rankCounter];
           }
+          
+          //Deal with periodic BC for rightmost rank
           
           //SET LOCAL GHOST CELLS
           if(order == 1) {
@@ -1083,16 +1092,15 @@ int main(int argc, char **argv) {
             source_buf[Nx_ranks[numRanks-1] + 3] = PoisPot_allranks[1];
           }
           
-          for(l=0; l < Nx_ranks[numRanks]; l++) {
+          for(l=0; l < Nx_ranks[numRanks-1]; l++) {
             source_buf[l + order] = PoisPot_allranks[rankOffset + l];
           }
+
           MPI_Send(source_buf, Nx_ranks[numRanks-1]+2*order, MPI_DOUBLE, numRanks-1, numRanks - 1, MPI_COMM_WORLD); 
         }
       }
       else {
         MPI_Recv(source_buf, Nx_rank + 2*order, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD, &status);
-        for(l=0; l < Nx_rank + 2*order; l++) 
-          PoisPot[l] = source_buf[l];
       }
 
       // Moments and initial electric field calculated - save if needed
