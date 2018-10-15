@@ -117,9 +117,10 @@ Te_end  	       - Final background electron temperature, used if ecouple = 1
 --- Collision info
 
 BGKtype		       - Flag that determines which multi-BGK model to use
-		       	 + 0 - Haack, Hauck, Murillo (default)
-			 + 1 - Greene
-			 + 2 - NRL
+		       	 * 0: Haack, Hauck, Murillo (default)
+			 * 1: Greene
+			 * 2: NRL
+                         *-1: No collision term (run as Vlasov)
 
 beta		       - Free parameter used in Greene BGK model (default 0)
 

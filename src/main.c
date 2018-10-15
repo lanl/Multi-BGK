@@ -1197,13 +1197,14 @@ int main(int argc, char **argv) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
-        // COLLIDE
-        for (l = 0; l < Nx_rank; l++) {
-          BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f[l + order][i][j] += dt * f_tmp[l + order][i][j];
-        }
+        if (!(BGK_type < 0))
+          // COLLIDE
+          for (l = 0; l < Nx_rank; l++) {
+            BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
+            for (i = 0; i < nspec; i++)
+              for (j = 0; j < Nv * Nv * Nv; j++)
+                f[l + order][i][j] += dt * f_tmp[l + order][i][j];
+          }
       }
 
       if (order == 2) {
@@ -1326,7 +1327,6 @@ int main(int argc, char **argv) {
                   0.25 * f_conv[l + order][i][j];
 
         // Next Strang step - RK2 for collision with timstep dt
-
         for (l = 0; l < Nx_rank; l++) {
 
           // Step 1
