@@ -1230,6 +1230,9 @@ int main(int argc, char **argv) {
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
 
+        // Do second step of Poisson solve - TODO refactor this into its own
+        // routine
+
         if (ecouple == 1) { // electrons only in background
 
           if (Te_start != Te_ref)
@@ -1270,21 +1273,159 @@ int main(int argc, char **argv) {
           }
         }
 
-        if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+        // Set up the source/RHS array for the Poisson solve
+
+        if (rank == 0) {
+
+          for (l = 0; l < Nx_rank; l++) {
+            source_allranks[l] = source[l];
+            Te_arr_allranks[l] = Te_arr[l];
+          }
+
+          if (numRanks > 1) {
+            rankOffset = Nx_rank;
+
+            // Get the source/RHS value and electron temperatures from all the
+            // other ranks.
+            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+              MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
+                       rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_allranks[l + rankOffset] = source_buf[0 + 2 * l];
+                Te_arr_allranks[l + rankOffset] = source_buf[1 + 2 * l];
+              }
+              rankOffset += Nx_ranks[rankCounter];
+            }
+          }
         } else {
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx_rank; l++)
-              PoisPot[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
+          // Send the RHS value to rank 0
+          for (l = 0; l < Nx_rank; l++) {
+            source_buf[0 + 2 * l] = source[l];
+            source_buf[1 + 2 * l] = Te_arr[l];
+          }
+          MPI_Send(source_buf, 2 * Nx_rank, MPI_DOUBLE, 0, 200 + rank,
+                   MPI_COMM_WORLD);
         }
+
+        // Wait until all source stuff is sent
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank == 0) { // Rank 0 performs the Poisson Solve
+
+          /*if (ecouple == 2) {
+          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+          } else {
+          */
+          if (poissFlavor == 0) { // no E-field
+            for (l = 0; l < Nx; l++)
+              PoisPot_allranks[l] = 0.0;
+          } else if (poissFlavor == 11) // Linear Yukawa
+            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                               Te_arr_allranks);
+          else if (poissFlavor == 12) // Nonlinear Yukawa
+            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 21) // Linear Thomas-Fermi
+            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                     PoisPot_allranks, Te_arr_allranks);
+          //}
+        }
+
+        // Distribute back to the other ranks
+        if (rank == 0) {
+          rankOffset = 0;
+
+          // SET LOCAL GHOST CELLS
+          if (order == 1) {
+            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1)
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
+            else
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+          } else if (order == 2) {
+            PoisPot[0] = PoisPot_allranks[Nx - 2];
+            PoisPot[1] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1) {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[0];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[1];
+            } else {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[Nx_rank + 1];
+            }
+          }
+
+          // Set main body of PoisPot
+          for (l = 0; l < Nx_rank; l++) {
+            PoisPot[l + order] = PoisPot_allranks[l];
+          }
+
+          if (numRanks > 1) {
+
+            rankOffset = Nx_rank;
+
+            for (rankCounter = 1; rankCounter < numRanks - 1; rankCounter++) {
+
+              // Send local ghost cell info
+              if (order == 1) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 1] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+              } else if (order == 2) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 2];
+                source_buf[1] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 2] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+                source_buf[Nx_ranks[rankCounter] + 3] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter] + 1];
+              }
+
+              // Set main body of PoisPot on rankCounter
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+              }
+
+              MPI_Send(source_buf, Nx_ranks[rankCounter] + 2 * order,
+                       MPI_DOUBLE, rankCounter, rankCounter, MPI_COMM_WORLD);
+
+              rankOffset += Nx_ranks[rankCounter];
+            }
+
+            // Deal with periodic BC for rightmost rank
+
+            // SET LOCAL GHOST CELLS
+            if (order == 1) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+            } else if (order == 2) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 2];
+              source_buf[1] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 2] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 3] = PoisPot_allranks[1];
+            }
+
+            for (l = 0; l < Nx_ranks[numRanks - 1]; l++) {
+              source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+            }
+
+            MPI_Send(source_buf, Nx_ranks[numRanks - 1] + 2 * order, MPI_DOUBLE,
+                     numRanks - 1, numRanks - 1, MPI_COMM_WORLD);
+          }
+        } else {
+          // Get potential from rank 0
+
+          MPI_Recv(source_buf, Nx_rank + 2 * order, MPI_DOUBLE, 0, rank,
+                   MPI_COMM_WORLD, &status);
+
+          // Set Poispot
+          for (l = 0; l < Nx_rank + 2 * order; l++) {
+            PoisPot[l] = source_buf[l];
+          }
+        }
+
+        // Finished with determining poisson solve, now advect
 
         // RK2 Step 2
         for (i = 0; i < nspec; i++) {
@@ -1409,21 +1550,188 @@ int main(int argc, char **argv) {
           }
         }
 
+        // Recalc Poiss
         if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+          for (l = 0; l < Nx_rank; l++) {
+            source[l] = 0.0;
+
+            for (i = 0; i < nspec; i++)
+              n_oned[l][i] = getDensity(f_tmp[l + order][i], i);
+
+            for (i = 1; i < nspec; i++)
+              source[l] +=
+                  Z_oned[l][i] *
+                  n_oned[l][i]; // total number of free electrons in each cell
+            source[l] -= n_oned[l][0];
+          }
+
         } else {
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx_rank; l++)
-              PoisPot[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
+          for (l = 0; l < Nx_rank; l++) {
+            for (i = 0; i < nspec; i++)
+              n_oned[l][i] = getDensity(f_tmp[l + order][i], i);
+            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+            source[l] = 0.0;
+            for (i = 0; i < nspec; i++)
+              source[l] +=
+                  Z_oned[l][i] *
+                  n_oned[l][i]; // total number of free electrons in each cell
+          }
         }
+
+        // Set up the source/RHS array for the Poisson solve
+
+        if (rank == 0) {
+
+          for (l = 0; l < Nx_rank; l++) {
+            source_allranks[l] = source[l];
+            Te_arr_allranks[l] = Te_arr[l];
+          }
+
+          if (numRanks > 1) {
+            rankOffset = Nx_rank;
+
+            // Get the source/RHS value and electron temperatures from all the
+            // other ranks.
+            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+              MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
+                       rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_allranks[l + rankOffset] = source_buf[0 + 2 * l];
+                Te_arr_allranks[l + rankOffset] = source_buf[1 + 2 * l];
+              }
+              rankOffset += Nx_ranks[rankCounter];
+            }
+          }
+        } else {
+          // Send the RHS value to rank 0
+          for (l = 0; l < Nx_rank; l++) {
+            source_buf[0 + 2 * l] = source[l];
+            source_buf[1 + 2 * l] = Te_arr[l];
+          }
+          MPI_Send(source_buf, 2 * Nx_rank, MPI_DOUBLE, 0, 200 + rank,
+                   MPI_COMM_WORLD);
+        }
+
+        // Wait until all source stuff is sent
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank == 0) { // Rank 0 performs the Poisson Solve
+
+          /*if (ecouple == 2) {
+          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+          } else {
+          */
+          if (poissFlavor == 0) { // no E-field
+            for (l = 0; l < Nx; l++)
+              PoisPot_allranks[l] = 0.0;
+          } else if (poissFlavor == 11) // Linear Yukawa
+            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                               Te_arr_allranks);
+          else if (poissFlavor == 12) // Nonlinear Yukawa
+            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 21) // Linear Thomas-Fermi
+            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                     PoisPot_allranks, Te_arr_allranks);
+          //}
+        }
+
+        // Distribute back to the other ranks
+        if (rank == 0) {
+          rankOffset = 0;
+
+          // SET LOCAL GHOST CELLS
+          if (order == 1) {
+            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1)
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
+            else
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+          } else if (order == 2) {
+            PoisPot[0] = PoisPot_allranks[Nx - 2];
+            PoisPot[1] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1) {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[0];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[1];
+            } else {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[Nx_rank + 1];
+            }
+          }
+
+          // Set main body of PoisPot
+          for (l = 0; l < Nx_rank; l++) {
+            PoisPot[l + order] = PoisPot_allranks[l];
+          }
+
+          if (numRanks > 1) {
+
+            rankOffset = Nx_rank;
+
+            for (rankCounter = 1; rankCounter < numRanks - 1; rankCounter++) {
+
+              // Send local ghost cell info
+              if (order == 1) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 1] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+              } else if (order == 2) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 2];
+                source_buf[1] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 2] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+                source_buf[Nx_ranks[rankCounter] + 3] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter] + 1];
+              }
+
+              // Set main body of PoisPot on rankCounter
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+              }
+
+              MPI_Send(source_buf, Nx_ranks[rankCounter] + 2 * order,
+                       MPI_DOUBLE, rankCounter, rankCounter, MPI_COMM_WORLD);
+
+              rankOffset += Nx_ranks[rankCounter];
+            }
+
+            // Deal with periodic BC for rightmost rank
+
+            // SET LOCAL GHOST CELLS
+            if (order == 1) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+            } else if (order == 2) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 2];
+              source_buf[1] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 2] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 3] = PoisPot_allranks[1];
+            }
+
+            for (l = 0; l < Nx_ranks[numRanks - 1]; l++) {
+              source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+            }
+
+            MPI_Send(source_buf, Nx_ranks[numRanks - 1] + 2 * order, MPI_DOUBLE,
+                     numRanks - 1, numRanks - 1, MPI_COMM_WORLD);
+          }
+        } else {
+          // Get potential from rank 0
+
+          MPI_Recv(source_buf, Nx_rank + 2 * order, MPI_DOUBLE, 0, rank,
+                   MPI_COMM_WORLD, &status);
+
+          // Set Poispot
+          for (l = 0; l < Nx_rank + 2 * order; l++) {
+            PoisPot[l] = source_buf[l];
+          }
+        }
+
+        // Finished with determining poisson solve, now advect
 
         // RK2 Step 1
         for (i = 0; i < nspec; i++) {
@@ -1474,21 +1782,159 @@ int main(int argc, char **argv) {
           }
         }
 
-        if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+        // Set up the source/RHS array for the Poisson solve
+
+        if (rank == 0) {
+
+          for (l = 0; l < Nx_rank; l++) {
+            source_allranks[l] = source[l];
+            Te_arr_allranks[l] = Te_arr[l];
+          }
+
+          if (numRanks > 1) {
+            rankOffset = Nx_rank;
+
+            // Get the source/RHS value and electron temperatures from all the
+            // other ranks.
+            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+              MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
+                       rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_allranks[l + rankOffset] = source_buf[0 + 2 * l];
+                Te_arr_allranks[l + rankOffset] = source_buf[1 + 2 * l];
+              }
+              rankOffset += Nx_ranks[rankCounter];
+            }
+          }
         } else {
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx_rank; l++)
-              PoisPot[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx_rank, source, dx, Lx, PoisPot, Te_arr);
+          // Send the RHS value to rank 0
+          for (l = 0; l < Nx_rank; l++) {
+            source_buf[0 + 2 * l] = source[l];
+            source_buf[1 + 2 * l] = Te_arr[l];
+          }
+          MPI_Send(source_buf, 2 * Nx_rank, MPI_DOUBLE, 0, 200 + rank,
+                   MPI_COMM_WORLD);
         }
+
+        // Wait until all source stuff is sent
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank == 0) { // Rank 0 performs the Poisson Solve
+
+          /*if (ecouple == 2) {
+          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+          } else {
+          */
+          if (poissFlavor == 0) { // no E-field
+            for (l = 0; l < Nx; l++)
+              PoisPot_allranks[l] = 0.0;
+          } else if (poissFlavor == 11) // Linear Yukawa
+            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                               Te_arr_allranks);
+          else if (poissFlavor == 12) // Nonlinear Yukawa
+            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 21) // Linear Thomas-Fermi
+            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                     PoisPot_allranks, Te_arr_allranks);
+          //}
+        }
+
+        // Distribute back to the other ranks
+        if (rank == 0) {
+          rankOffset = 0;
+
+          // SET LOCAL GHOST CELLS
+          if (order == 1) {
+            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1)
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
+            else
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+          } else if (order == 2) {
+            PoisPot[0] = PoisPot_allranks[Nx - 2];
+            PoisPot[1] = PoisPot_allranks[Nx - 1];
+            if (numRanks == 1) {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[0];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[1];
+            } else {
+              PoisPot[Nx_rank + 2] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 3] = PoisPot_allranks[Nx_rank + 1];
+            }
+          }
+
+          // Set main body of PoisPot
+          for (l = 0; l < Nx_rank; l++) {
+            PoisPot[l + order] = PoisPot_allranks[l];
+          }
+
+          if (numRanks > 1) {
+
+            rankOffset = Nx_rank;
+
+            for (rankCounter = 1; rankCounter < numRanks - 1; rankCounter++) {
+
+              // Send local ghost cell info
+              if (order == 1) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 1] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+              } else if (order == 2) {
+                source_buf[0] = PoisPot_allranks[rankOffset - 2];
+                source_buf[1] = PoisPot_allranks[rankOffset - 1];
+                source_buf[Nx_ranks[rankCounter] + 2] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter]];
+                source_buf[Nx_ranks[rankCounter] + 3] =
+                    PoisPot_allranks[rankOffset + Nx_ranks[rankCounter] + 1];
+              }
+
+              // Set main body of PoisPot on rankCounter
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+              }
+
+              MPI_Send(source_buf, Nx_ranks[rankCounter] + 2 * order,
+                       MPI_DOUBLE, rankCounter, rankCounter, MPI_COMM_WORLD);
+
+              rankOffset += Nx_ranks[rankCounter];
+            }
+
+            // Deal with periodic BC for rightmost rank
+
+            // SET LOCAL GHOST CELLS
+            if (order == 1) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+            } else if (order == 2) {
+              source_buf[0] = PoisPot_allranks[rankOffset - 2];
+              source_buf[1] = PoisPot_allranks[rankOffset - 1];
+              source_buf[Nx_ranks[numRanks - 1] + 2] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 3] = PoisPot_allranks[1];
+            }
+
+            for (l = 0; l < Nx_ranks[numRanks - 1]; l++) {
+              source_buf[l + order] = PoisPot_allranks[rankOffset + l];
+            }
+
+            MPI_Send(source_buf, Nx_ranks[numRanks - 1] + 2 * order, MPI_DOUBLE,
+                     numRanks - 1, numRanks - 1, MPI_COMM_WORLD);
+          }
+        } else {
+          // Get potential from rank 0
+
+          MPI_Recv(source_buf, Nx_rank + 2 * order, MPI_DOUBLE, 0, rank,
+                   MPI_COMM_WORLD, &status);
+
+          // Set Poispot
+          for (l = 0; l < Nx_rank + 2 * order; l++) {
+            PoisPot[l] = source_buf[l];
+          }
+        }
+
+        // Finished with determining poisson solve, now advect
 
         // RK2 Step 2
         for (i = 0; i < nspec; i++) {
