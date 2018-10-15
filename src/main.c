@@ -983,9 +983,9 @@ int main(int argc, char **argv) {
           for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
             MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
                      rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
-            for (l = rankOffset; l < rankOffset + Nx_ranks[rankCounter]; l++) {
-              source_allranks[l] = source_buf[0 + 2 * l];
-              Te_arr_allranks[l] = source_buf[1 + 2 * l];
+            for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+              source_allranks[l + rankOffset] = source_buf[0 + 2 * l];
+              Te_arr_allranks[l + rankOffset] = source_buf[1 + 2 * l];
             }
             rankOffset += Nx_ranks[rankCounter];
           }
@@ -1055,9 +1055,9 @@ int main(int argc, char **argv) {
           PoisPot[l + order] = PoisPot_allranks[l];
         }
 
-        rankOffset = Nx_rank;
-
         if (numRanks > 1) {
+
+          rankOffset = Nx_rank;
 
           for (rankCounter = 1; rankCounter < numRanks - 1; rankCounter++) {
 
@@ -1107,8 +1107,15 @@ int main(int argc, char **argv) {
                    numRanks - 1, numRanks - 1, MPI_COMM_WORLD);
         }
       } else {
+        // Get potential from rank 0
+
         MPI_Recv(source_buf, Nx_rank + 2 * order, MPI_DOUBLE, 0, rank,
                  MPI_COMM_WORLD, &status);
+
+        // Set Poispot
+        for (l = 0; l < Nx_rank + 2 * order; l++) {
+          PoisPot[l] = source_buf[l];
+        }
       }
 
       // Moments and initial electric field calculated - save if needed
