@@ -1,0 +1,170 @@
+# Left hand side test case, 1 species
+#
+# This simply computes an initial 'box' of charged
+# particles
+# 
+
+#----------------------------------------------------------
+#
+#SPECIES INFO
+#
+#----------------------------------------------------------
+
+
+# Number of species
+nspec
+1
+# Hydrogen
+#----------------------------------------------------------
+# Species masses (g)
+mass
+1.6605e-24
+#----------------------------------------------------------
+# Species base ionizations
+Z
+1.0
+
+#----------------------------------------------------------
+#
+#PHYSICAL SPACE INFO
+#
+#----------------------------------------------------------
+
+
+# 0D or 1D
+dims
+1
+#----------------------------------------------------------
+# Number of physical space nodes for 1D
+Nx
+64
+#----------------------------------------------------------
+# Size of physical domain for 1D (cm)
+Lx
+100e-4
+
+
+#----------------------------------------------------------
+#
+#INITIAL CONDITION INFO
+#
+#----------------------------------------------------------
+
+# Initial Data 
+NumIntervals
+2
+Interval
+1
+x
+-50e-4
+n_i
+3.6133e21
+v_i
+0.0
+T_i
+100
+Interval
+2
+x
+0
+n_i
+0.0
+v_i
+0.0
+T_i
+100.0
+End_init
+
+#----------------------------------------------------------
+# Electron Temperatures
+Te_start
+100
+Te_end
+100
+
+# Poisson solve
+poiss
+0
+
+#----------------------------------------------------------
+#
+#    VELOCITY SPACE INFO
+#
+#----------------------------------------------------------
+
+
+# Velocity discretization - uniform or GL
+discret
+0
+#----------------------------------------------------------
+# Number of nodes in each direction in velocity space
+Nv
+24
+#----------------------------------------------------------
+# Width of velocity domains, in thermal speeds
+v_width
+8
+
+
+#----------------------------------------------------------
+#
+#TIME INFO
+#
+#----------------------------------------------------------
+
+
+# Timestep (s)
+Time_step
+2e-15
+#----------------------------------------------------------
+# Number of steps
+Final_time
+20e-15
+#----------------------------------------------------------
+# Spatial/temporal order of accuracy
+Space_order
+2
+
+#----------------------------------------------------------
+#
+#COLLISION INFO
+#
+#----------------------------------------------------------
+
+
+# Electron coupling flag
+ecouple
+1
+#----------------------------------------------------------
+# Flavor of BGK
+BGKtype
+-1
+#----------------------------------------------------------
+# Coulomb log type
+Coulomb_type
+0
+#----------------------------------------------------------
+# ion-ion collision rate type (SM or NRL)
+Ion_coll_type
+0
+#----------------------------------------------------------
+# collision rate type - 0 for momentum relax, 1 for temperature relax
+Ion_coll_flavor
+1
+#----------------------------------------------------------
+# Save distribution data
+Dump_distro
+0
+
+
+#----------------------------------------------------------
+#
+#OUTPUT INFO
+#
+#----------------------------------------------------------
+
+
+# Data writing frequency - number of timesteps between output snaphot
+Data_writing_frequency
+1
+Stop
