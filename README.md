@@ -2,7 +2,7 @@ This is LANL code C17146
 
 -------------------------
 
-Setup stuff
+# Setup stuff
 
 You need to create the following directories in the same directory as the makefile
 obj/
@@ -16,6 +16,10 @@ To build the code, simply type
 make
 
 to build the `main' multiBGK code, which can do 1D-3V or 0D-3V, for an arbitrary number of species.
+
+-------
+# Note for developers
+--------`
 
 
 ------------
