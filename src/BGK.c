@@ -29,7 +29,7 @@ static double t;
 static double *n;
 static double *rho;
 static double **v;
-static double *T;
+static double *T, T0;
 static double *nu_tot, **nu;
 static double **nu_from_MD;
 
@@ -120,6 +120,7 @@ double debyeLength(double *n, double *T, double n_e, double Te) {
   double ElectronDebyeLengthSquared;
   double TotalIonDebyeLengthInverseSquared;
   double EffectiveScreeningLength;
+  int sp;
 
   ElectronDebyeLengthSquared = debyeLength_electron(n_e, Te);
   TotalIonDebyeLengthInverseSquared = debyeLength_ions(n, T);
@@ -158,13 +159,14 @@ double ionSphereRadius(double n) {
 void getColl(double *n, double *T, double Te, double *Z, double *nuij,
              double *nuji, int i, int j) {
 
-  double lam_eff, n_e;
+  double lam_eff, wT, n_e;
   double alpha_SM, K_11, K;
   double g5_int;
   double a_i, lambda_eff, lambda_db, b90_2, lam_ratio;
   double logLam, logLam_ii, logLam_ij;
   double V02;
   double nu11, nu12, nu21;
+  double EF;
 
   int sp;
 
@@ -195,8 +197,8 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
   //    related to this
   // Case Two: ecouple = 1 and i is set to -1
   //    This is when the electrons are a fixed background temperature. i=-1 is
-  //    just what we send when we just want
-  //    the rates back since they are not an actual species
+  //    just what we send when we just want the rates back since they are not an
+  //    actual species
   if (((i == 0) && (ecouple == 2)) || (i < 0)) {
 
     // Find Coulomb Logarithm
@@ -497,8 +499,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   // check for blowup
   if (isnan(n[0])) {
     printf("Something weird is going on: What did Jan Say? The Michael Scott "
-           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected in "
-           "BGK.c\n");
+           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected \n");
     for (i = 0; i < nspec; i++) {
       printf("%d n: %g v: %g T: %g Z: %g Te: %g\n", i, n[i], v[i][0], T[i],
              Z[i], Te);
@@ -665,6 +666,297 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   // printf("collmin %g\n",collmin);
 }
 
+// This does an implicit update of the BGK operator, lagging the collision rates
+void BGK_im(double **f, double *Z, double dt, double Te) {
+
+  double ntot, rhotot;
+
+  // Maxwellian params
+  double mixU[3], mixU_sq;
+  double mixT;
+  double v2_1, v2_2;
+
+  // implicit update stuff
+  double u1_np1[3];
+  double u2_np1[3];
+  double u0_np1[3];
+  double detA;
+  double T1_np1;
+  double T2_np1;
+  double detB;
+  double b1;
+  double b2;
+  double cfactor;
+
+  // coll operator stuff
+  double logLam;
+  double nu11, nu12, nu21;
+
+  int i, j, k;
+
+  // get moments
+
+  ntot = 0.0;
+  rhotot = 0.0;
+  for (i = 0; i < nspec; i++) {
+    n[i] = getDensity(f[i], i);
+    rho[i] = m[i] * n[i];
+    ntot += n[i];
+    rhotot += m[i] * n[i];
+
+    getBulkVel(f[i], v[i], n[i], i);
+  }
+
+  // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in
+  // eV
+  for (i = 0; i < nspec; i++) {
+    T[i] = getTemp(m[i], n[i], v[i], f[i], i);
+  }
+
+  // Now generate the BGK operators
+
+  // actual choices for generating nu with ions
+  for (i = 0; i < nspec; i++) {
+    for (j = i; j < nspec; j++) {
+      fflush(stdout);
+      getColl(n, T, Te, Z, &nu12, &nu21, i, j);
+      nu[i][j] = nu12;
+      nu[j][i] = nu21;
+      // printf("%d %d %g %g\n",i,j,1.0/nu[i][j],1.0/nu[j][i]);
+    }
+  }
+
+  /*
+  for(i=0;i<nspec;i++) {
+    for(j=0;j<nspec;j++)
+      printf("%g ",nu[i][j]);
+    printf("\n");
+  }
+  */
+
+  // Collision rates obtained
+
+  // First update the velocities
+  double **v_next = malloc(nspec * sizeof(double *));
+  for (i = 0; i < nspec; i++)
+    v_next[i] = malloc(3 * sizeof(double));
+  gsl_vector *v_np1 = gsl_vector_calloc(nspec);
+  gsl_vector *v_n = gsl_vector_calloc(nspec);
+  gsl_matrix *A = gsl_matrix_calloc(nspec, nspec);
+
+  gsl_permutation *permut = gsl_permutation_alloc(nspec);
+  int signum;
+
+  double sumval;
+  double tstep;
+  // Generate the matrix to do implicit velocity update
+
+  if (order == 1)
+    tstep = dt;
+  else if (order == 2)
+    tstep = 0.5 * dt;
+
+  for (i = 0; i < nspec; i++) {
+    for (j = 0; j < nspec; j++) {
+      if (i != j)
+        gsl_matrix_set(A, i, j,
+                       -tstep * rho[i] * rho[j] * nu[i][j] * nu[j][i] /
+                           (rho[i] * nu[i][j] + rho[j] * nu[j][i]));
+      else {
+        sumval = rho[i];
+        for (k = 0; k < nspec; k++)
+          sumval += tstep * rho[i] * rho[k] * nu[i][k] * nu[k][i] /
+                    (rho[i] * nu[i][k] + rho[k] * nu[k][i]) * (i == k ? 0 : 1);
+        gsl_matrix_set(A, i, j, sumval);
+      }
+    }
+  }
+
+  gsl_linalg_LU_decomp(A, permut, &signum);
+
+  //*******************//
+
+  double RHStemp;
+
+  // set up RHS + solve for each of the three components of v
+
+  if (order == 1)
+    for (i = 0; i < nspec; i++)
+      gsl_vector_set(v_n, i, rho[i] * v[i][0]);
+  else if (order == 2) {
+    for (i = 0; i < nspec; i++) {
+      RHStemp = v[i][0];
+      for (j = 0; j < nspec; j++)
+        RHStemp += tstep * nu[i][j] * nu[j][i] * (v[j][0] - v[i][0]) /
+                   (rho[i] * nu[i][j] + rho[j] * nu[j][i]);
+      gsl_vector_set(v_n, i, RHStemp);
+    }
+  }
+
+  gsl_linalg_LU_solve(A, permut, v_n, v_np1);
+
+  for (i = 0; i < nspec; i++)
+    v_next[i][0] = gsl_vector_get(v_np1, i);
+
+  if (order == 1)
+    for (i = 0; i < nspec; i++)
+      gsl_vector_set(v_n, i, v[i][1]);
+  else if (order == 2) {
+    for (i = 0; i < nspec; i++) {
+      RHStemp = v[i][1];
+      for (j = 0; j < nspec; j++)
+        RHStemp += tstep * nu[i][j] * nu[j][i] * (v[j][1] - v[i][1]) /
+                   (rho[i] * nu[i][j] + rho[j] * nu[j][i]);
+      gsl_vector_set(v_n, i, RHStemp);
+    }
+  }
+
+  gsl_linalg_LU_solve(A, permut, v_n, v_np1);
+
+  if (order == 1)
+    for (i = 0; i < nspec; i++)
+      gsl_vector_set(v_n, i, v[i][2]);
+  else if (order == 2) {
+    for (i = 0; i < nspec; i++) {
+      RHStemp = v[i][2];
+      for (j = 0; j < nspec; j++)
+        RHStemp += tstep * nu[i][j] * nu[j][i] * (v[j][2] - v[i][2]) /
+                   (rho[i] * nu[i][j] + rho[j] * nu[j][i]);
+      gsl_vector_set(v_n, i, RHStemp);
+    }
+  }
+
+  gsl_linalg_LU_solve(A, permut, v_n, v_np1);
+
+  for (i = 0; i < nspec; i++)
+    v_next[i][2] = gsl_vector_get(v_np1, i);
+
+  //*******************//
+
+  // now solve for the temperature - check units
+  double *T_next = malloc(nspec * sizeof(double));
+  gsl_vector *T_np1 = gsl_vector_calloc(nspec);
+  gsl_vector *T_n = gsl_vector_calloc(nspec);
+  gsl_matrix *B = gsl_matrix_calloc(nspec, nspec);
+
+  // Generate the matrix for the implicit solve
+  for (i = 0; i < nspec; i++) {
+    for (j = 0; j < nspec; j++) {
+      if (i != j)
+        gsl_matrix_set(B, i, j,
+                       -1.5 * dt * n[i] * n[j] * nu[i][j] * nu[j][i] /
+                           (n[i] * nu[i][j] + n[j] * nu[j][i]));
+      else {
+        sumval = 1.5 * n[i];
+        for (k = 0; k < nspec; k++)
+          sumval += 1.5 * dt * n[i] * n[k] * nu[i][k] * nu[k][i] /
+                    (n[i] * nu[i][k] + n[k] * nu[k][i]) * (i == k ? 0 : 1);
+        gsl_matrix_set(B, i, j, sumval);
+      }
+    }
+  }
+
+  // generate RHS of the equation
+  double rhssumval, vnexti2, vnextj2, vnextij2, v2;
+  for (i = 0; i < nspec; i++) {
+    v2 = 0.0;
+    vnexti2 = 0.0;
+    for (k = 0; k < 3; k++) {
+      v2 += v[i][k] * v[i][k];
+      vnexti2 += v_next[i][k] * v_next[i][k];
+    }
+
+    rhssumval =
+        1.5 * n[i] * T[i] - 0.5 * rho[i] * (vnexti2 - v2) * ERG_TO_EV_CGS;
+
+    for (j = 0; j < nspec; j++) {
+      vnextj2 = 0.0;
+      vnextij2 = 0.0;
+      for (k = 0; k < 3; k++) {
+        vnextj2 += v_next[j][k] * v_next[j][k];
+        vnextij2 += (rho[i] * nu[i][j] * v_next[i][k] +
+                     rho[j] * nu[j][i] * v_next[j][k]) *
+                    (rho[i] * nu[i][j] * v_next[i][k] +
+                     rho[j] * nu[j][i] * v_next[j][k]) /
+                    (rho[i] * nu[i][j] + rho[j] * nu[j][i]) /
+                    (rho[i] * nu[i][j] + rho[j] * nu[j][i]);
+      }
+      // rhssumval += 0.5*dt*ERG_TO_EV_CGS*(nu[i][j]*rho[i]*(vnextij2 - vnexti2)
+      //        - n[i]*nu[i][j]*(rho[i]*nu[i][j]*(vnextij2 - vnexti2) +
+      //        rho[j]*nu[j][i]*(vnextij2 - vnextj2))/(n[i]*nu[i][j] +
+      //        n[j]*nu[j][i]));
+
+      rhssumval += 0.5 * dt * ERG_TO_EV_CGS * n[i] * n[j] * nu[i][j] *
+                   nu[j][i] / (n[i] * nu[i][j] + n[j] * nu[j][i]) *
+                   ((m[i] - m[j]) * vnexti2 + m[i] * vnexti2 - m[j] * vnextj2);
+    }
+    gsl_vector_set(T_n, i, rhssumval);
+  }
+
+  // Do the implicit solve and set the new value
+  gsl_linalg_LU_decomp(B, permut, &signum);
+  gsl_linalg_LU_solve(B, permut, T_n, T_np1);
+
+  for (i = 0; i < nspec; i++) {
+    T_next[i] = gsl_vector_get(T_np1, i);
+  }
+
+  //******************//
+
+  // Implicit moment solves complete, now update the distributions
+
+  // Calculate the Maxwellian parameters
+
+  double mixU_sq0;
+  double numax = 0.0;
+  for (i = 0; i < nspec; i++) {
+    nu_tot[i] = 0.0;
+    for (j = 0; j < nspec; j++) {
+      nu_tot[i] += nu[i][j];
+      numax = (nu[i][j] > numax) ? nu[i][j] : numax;
+      // Maxwellian mixture velocity
+      mixU_sq0 = 0.0;
+      for (k = 0; k < 3; k++) {
+        mixU[k] = (rho[i] * nu[i][j] * v_next[i][k] +
+                   rho[j] * nu[j][i] * v_next[j][k]) /
+                  (rho[i] * nu[i][j] + rho[j] * nu[j][i]);
+        mixU_sq0 += mixU[k] * mixU[k];
+      }
+
+      // Maxwellian mixture temperature
+      mixT =
+          (n[i] * nu[i][j] * T_next[i] + n[j] * nu[j][i] * T_next[j]) /
+              (n[i] * nu[i][j] + n[j] * nu[j][i]) -
+          (ERG_TO_EV_CGS / 3.0) *
+              (rho[i] * nu[i][j] * (mixU_sq0 - v_next[i][0] * v_next[i][0]) +
+               rho[j] * nu[j][i] * (mixU_sq0 - v_next[j][0] * v_next[j][0])) /
+              (n[i] * nu[i][j] + n[j] * nu[j][i]);
+
+      if (n[i] != 0) {
+        GetMaxwell(m[i], n[i], mixU, mixT, M, i);
+        for (k = 0; k < Nv * Nv * Nv; k++)
+          Q[j][k] = dt * nu[i][j] * M[k];
+      }
+    }
+
+    // printf("%g\n",numax);
+
+    // implicit update
+    for (k = 0; k < Nv * Nv * Nv; k++) {
+      for (j = 0; j < nspec; j++)
+        f[i][k] += Q[j][k];
+      f[i][k] = f[i][k] / (1 + dt * nu_tot[i]);
+    }
+  }
+
+  // check for blowup
+  if (isnan(n[0])) {
+    printf("Something weird is going on: What did Jan Say? The Michael Scott "
+           "Story. By Michael Scott. With Dwight Schrute.\n");
+    exit(1);
+  }
+}
+
 void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta,
                 double Te) {
   double ntot, rhotot;
@@ -673,10 +965,13 @@ void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta,
   double mixU[3], mixU_sq;
   double mixU2[3], mixU2_sq;
   double mixT, mixT2;
-  double v12_2;
+  double v2_1, v2_2, v12_2;
 
   // coll operator stuff
+  double n_e;
   double nu11, nu12, nu21;
+
+  double alpha;
 
   int i, j, k;
 
@@ -806,6 +1101,7 @@ void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te) {
   double ntot, rhotot;
 
   // coll operator stuff
+  double n_e;
   double nu11, nu12, nu21;
 
   int i, j, k;
@@ -901,12 +1197,14 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
   double ntot, rhotot;
 
   // Maxwellian params
-  double mixU[3];
+  double mixU[3], mixU_sq;
 
   double mixT;
+  double v2_1, v2_2;
 
   // coll operator stuff
-  double nu12, nu21;
+  double n_e;
+  double nu11, nu12, nu21;
 
   double *f_diff = malloc(Nv * Nv * Nv * sizeof(double));
 
@@ -968,11 +1266,15 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
 
+          if (i == j)
+            nu11 = nu12;
         } else {
+          nu11 = 0.0;
           nu12 = 0.0;
           nu21 = 0.0;
         }
       } else if (tauFlag == 1) {
+        nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
       } else {
@@ -998,6 +1300,9 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
         if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
 
           // Get Maxwell cross terms
+          mixU_sq = 0.0;
+          v2_1 = 0.0;
+          v2_2 = 0.0;
           for (k = 0; k < 3; k++) {
             mixU[k] = (rho[i] * nu12 * v[i][k] + rho[j] * nu21 * v[j][k]) /
                       (rho[i] * nu12 + rho[j] * nu21);

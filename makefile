@@ -8,7 +8,7 @@ SRCDIR=$(DIR)src/
 CC=mpicc
 
 # Compiler flags
-CFLAGS= -O0 -fopenmp -Wall
+CFLAGS= -O2 -fopenmp
 LIBFLAGS = -lm -lgsl -lgslcblas
 
 # Command definition
@@ -18,7 +18,7 @@ RM=rm -f
 sources_main = $(SRCDIR)main.c
 
 
-objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o mesh.o
+objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o
 
 
 pref_main_objects = $(addprefix $(OBJDIR), $(objects_main))
@@ -91,13 +91,6 @@ $(OBJDIR)io.o : $(SRCDIR)io.c
 	$(CC)  -c $(CFLAGS)  $< -o $@ 2>&1 ;
 
 $(OBJDIR)initialize_sol.o : $(SRCDIR)initialize_sol.c
-	@echo "Compiling  $< ... " ; \
-	if [ -f  $@ ] ; then \
-		rm $@ ;\
-	fi ; \
-	$(CC)  -c $(CFLAGS)  $< -o $@ 2>&1 ;
-
-$(OBJDIR)mesh.o : $(SRCDIR)mesh.c
 	@echo "Compiling  $< ... " ; \
 	if [ -f  $@ ] ; then \
 		rm $@ ;\
