@@ -785,6 +785,8 @@ int main(int argc, char **argv) {
       // calc Zbar
       if (ecouple != 2)
         zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
+      else
+        Z_zerod = Z_max;
 
       // Output to files
 
