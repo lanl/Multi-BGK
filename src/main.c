@@ -1467,23 +1467,26 @@ int main(int argc, char **argv) {
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
 
-        // Next Strang step - RK2 for collision with timstep dt
-        for (l = 0; l < Nx_rank; l++) {
+        if (!(BGK_type == -1)) {
+          // Next Strang step - RK2 for collision with timstep dt
+          for (l = 0; l < Nx_rank; l++) {
 
-          // Step 1
-          BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f_tmp[l + order][i][j] =
-                  f[l + order][i][j] + dt * f_conv[l + order][i][j];
+            // Step 1
+            BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
+            for (i = 0; i < nspec; i++)
+              for (j = 0; j < Nv * Nv * Nv; j++)
+                f_tmp[l + order][i][j] =
+                    f[l + order][i][j] + dt * f_conv[l + order][i][j];
 
-          // Step 2
-          BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f[l + order][i][j] =
-                  0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                  0.5 * dt * f_conv[l + order][i][j];
+            // Step 2
+            BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
+                   Te_arr[l]);
+            for (i = 0; i < nspec; i++)
+              for (j = 0; j < Nv * Nv * Nv; j++)
+                f[l + order][i][j] =
+                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
+                    0.5 * dt * f_conv[l + order][i][j];
+          }
         }
 
         // Next strang step - x advection with timestep dt/2
