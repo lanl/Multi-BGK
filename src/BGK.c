@@ -497,7 +497,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   // check for blowup
   if (isnan(n[0])) {
     printf("Something weird is going on: What did Jan Say? The Michael Scott "
-           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected \n");
+           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected in "
+           "BGK.c\n");
     for (i = 0; i < nspec; i++) {
       printf("%d n: %g v: %g T: %g Z: %g Te: %g\n", i, n[i], v[i][0], T[i],
              Z[i], Te);
