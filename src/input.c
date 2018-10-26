@@ -12,7 +12,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 double *v_sigma, int *discret, int *poissFlavor, double **m,
                 double **Z, int *order, int *im_ex, double *dt, double *tfinal,
                 int *numint, double **intervalLimits, double **ndens_int,
-                double **velo_int, double **T_int, int *ecouple,
+                double **velo_int, double **T_int, int *ecouple, int *ionFix,
                 double *Te_start, double *Te_end, int *CL_type, int *ion_type,
                 int *MT_or_TR, double **n, double **u, double **T,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
@@ -28,9 +28,9 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
   /*Set input parameters to default values*/
 
   set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor,
-                     ecouple, Te_start, Te_end, CL_type, ion_type, MT_or_TR, dt,
-                     tfinal, BGK_type, beta, hydro_flag, input_file_data_flag,
-                     dataFreq, outputDist, RHS_tol);
+                     ecouple, ionFix, Te_start, Te_end, CL_type, ion_type,
+                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,
+                     input_file_data_flag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path, inputFilename);
   printf("Opening input file %s\n", input_path);
@@ -281,6 +281,11 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       printf("%d\n", *ecouple);
     }
 
+    if (strcmp(line, "ion_fix") == 0) {
+      *ionFix = read_int(input_file);
+      printf("%d\n", *ionFix);
+    }
+
     if (strcmp(line, "Te_start") == 0) {
       *Te_start = read_double(input_file);
       printf("%g\n", *Te_start);
@@ -344,11 +349,12 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
  */
 void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
                         int *order, int *discret, int *im_ex, int *poissFlavor,
-                        int *ecouple, double *Te_start, double *Te_end,
-                        int *CL_type, int *ion_type, int *MT_or_TR, double *dt,
-                        double *tfinal, int *BGK_type, double *beta,
-                        int *hydro_flag, int *input_file_data_flag,
-                        int *dataFreq, int *dumpDist, double *RHS_tol) {
+                        int *ecouple, int *ionFix, double *Te_start,
+                        double *Te_end, int *CL_type, int *ion_type,
+                        int *MT_or_TR, double *dt, double *tfinal,
+                        int *BGK_type, double *beta, int *hydro_flag,
+                        int *input_file_data_flag, int *dataFreq, int *dumpDist,
+                        double *RHS_tol) {
 
   /*Mesh info*/
 
@@ -381,6 +387,8 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
   *poissFlavor = 22;
 
   *ecouple = 0;
+
+  *ionFix = 0;
 
   *CL_type = 0;
 
