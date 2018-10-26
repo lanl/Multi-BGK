@@ -138,6 +138,7 @@ int main(int argc, char **argv) {
   double *PoisPot, *PoisPot_allranks;
   double *source, *source_buf, *source_allranks;
   int poissFlavor;
+  int ionFix;
 
   // Time setup
   double dt;
@@ -166,9 +167,9 @@ int main(int argc, char **argv) {
 
   read_input(&nspec, &dims, &Nx, &Lx, &Nv, &v_sigma, &discret, &poissFlavor, &m,
              &Z_max, &order, &im_ex, &dt, &tfinal, &numint, &intervalLimits,
-             &ndens_int, &velo_int, &T_int, &ecouple, &Te_start, &Te_ref,
-             &CL_type, &ion_type, &MT_or_TR, &n_zerod, &v_val, &T_zerod,
-             &dataFreq, &outputDist, &RHS_tol, &BGK_type, &beta,
+             &ndens_int, &velo_int, &T_int, &ecouple, &ionFix, &Te_start,
+             &Te_ref, &CL_type, &ion_type, &MT_or_TR, &n_zerod, &v_val,
+             &T_zerod, &dataFreq, &outputDist, &RHS_tol, &BGK_type, &beta,
              &hydro_kinscheme_flag, &input_file_data_flag,
              input_file_data_filename, input_filename);
 
@@ -783,7 +784,7 @@ int main(int argc, char **argv) {
         T0 = T_zerod[0];
 
       // calc Zbar
-      if (ecouple != 2)
+      if ((ecouple != 2) && (ionFix != 1))
         zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
       else
         Z_zerod = Z_max;
@@ -957,7 +958,11 @@ int main(int argc, char **argv) {
       // Calculate ionization data
       for (l = 0; l < Nx_rank; l++) {
         // Get ionization
-        zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+        if ((ecouple != 2) && (ionFix != 1))
+          zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+        else
+          Z_oned[l] = Z_max;
 
         // Set up local Poisson RHS vector
         source[l] = 0.0;
@@ -1265,7 +1270,11 @@ int main(int argc, char **argv) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++)
               n_oned[l][i] = getDensity(f_tmp[l + order][i], i);
-            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+            if ((ecouple != 2) && (ionFix != 1))
+              zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+            else
+              Z_oned[l] = Z_max;
 
             source[l] = 0.0;
             for (i = 0; i < nspec; i++)
@@ -1546,7 +1555,12 @@ int main(int argc, char **argv) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++)
               n_oned[l][i] = getDensity(f[l + order][i], i);
-            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+            if ((ecouple != 2) && (ionFix != 1))
+              zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+            else
+              Z_oned[l] = Z_max;
+
             source[l] = 0.0;
             for (i = 0; i < nspec; i++)
               source[l] +=
@@ -1574,7 +1588,11 @@ int main(int argc, char **argv) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++)
               n_oned[l][i] = getDensity(f_tmp[l + order][i], i);
-            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+            if ((ecouple != 2) && (ionFix != 1))
+              zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+            else
+              Z_oned[l] = Z_max;
 
             source[l] = 0.0;
             for (i = 0; i < nspec; i++)
@@ -1778,7 +1796,12 @@ int main(int argc, char **argv) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++)
               n_oned[l][i] = getDensity(f_tmp[l + 1][i], i);
-            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+
+            if ((ecouple != 2) && (ionFix != 1))
+              zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+            else
+              Z_oned[l] = Z_max;
+
             source[l] = 0.0;
             for (i = 0; i < nspec; i++)
               source[l] +=
