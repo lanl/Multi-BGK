@@ -2034,7 +2034,6 @@ int main(int argc, char **argv) {
         free(f_conv[l][i]);
       }
       free(v_oned[l]);
-      free(Z_oned[l]);
 
       free(f[l]);
       free(f_tmp[l]);
