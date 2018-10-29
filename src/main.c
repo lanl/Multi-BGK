@@ -850,9 +850,22 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++)
           for (j = 0; j < Nv * Nv * Nv; j++)
             f_zerod[i][j] += dt * f_zerod_tmp[i][j];
-      } else {
-        printf("Error - implicit solve for BGK not yet implemented. Please use "
-               "im_ex = 0 in your input file\n");
+      } else if(im_ex == 1) {
+	BGK_im_linear(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < Nv * Nv * Nv; j++)
+            f_zerod[i][j] = f_zerod_tmp[i][j];
+      }
+      else if (im_ex == 2) {
+	/*
+	BGK_im_nonlinear();
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < Nv * Nv * Nv; j++)
+            f_zerod[i][j] = f_zerod_tmp[i][j];
+	*/
+      }
+      else {
+        printf("Error - please set im_ex = 0 (explicit), 1 (linear implicit), or 2 (nonlinear implicit) in your input file.\n");
         exit(1);
       }
     } else if (dims == 1) {

@@ -70,7 +70,7 @@ void computeMixtureVelocities(double **v_new, gsl_matrix *alpha, int nspec,
 
 void computeMixtureTemperatures(double *T_new, gsl_matrix *beta,
                                 gsl_matrix *gamma, int nspec, double **T_mix) {
-  int i, j, dim;
+  int i, j;
 
   for (i = 0; i < nspec; i++)
     for (j = 0; j < nspec; j++)
@@ -100,7 +100,7 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
   for (i = 0; i < nspec; i++) {
     rowsum = 0;
     for (j = 0; j < nspec; j++) {
-      value = nu[i][j] * gsl_matrix_get(alpha, i, j);
+      value = nu[i][j] * gsl_matrix_get(alpha, j, i);
       gsl_matrix_set(A, i, j, value);
       rowsum += value;
     }
@@ -159,7 +159,7 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
     rowvalB = 0.0;
     rowvalG = 0.0;
     for (j = 0; j < nspec; j++) {
-      valueB = nu[i][j] * gsl_matrix_get(beta, i, j);
+      valueB = nu[i][j] * gsl_matrix_get(beta, j, i);
       valueG = valueB * (-m[i] * (v2new[i] - v2mix[i][j]) +
                          m[j] * (v2new[j] - v2mix[i][j]));
 
@@ -201,11 +201,11 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
   gsl_permutation_free(P);
 }
 
-void implicitGetVelocitesTemperaturesLinear(double *n, double **v, double *T,
-                                            double **nu, double *m, double dt,
-                                            int nspec, double **vnew,
-                                            double ***vmix_new, double *Tnew,
-                                            double **Tmix_new) {
+void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
+                                             double **nu, double *m, double dt,
+                                             int nspec, double **vnew,
+                                             double ***vmix_new, double *Tnew,
+                                             double **Tmix_new) {
   int i, j, dim;
 
   double rho[nspec];
@@ -214,7 +214,6 @@ void implicitGetVelocitesTemperaturesLinear(double *n, double **v, double *T,
   double v2[nspec];
   double v2new[nspec];
   for (i = 0; i < nspec; i++) {
-    vnew[i] = malloc(3 * sizeof(double));
     v2mix[i] = malloc(nspec * sizeof(double));
   }
 
@@ -264,18 +263,14 @@ void implicitGetVelocitesTemperaturesLinear(double *n, double **v, double *T,
   gsl_matrix_free(gamma);
 
   for (i = 0; i < nspec; i++) {
-    free(vnew[i]);
     free(v2mix[i]);
   }
-  free(vnew);
   free(v2mix);
 }
 
-void implicitGetVelocitesTemperaturesNonlinear(double *n, double **v, double *T,
-                                               double *m, double dt, int nspec,
-                                               double **vnew,
-                                               double ***vmix_new, double *Tnew,
-                                               double **Tmix_new) {
+void implicitGetVelocitiesTemperaturesNonlinear(
+    double *n, double **v, double *T, double *m, double dt, int nspec,
+    double **vnew, double ***vmix_new, double *Tnew, double **Tmix_new) {
   int i, j, dim;
 
   double rho[nspec];
@@ -397,56 +392,6 @@ void implicitUpdateDistributionsLinear(double **f, double *n, double **v,
                                        double *T, double **nu, double *m,
                                        double dt, int nspec, int Nv,
                                        double **fnew) {}
-/*
-int sp, sp2, index;
-double dtnu_over_dt_nui;
-
-double **vnew = malloc(nspec * sizeof(double *));
-double ***vmix = malloc(nspec * sizeof(double **));
-for (sp = 0; sp < nspec; sp++) {
-  vnew[sp] = malloc(3 * sizeof(double));
-  vmix[sp] = malloc(nspec * sizeof(double *));
-  for (sp2 = 0; sp2 < nspec; sp2++)
-    vmix[sp][sp2] = malloc(3 * sizeof(double));
-}
-double Tnew[nspec];
-double **Tmix = malloc(nspec * sizeof(double *));
-for (sp = 0; sp < nspec; sp++)
-  Tmix[sp] = malloc(nspec * sizeof(double));
-
-double *nu_i = malloc(nspec * sizeof(double));
-
-double *M = malloc(Nv * Nv * Nv * sizeof(double));
-
-// Set the per species collision rate sum
-for (sp = 0; sp < nspec; sp++) {
-  nu_i[sp] = 0;
-  for (sp2 = 0; sp2 < nspec; sp2++)
-    nu_i[sp] += nu[sp][sp2];
-}
-
-// Get the new velocity and temperatures
-
-implicitGetVelocitesTemperatures(n, v, T, nu, m, dt, nspec, vnew, vmix, Tnew,
-                                 Tmix);
-
-// Now do the implicit updates
-for (sp = 0; sp < nspec; sp++) {
-  // initialize fnew
-  for (index = 0; index < Nv * Nv * Nv; index++)
-    fnew[sp][index] = f[sp][index] / (1.0 + dt * nu_i[sp]);
-
-  // Generate the new Maxwellian and add to final result
-  for (sp2 = 0; sp2 < nspec; sp2++) {
-    dtnu_over_dt_nui = dt * nu[sp][sp2] / (1 + dt * nu_i[sp]);
-
-    GetMaxwell(m[sp], n[sp], vmix[sp][sp2], Tmix[sp][sp2], M, sp);
-
-    for (index = 0; index < Nv * Nv * Nv; index++)
-      fnew[sp][index] += dtnu_over_dt_nui * M[index];
-  }
-}
-*/
 
 void implicitUpdateDistributionsNonlinear(double **f, double *n, double **v,
                                           double *T, double **nu, double *m,

@@ -1,5 +1,6 @@
 #include "io.h"
 #include "momentRoutines.h"
+#include "implicit.h"
 #include "units/unit_data.c"
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
@@ -895,6 +896,162 @@ void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te) {
   }
   // printf("collmin %g\n",collmin);
 }
+
+// Does implicit update of the distribution functions f at a single grid point.
+// Moments are re-calculated.
+
+void BGK_im_linear(double **f, double **f_out, double *Z, double dt, double Te) {
+
+  double ntot, rhotot;
+
+  // Maxwellian params
+  double **nu = malloc(nspec*sizeof(double *));
+
+  // coll operator stuff
+  //double n_e;
+  double nu12, nu21;
+
+  int i, j;
+
+  for(i=0;i<nspec;i++)
+    nu[i] = malloc(nspec * sizeof(double));
+
+  // get moments
+
+  ntot = 0.0;
+  rhotot = 0.0;
+  for (i = 0; i < nspec; i++) {
+    n[i] = getDensity(f[i], i);
+    rho[i] = m[i] * n[i];
+    ntot += n[i];
+    rhotot += m[i] * n[i];
+
+    getBulkVel(f[i], v[i], n[i], i);
+  }
+
+  // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in
+  // eV
+  for (i = 0; i < nspec; i++) {
+    T[i] = getTemp(m[i], n[i], v[i], f[i], i);
+  }
+
+  // check for blowup
+  if (isnan(n[0])) {
+    printf("Something weird is going on: What did Jan Say? The Michael Scott "
+           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected in "
+           "BGK.c\n");
+    for (i = 0; i < nspec; i++) {
+      printf("%d n: %g v: %g T: %g Z: %g Te: %g\n", i, n[i], v[i][0], T[i],
+             Z[i], Te);
+    }
+    exit(1);
+  }
+
+  // Get the collision rates at the current timestep
+
+  // do ij and ji at the same time
+  for (i = 0; i < nspec; i++) {
+    for (j = i; j < nspec; j++) {
+
+      if (tauFlag == 0) {
+        if ((n[i] > 1.0e-10) && (n[j] > 1.0e-10)) {
+	  getColl(n, T, Te, Z, &nu12, &nu21, i, j);
+	}	
+      
+	else {
+	  nu12 = 0.0;
+	  nu21 = 0.0;
+	}
+      }
+      else {
+	printf("Loading collision rates from MD is not implemented for implicit solve\n");
+	exit(1);
+      }	
+      nu[i][j] = nu12;
+      nu[j][i] = nu21;
+    }
+  }
+
+  //Now do the BGK update
+  
+  int sp, sp2, index;
+  double dtnu_over_dt_nui;
+
+  double **vnew = malloc(nspec * sizeof(double *));
+  double ***vmix = malloc(nspec * sizeof(double **));
+  for (sp = 0; sp < nspec; sp++) {
+    vnew[sp] = malloc(3 * sizeof(double));
+    vmix[sp] = malloc(nspec * sizeof(double *));
+    for (sp2 = 0; sp2 < nspec; sp2++)
+      vmix[sp][sp2] = malloc(3 * sizeof(double));
+  }
+  double Tnew[nspec];
+  double **Tmix = malloc(nspec * sizeof(double *));
+  for (sp = 0; sp < nspec; sp++)
+    Tmix[sp] = malloc(nspec * sizeof(double));
+  
+  double *nu_i = malloc(nspec * sizeof(double));
+  
+  double *M = malloc(Nv * Nv * Nv * sizeof(double));
+  
+  // Set the per species collision rate sum
+  for (sp = 0; sp < nspec; sp++) {
+    nu_i[sp] = 0;
+    for (sp2 = 0; sp2 < nspec; sp2++)
+      nu_i[sp] += nu[sp][sp2];
+  }
+  
+  // Get the new velocity and temperatures
+  
+  implicitGetVelocitiesTemperaturesLinear(n, v, T, nu, m, dt, nspec, vnew, vmix, Tnew, Tmix);
+  
+  // Now do the implicit updates
+  for (sp = 0; sp < nspec; sp++) {
+    // initialize fnew
+    for (index = 0; index < Nv * Nv * Nv; index++)
+      f_out[sp][index] = f[sp][index] / (1.0 + dt * nu_i[sp]);
+    
+    // Generate the new Maxwellian and add to final result
+    for (sp2 = 0; sp2 < nspec; sp2++) {
+      dtnu_over_dt_nui = dt * nu[sp][sp2] / (1 + dt * nu_i[sp]);
+      
+      GetMaxwell(m[sp], n[sp], vmix[sp][sp2], Tmix[sp][sp2], M, sp);
+      
+      for (index = 0; index < Nv * Nv * Nv; index++)
+	f_out[sp][index] += dtnu_over_dt_nui * M[index];
+    }
+  }
+
+  if(ecouple == 1) {
+    printf("error - still need to implement implicit solve with electrons");
+    exit(1);
+  }
+
+
+  for(sp=0;sp<nspec;sp++) {
+    free(nu[sp]);
+    free(vnew[sp]);
+    for(sp2=0;sp2<nspec;sp2++) {
+      free(vmix[sp][sp2]);
+    }
+    free(vmix[sp]);
+    free(Tmix[sp]);
+  }
+  free(nu);
+  free(vnew);
+  free(vmix);
+  free(Tmix);
+  free(nu_i);
+  free(M);
+}
+
+
+
+
+
+
+
+
 
 void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
 

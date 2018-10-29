@@ -1,10 +1,10 @@
-void implicitGetVelocitesTemperaturesLinear(double *n, double **v, double *T,
+void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
                                             double **nu, double *m, double dt,
                                             int nspec, double **vnew,
                                             double ***vmix_new, double *Tnew,
                                             double **Tmix_new);
 
-void implicitGetVelocitesTemperaturesNonlinear(double *n, double **v, double *T,
+void implicitGetVelocitiesTemperaturesNonlinear(double *n, double **v, double *T,
                                                double *m, double dt, int nspec,
                                                double **vnew,
                                                double ***vmix_new, double *Tnew,
