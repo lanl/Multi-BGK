@@ -10,9 +10,12 @@ gsl_matrix *computeAlpha(double *rho, double **nu, int nspec) {
 
   for (i = 0; i < nspec; i++) {
     for (j = 0; j < nspec; j++) {
-      gsl_matrix_set(alpha, i, j,
-                     rho[i] * nu[i][j] /
-                         (rho[i] * nu[i][j] + rho[j] * nu[j][i]));
+      if ((nu[i][j] == 0.0) && (nu[j][i] == 0.0))
+        gsl_matrix_set(alpha, i, j, 0.0);
+      else
+        gsl_matrix_set(alpha, i, j,
+                       rho[i] * nu[i][j] /
+                           (rho[i] * nu[i][j] + rho[j] * nu[j][i]));
     }
   }
 
@@ -27,8 +30,11 @@ gsl_matrix *computeBeta(double *n, double **nu, int nspec) {
 
   for (i = 0; i < nspec; i++) {
     for (j = 0; j < nspec; j++) {
-      gsl_matrix_set(beta, i, j,
-                     n[i] * nu[i][j] / (n[i] * nu[i][j] + n[j] * nu[j][i]));
+      if ((nu[i][j] == 0.0) && (nu[j][i] == 0.0))
+        gsl_matrix_set(beta, i, j, 0.0);
+      else
+        gsl_matrix_set(beta, i, j,
+                       n[i] * nu[i][j] / (n[i] * nu[i][j] + n[j] * nu[j][i]));
     }
   }
 
@@ -81,7 +87,7 @@ void computeMixtureTemperatures(double *T_new, gsl_matrix *beta,
 
 void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
                             gsl_matrix *alpha, double dt, int nspec,
-                            double **vnew) {
+                            int conserveFlag, double **vnew) {
 
   int i, j;
   double rowsum, value;
@@ -100,7 +106,11 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
   for (i = 0; i < nspec; i++) {
     rowsum = 0;
     for (j = 0; j < nspec; j++) {
-      value = nu[i][j] * gsl_matrix_get(alpha, j, i);
+      if (conserveFlag == 1) { // electron background case
+        value = nu[i][j];
+      } else {
+        value = nu[i][j] * gsl_matrix_get(alpha, j, i);
+      }
       gsl_matrix_set(A, i, j, value);
       rowsum += value;
     }
@@ -142,7 +152,7 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
 void implicitTemperatureUpdate(double *Told, double *m, double *n,
                                double *v2old, double *v2new, double **v2mix,
                                double **nu, gsl_matrix *beta, double dt,
-                               int nspec, double *Tnew) {
+                               int nspec, int conserveFlag, double *Tnew) {
 
   int i, j;
   double valueB, valueG, rowvalB, rowvalG;
@@ -159,7 +169,11 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
     rowvalB = 0.0;
     rowvalG = 0.0;
     for (j = 0; j < nspec; j++) {
-      valueB = nu[i][j] * gsl_matrix_get(beta, j, i);
+      if (conserveFlag == 1) {
+        valueB = nu[i][j];
+      } else {
+        valueB = nu[i][j] * gsl_matrix_get(beta, j, i);
+      }
       valueG = valueB * (-m[i] * (v2new[i] - v2mix[i][j]) +
                          m[j] * (v2new[j] - v2mix[i][j]));
 
@@ -203,9 +217,9 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
 
 void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
                                              double **nu, double *m, double dt,
-                                             int nspec, double **vnew,
-                                             double ***vmix_new, double *Tnew,
-                                             double **Tmix_new) {
+                                             int nspec, int conserveFlag,
+                                             double **vnew, double ***vmix_new,
+                                             double *Tnew, double **Tmix_new) {
   int i, j, dim;
 
   double rho[nspec];
@@ -227,7 +241,7 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
   alpha = computeAlpha(rho, nu, nspec);
   beta = computeBeta(n, nu, nspec);
 
-  implicitVelocityUpdate(v, rho, nu, alpha, dt, nspec, vnew);
+  implicitVelocityUpdate(v, rho, nu, alpha, dt, nspec, conserveFlag, vnew);
 
   // Compute mixture velocities
   computeMixtureVelocities(vnew, alpha, nspec, vmix_new);
@@ -253,7 +267,7 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
   gamma = computeGamma(m, beta, v2, v2mix, nspec);
 
   implicitTemperatureUpdate(T, m, n, v2, v2new, v2mix, nu, beta, dt, nspec,
-                            Tnew);
+                            conserveFlag, Tnew);
 
   computeMixtureTemperatures(Tnew, beta, gamma, nspec, Tmix_new);
 
@@ -270,7 +284,8 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
 
 void implicitGetVelocitiesTemperaturesNonlinear(
     double *n, double **v, double *T, double *m, double dt, int nspec,
-    double **vnew, double ***vmix_new, double *Tnew, double **Tmix_new) {
+    int conserveFlag, double **vnew, double ***vmix_new, double *Tnew,
+    double **Tmix_new) {
   int i, j, dim;
 
   double rho[nspec];
@@ -326,7 +341,7 @@ void implicitGetVelocitiesTemperaturesNonlinear(
     alpha = computeAlpha(rho, nu, nspec);
     beta = computeBeta(n, nu, nspec);
 
-    implicitVelocityUpdate(v, rho, nu, alpha, dt, nspec, vnew);
+    implicitVelocityUpdate(v, rho, nu, alpha, dt, nspec, conserveFlag, vnew);
 
     // Compute mixture velocities
     computeMixtureVelocities(vnew, alpha, nspec, vmix_new);
@@ -352,7 +367,7 @@ void implicitGetVelocitiesTemperaturesNonlinear(
     gamma = computeGamma(m, beta, v2, v2mix, nspec);
 
     implicitTemperatureUpdate(T, m, n, v2, v2new, v2mix, nu, beta, dt, nspec,
-                              Tnew);
+                              conserveFlag, Tnew);
 
     computeMixtureTemperatures(Tnew, beta, gamma, nspec, Tmix_new);
 
@@ -371,7 +386,7 @@ void implicitGetVelocitiesTemperaturesNonlinear(
     iter += 1;
   }
 
-  printf("Iters %d, absErr %g, relErr %g\n\n\n", iter, absErr, relErr);
+  // printf("Iters %d, absErr %g, relErr %g\n\n\n", iter, absErr, relErr);
 
   // Clean up
   gsl_matrix_free(alpha);
@@ -390,10 +405,11 @@ void implicitGetVelocitiesTemperaturesNonlinear(
 
 void implicitUpdateDistributionsLinear(double **f, double *n, double **v,
                                        double *T, double **nu, double *m,
-                                       double dt, int nspec, int Nv,
-                                       double **fnew) {}
+                                       double dt, int nspec, int conserveFlag,
+                                       int Nv, double **fnew) {}
 
 void implicitUpdateDistributionsNonlinear(double **f, double *n, double **v,
                                           double *T, double **nu, double *m,
-                                          double dt, int nspec, int Nv,
+                                          double dt, int nspec,
+                                          int conserveFlag, int Nv,
                                           double **fnew) {}

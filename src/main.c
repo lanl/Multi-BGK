@@ -1217,15 +1217,39 @@ int main(int argc, char **argv) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
-        if (!(BGK_type < 0))
+        if (!(BGK_type < 0)) {
           // COLLIDE
-          for (l = 0; l < Nx_rank; l++) {
-            BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
+          if(im_ex == 0) {
+            for (l = 0; l < Nx_rank; l++) {
+              BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f[l + order][i][j] += dt * f_tmp[l + order][i][j];
+            }
+          } 
+          else if (im_ex == 1) {
+            BGK_im_linear(f[l+order], f_tmp[l+order], Z_oned[l], dt, Te_arr[l]);
             for (i = 0; i < nspec; i++)
               for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] += dt * f_tmp[l + order][i][j];
+                f[l+order][i][j] = f_tmp[l+order][i][j];
+          } 
+          else if (im_ex == 2) {
+            printf("Error - nonlinear implicit solve not implemented for 1D\n");
+            exit(1);
+            /*
+              BGK_im_nonlinear();
+              for (i = 0; i < nspec; i++)
+              for (j = 0; j < Nv * Nv * Nv; j++)
+              f_zerod[i][j] = f_zerod_tmp[i][j];
+            */
           }
+          else {
+            printf("Error - please set Imp_exp = 0 (explicit), 1 (linear implicit), or 2 (nonlinear implicit) in your input file.\n");
+            exit(1);
+          }
+        }
       }
+      
 
       if (order == 2) {
         // ADVECT
@@ -1495,21 +1519,39 @@ int main(int argc, char **argv) {
           // Next Strang step - RK2 for collision with timstep dt
           for (l = 0; l < Nx_rank; l++) {
 
-            // Step 1
-            BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-            for (i = 0; i < nspec; i++)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f_tmp[l + order][i][j] =
+            if(im_ex == 0) {
+              // Step 1
+              BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f_tmp[l + order][i][j] =
                     f[l + order][i][j] + dt * f_conv[l + order][i][j];
-
-            // Step 2
-            BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
-                   Te_arr[l]);
-            for (i = 0; i < nspec; i++)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] =
+              
+              // Step 2
+              BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
+                     Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f[l + order][i][j] =
                     0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                     0.5 * dt * f_conv[l + order][i][j];
+            }
+          
+            else if(im_ex == 1) {
+              printf("Error - implicit solve in 1D only implemented for first oder solve \n");            
+            } 
+            else if (im_ex == 2) {
+              /*
+                BGK_im_nonlinear();
+                for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                f_zerod[i][j] = f_zerod_tmp[i][j];
+              */
+            }
+            else {
+              printf("Error - please set im_ex = 0 (explicit), 1 (linear implicit), or 2 (nonlinear implicit) in your input file.\n");
+              exit(1);
+            }          
           }
         }
 
