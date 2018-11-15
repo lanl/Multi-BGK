@@ -1,3 +1,4 @@
+#include "units/unit_data.c"
 #include <gsl/gsl_linalg.h>
 #include <math.h>
 #include <stdlib.h>
@@ -180,12 +181,16 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
       rowvalB += valueB;
       rowvalG += valueG;
 
-      gsl_matrix_set(B, i, j, valueB);
-      gsl_matrix_set(G, i, j, valueG);
+      gsl_matrix_set(B, i, j, valueB); // 1 / s
+      gsl_matrix_set(G, i, j, valueG); // erg / s
     }
     gsl_vector_set(S, i,
-                   m[i] * (v2old[i] - v2new[i]) + dt * rowvalG / 3.0 + Told[i]);
-    gsl_matrix_set(F, i, i, rowvalB);
+                   (m[i] * (v2old[i] - v2new[i]) + dt * rowvalG / 3.0) *
+                           ERG_TO_EV_CGS +
+                       Told[i]);
+    //                          erg                      erg             eV/erg
+    //                          eV
+    gsl_matrix_set(F, i, i, rowvalB); // 1 / s
   }
 
   // Form M = I + dt(F-B)

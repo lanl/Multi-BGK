@@ -919,7 +919,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
   double *m_linear = malloc(nspec_linear * sizeof(double));
   double *n_linear = malloc(nspec_linear * sizeof(double));
   double **v_linear = malloc(nspec_linear * sizeof(double *));
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < nspec_linear; i++) {
     v_linear[i] = malloc(3 * sizeof(double));
   }
   double *T_linear = malloc(nspec_linear * sizeof(double));
@@ -931,7 +931,6 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     nu_linear[i] = malloc(nspec_linear * sizeof(double));
 
   // get moments
-
   ntot = 0.0;
   rhotot = 0.0;
   for (i = 0; i < nspec; i++) {
@@ -958,6 +957,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     v_linear[nspec][2] = 0.0;
     for (i = 0; i < nspec; i++) {
       n_linear[nspec] += Z[i] * n_linear[i];
+
       v_linear[nspec][0] += rho[i] * v_linear[i][0] / rhotot;
       v_linear[nspec][1] += rho[i] * v_linear[i][1] / rhotot;
       v_linear[nspec][2] += rho[i] * v_linear[i][2] / rhotot;
@@ -1047,15 +1047,13 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     nu_i[sp] = 0;
     for (sp2 = 0; sp2 < nspec_linear; sp2++) {
       nu_i[sp] += nu_linear[sp][sp2];
-      printf("%g ", nu_linear[sp][sp2]);
     }
-    printf("\n");
   }
 
   // Get new velocity and temperatures
 
   implicitGetVelocitiesTemperaturesLinear(n_linear, v_linear, T_linear,
-                                          nu_linear, m, dt, nspec_linear,
+                                          nu_linear, m_linear, dt, nspec_linear,
                                           ecouple, vnew, vmix, Tnew, Tmix);
 
   // Now do the implicit updates of the distribution functions
@@ -1075,11 +1073,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       for (index = 0; index < Nv * Nv * Nv; index++)
         f_out[sp][index] += dtnu_over_dt_nui * M[index];
     }
-
-    printf("i: %d v: %g T: %g\n", sp, vnew[sp][0], Tnew[sp]);
   }
-
-  printf("e: %d v: %g T: %g\n", sp, vnew[nspec][0], Tnew[nspec]);
 
   for (sp = 0; sp < nspec; sp++) {
     free(v_linear[sp]);
