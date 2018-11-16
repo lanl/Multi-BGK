@@ -1,3 +1,4 @@
+#include "implicit.h"
 #include "io.h"
 #include "momentRoutines.h"
 #include "units/unit_data.c"
@@ -422,6 +423,8 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
   collmin = 1.0;
 
   m_e = M_ELEC_CGS;
+
+  // Allocate
 
   Q = malloc(ns * sizeof(double *));
 
@@ -894,6 +897,204 @@ void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te) {
     exit(1);
   }
   // printf("collmin %g\n",collmin);
+}
+
+// Does implicit update of the distribution functions f at a single grid point.
+// Moments are re-calculated.
+void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
+                   double Te) {
+
+  int i, j;
+
+  double ntot, rhotot;
+
+  // coll operator stuff
+  double nu12, nu21;
+
+  // If electrons are a 'background' species, we need to include their moments
+  // in the update vector
+  // When we do C++ this will be much easier...
+
+  int nspec_linear = (ecouple == 1) ? (nspec + 1) : nspec;
+  double *m_linear = malloc(nspec_linear * sizeof(double));
+  double *n_linear = malloc(nspec_linear * sizeof(double));
+  double **v_linear = malloc(nspec_linear * sizeof(double *));
+  for (i = 0; i < nspec_linear; i++) {
+    v_linear[i] = malloc(3 * sizeof(double));
+  }
+  double *T_linear = malloc(nspec_linear * sizeof(double));
+
+  // collision rate array
+  double **nu_linear = malloc(nspec_linear * sizeof(double *));
+
+  for (i = 0; i < nspec_linear; i++)
+    nu_linear[i] = malloc(nspec_linear * sizeof(double));
+
+  // get moments
+  ntot = 0.0;
+  rhotot = 0.0;
+  for (i = 0; i < nspec; i++) {
+    m_linear[i] = m[i];
+    n_linear[i] = getDensity(f[i], i);
+    rho[i] = m[i] * n_linear[i];
+    ntot += n_linear[i];
+    rhotot += m[i] * n_linear[i];
+
+    getBulkVel(f[i], v_linear[i], n_linear[i], i);
+
+    T_linear[i] = getTemp(m[i], n_linear[i], v_linear[i], f[i], i);
+  }
+
+  // Add electron moment info if needed
+  if (ecouple == 1) {
+
+    m_linear[nspec] = m_e;
+
+    // Electron density and velocity
+    n_linear[nspec] = 0.0;
+    v_linear[nspec][0] = 0.0;
+    v_linear[nspec][1] = 0.0;
+    v_linear[nspec][2] = 0.0;
+    for (i = 0; i < nspec; i++) {
+      n_linear[nspec] += Z[i] * n_linear[i];
+
+      v_linear[nspec][0] += rho[i] * v_linear[i][0] / rhotot;
+      v_linear[nspec][1] += rho[i] * v_linear[i][1] / rhotot;
+      v_linear[nspec][2] += rho[i] * v_linear[i][2] / rhotot;
+    }
+
+    // Electron temperature
+    T_linear[nspec] = Te;
+  }
+
+  // check for blowup, lazily checking first species.
+  if (isnan(n_linear[0])) {
+    printf("Something weird is going on: What did Jan Say? The Michael Scott "
+           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected in "
+           "BGK.c\n");
+    for (i = 0; i < nspec; i++) {
+      printf("%d n: %g v: %g T: %g Z: %g Te: %g\n", i, n_linear[i],
+             v_linear[i][0], T_linear[i], Z[i], Te);
+    }
+    exit(1);
+  }
+
+  // Get the collision rates at the current timestep
+
+  // do ij and ji at the same time
+  for (i = 0; i < nspec; i++) {
+    for (j = i; j < nspec; j++) {
+
+      if (tauFlag == 0) {
+        if ((n_linear[i] > 1.0e-10) && (n_linear[j] > 1.0e-10)) {
+          getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, i, j);
+        }
+
+        else {
+          nu12 = 0.0;
+          nu21 = 0.0;
+        }
+      } else {
+        printf("Loading collision rates from MD is not implemented for "
+               "implicit solve\n");
+        exit(1);
+      }
+      nu_linear[i][j] = nu12;
+      nu_linear[j][i] = nu21;
+    }
+  }
+
+  // Add the electron piece if needed
+  if (ecouple == 1) {
+    for (j = 0; j < nspec; j++) {
+      //-1 says the other species is electrons with a fixed temperature
+      getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
+
+      // Electron-ion collisions
+      nu_linear[j][nspec] = nu21;
+
+      // The ecouple 1 assumption has a specified background electron
+      // temperature, so the ions do not change it.
+      nu_linear[nspec][j] = 0.0;
+    }
+    nu_linear[nspec][nspec] = 0.0;
+  }
+
+  // Now do the BGK update
+
+  int sp, sp2, index;
+  double dtnu_over_dt_nui;
+
+  double **vnew = malloc(nspec_linear * sizeof(double *));
+  double ***vmix = malloc(nspec_linear * sizeof(double **));
+  for (sp = 0; sp < nspec_linear; sp++) {
+    vnew[sp] = malloc(3 * sizeof(double));
+    vmix[sp] = malloc(nspec_linear * sizeof(double *));
+    for (sp2 = 0; sp2 < nspec_linear; sp2++)
+      vmix[sp][sp2] = malloc(3 * sizeof(double));
+  }
+  double Tnew[nspec_linear];
+  double **Tmix = malloc(nspec_linear * sizeof(double *));
+  for (sp = 0; sp < nspec_linear; sp++)
+    Tmix[sp] = malloc(nspec_linear * sizeof(double));
+
+  double *nu_i = malloc(nspec_linear * sizeof(double));
+
+  double *M = malloc(Nv * Nv * Nv * sizeof(double));
+
+  // Set the per species collision rate sum
+  for (sp = 0; sp < nspec_linear; sp++) {
+    nu_i[sp] = 0;
+    for (sp2 = 0; sp2 < nspec_linear; sp2++) {
+      nu_i[sp] += nu_linear[sp][sp2];
+    }
+  }
+
+  // Get new velocity and temperatures
+
+  implicitGetVelocitiesTemperaturesLinear(n_linear, v_linear, T_linear,
+                                          nu_linear, m_linear, dt, nspec_linear,
+                                          ecouple, vnew, vmix, Tnew, Tmix);
+
+  // Now do the implicit updates of the distribution functions
+  for (sp = 0; sp < nspec; sp++) { // nspec limit = Only updating ion species
+
+    // Initial piece of update
+    for (index = 0; index < Nv * Nv * Nv; index++)
+      f_out[sp][index] = f[sp][index] / (1.0 + dt * nu_i[sp]);
+
+    // Generate the new Maxwellian and add to final result
+    for (sp2 = 0; sp2 < nspec_linear; sp2++) {
+      dtnu_over_dt_nui = dt * nu_linear[sp][sp2] / (1 + dt * nu_i[sp]);
+
+      GetMaxwell(m_linear[sp], n_linear[sp], vmix[sp][sp2], Tmix[sp][sp2], M,
+                 sp);
+
+      for (index = 0; index < Nv * Nv * Nv; index++)
+        f_out[sp][index] += dtnu_over_dt_nui * M[index];
+    }
+  }
+
+  for (sp = 0; sp < nspec; sp++) {
+    free(v_linear[sp]);
+    free(nu_linear[sp]);
+    free(vnew[sp]);
+    for (sp2 = 0; sp2 < nspec; sp2++) {
+      free(vmix[sp][sp2]);
+    }
+    free(vmix[sp]);
+    free(Tmix[sp]);
+  }
+  free(n_linear);
+  free(v_linear);
+  free(T_linear);
+  free(nu_linear);
+
+  free(vnew);
+  free(vmix);
+  free(Tmix);
+  free(nu_i);
+  free(M);
 }
 
 void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {

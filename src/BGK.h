@@ -5,7 +5,9 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int order,
 
 void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te);
 
-void BGK_im(double **f, double *Z, double dt, double Te);
+void BGK_im_linear(double **f, double **f_out, double *Z, double dt, double Te);
+
+void BGK_im_nonlinear(double **f, double **f_out, double *Z, double dt, double Te);
 
 void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta, double Te);
 
