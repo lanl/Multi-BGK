@@ -72,6 +72,27 @@ tau[1][1]
 ```
 
 -----------
+# Parallelism
+-----------
+
+This code uses OpenMP and MPI for parallelism
+
+## OpenMP
+
+Several routines in the code are multithreaded - more optimization can probably be done here. 
+By defualt, the code simply takes the `$OMP_NUM_THREADS` environment variable to determine the number of threads.
+If unset most systems typically just take the maximum number of threads, YMMV. 
+
+## MPI
+
+1D problems can be run on multiple ranks, ala
+
+`mpirun -n N ./exec/MultiBGK_ input_filename`
+
+where `N` is the number of NPI ranks. The code decomposes the physical grid across ranks.
+
+
+-----------
 # INPUT FILES
 -----------
 
@@ -115,6 +136,12 @@ The input files look for certain keywords, then their values listed in the follo
 `Final_time`             - length of time to simulate (in s) (default 1e-12)
 
 `Space_order`            - Whether to use first or second order method for time stepping/discretization (Int 1 or 2)
+
+`Imp_exp`    	         - Whether to do implicit or explicit time discretization of BGK (0 for exp, 1 for imp)
+
+* 0 - run explicit solve with given timestep (default)
+* 1 - run linear implicit solve with collision rates lagged to previous timestep. Currently only implemented for first order in time/space.
+* 2 - run nonlinear implicit solve with collision rates nonlinearly coupled with implicit solution. **Currently under construction. **
 
 
 ##  Electric field info
@@ -168,7 +195,7 @@ The input files look for certain keywords, then their values listed in the follo
 * 1: use temperature relaxation rates to determin nu
 
 
-## OD Setup
+## 0D Setup
 
 `n`                      - reads in initial number densities for each species in cc. Only used for 0D.
 
@@ -261,17 +288,11 @@ End_init
 
 `RHS_tol`		       - This sets the threshold in which the relative error(s) between f and f_eq indicate that we should stop. We compute ||f - f_eq||^2_{ij} / ||f_init - f_eq,init||^2_{ij}, which is a decreasing quantity. Default value is 0.5. 
 
-## In development
-
-`Imp_exp`		       - Whether to do implicit or explicit time discretization of BGK (0 for exp, 1 for imp)
-
-* default is 0		       
-*  Note - this is a placeholder, implicit currently does not work
 
 `hydro_flag`
 
-* 0: run the code as designed (default)
-* 1: Reset the distribution function to its local Maxwellian, ala Kinetic scheme
+* 0: run the code as designed, i.e. as a kinetic code (default)
+* 1: Reset the distribution function to its local Maxwellian at the end of each timestep, ala a hydro kinetic scheme.
 
 The order you put these in the file mostly does not matter, though you do need nspec before anything that requires knowing the number of species (e.g. masses)
 
