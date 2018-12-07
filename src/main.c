@@ -456,6 +456,14 @@ int main(int argc, char **argv) {
 
     dx = Lx / Nx;
 
+    // Write the full mesh for storage purposes
+    if(rank == 0) {
+      for(l=0;l<Nx;l++)
+	fprintf(outputFile_x,"%+le ",(l + 0.5)*dx - 0.5*Lx);
+      
+      fclose(outputFile_x);
+    }
+    
     /*********
     //Old style
     dx = Lx/Nx;
@@ -2075,7 +2083,6 @@ int main(int argc, char **argv) {
     free(dxarray);
 
     if (rank == 0) {
-      fclose(outputFile_x);
       fclose(outputFilePoiss);
     }
 

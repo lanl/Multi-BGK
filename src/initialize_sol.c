@@ -25,8 +25,8 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
     //Figure out the interval
     //If no interval is found it defaults to zero
     int_id = 0; 
-    for(j=0;j<nint;j++)
-      if(x[l] > int_loc[j])
+    for(j=0;j<nint;j++)      
+      if(x[l+order] > int_loc[j])
 	int_id = j;
     
     for(s=0;s<nspec;s++) {
