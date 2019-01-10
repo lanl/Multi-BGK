@@ -2050,7 +2050,7 @@ int main(int argc, char **argv) {
   }
 
   if ((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, -1, input_filename);
+    store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
 
   // clean up
 
