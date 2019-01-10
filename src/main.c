@@ -361,7 +361,8 @@ int main(int argc, char **argv) {
 
     if ((restartFlag == 2) || (restartFlag == 4)) {
       load_grid_restart(
-          Lv, &t, input_filename); // note - this assumes uniform grid for now
+          Lv, &t, &nT,
+          input_filename); // note - this assumes uniform grid for now
       for (i = 0; i < nspec; i++) {
         dv = 2.0 * Lv[i] / (Nv - 1.0);
         for (j = 0; j < Nv; j++) {
@@ -712,9 +713,10 @@ int main(int argc, char **argv) {
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
                  tauFlag, input_filename);
 
-  if (!((restartFlag == 2) || (restartFlag == 4)))
+  if (!((restartFlag == 2) || (restartFlag == 4))) {
     t = 0.0;
-
+    nT = 0;
+  }
   if (restartFlag > 2) {
     // Check to see if we need to store initial BGK error data
     if (rank == 0) {
@@ -724,7 +726,6 @@ int main(int argc, char **argv) {
     BGK_norm(f_zerod, BGK_f_minus_eq_init, Z_zerod, dt, T0);
   }
 
-  nT = 0;
   Htot_prev = 0.0;
   Htot = 0.0;
   for (i = 0; i < nspec; i++) {
@@ -2049,7 +2050,7 @@ int main(int argc, char **argv) {
   }
 
   if ((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, nT, input_filename);
+    store_distributions_homog(f_zerod, t, -1, input_filename);
 
   // clean up
 

@@ -11,6 +11,6 @@ void store_distributions_inhomog(double ***f, char *fileName, int t);
 
 void store_grid(char *fileName);
 
-void load_grid_restart(double *Lv, double *t, char *fileName);
+void load_grid_restart(double *Lv, double *t, int *nT, char *fileName);
 
 void load_taus_homog(double **nu, char *fileName);

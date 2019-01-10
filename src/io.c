@@ -30,7 +30,10 @@ void store_distributions_homog(double **f, double t, int step, char *fileName) {
   fid_grids = fopen(grid_buffer, "w");
 
   for (s = 0; s < nspec; s++) {
-    sprintf(name_buffer, "Data/%s_spec%d_step%d.dat", fileName, s, step);
+    if (step >= 0)
+      sprintf(name_buffer, "Data/%s_spec%d_step%d.dat", fileName, s, step);
+    else
+      sprintf(name_buffer, "Data/%s_spec%d.dat", fileName, s);
 
     fid_store = fopen(name_buffer, "w");
 
@@ -42,6 +45,7 @@ void store_distributions_homog(double **f, double t, int step, char *fileName) {
   }
 
   fprintf(fid_grids, "%g\n", t);
+  fprintf(fid_grids, "%d\n", step);
 
   printf("Stored time %g\n", t);
 
@@ -133,13 +137,13 @@ void load_taus_homog(double **nu, char *filename) {
   fclose(fid_load);
 }
 
-void load_grid_restart(double *Lv, double *t, char *fileName) {
+void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
   int s, readflag;
   char name_buffer[100];
   char line[100];
   FILE *fid_load;
 
-  int spec, num_v;
+  int spec, num_v, nt_val;
   double Lv_val, t_val;
 
   sprintf(name_buffer, "Data/%s_gridinfo.dat", fileName);
@@ -165,11 +169,20 @@ void load_grid_restart(double *Lv, double *t, char *fileName) {
   if (fgets(line, 100, fid_load) != NULL) {
     readflag = sscanf(line, "%lf\n", &t_val);
   } else {
-    printf("Error - specifiy initial time in last line of the gridinfo file\n");
+    printf("Error - specifiy initial time in second to last line of the "
+           "gridinfo file\n");
+    exit(1);
+  }
+  if (fgets(line, 100, fid_load) != NULL) {
+    readflag = sscanf(line, "%d\n", &nt_val);
+  } else {
+    printf("Error - specifiy initial time step in last line of the gridinfo "
+           "file\n");
     exit(1);
   }
 
   *t = t_val;
+  *nT = nt_val;
 
   fclose(fid_load);
 }
