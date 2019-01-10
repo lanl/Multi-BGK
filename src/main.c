@@ -457,13 +457,13 @@ int main(int argc, char **argv) {
     dx = Lx / Nx;
 
     // Write the full mesh for storage purposes
-    if(rank == 0) {
-      for(l=0;l<Nx;l++)
-	fprintf(outputFile_x,"%+le ",(l + 0.5)*dx - 0.5*Lx);
-      
+    if (rank == 0) {
+      for (l = 0; l < Nx; l++)
+        fprintf(outputFile_x, "%+le ", (l + 0.5) * dx - 0.5 * Lx);
+
       fclose(outputFile_x);
     }
-    
+
     /*********
     //Old style
     dx = Lx/Nx;
@@ -815,6 +815,9 @@ int main(int argc, char **argv) {
           outcount = 0;
         }
         fprintf(outputFileH, "%e\n", (Htot - Htot_prev) / dt);
+
+        if (outputDist == 1)
+          store_distributions_homog(f_zerod, t, nT, input_filename);
 
         for (i = 0; i < nspec; i++)
           for (j = 0; j < nspec; j++)
@@ -2046,7 +2049,7 @@ int main(int argc, char **argv) {
   }
 
   if ((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, input_filename);
+    store_distributions_homog(f_zerod, t, nT, input_filename);
 
   // clean up
 
