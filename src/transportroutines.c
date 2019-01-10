@@ -425,7 +425,7 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
                  double m, double *v, int sp) {
   int i, j, k, l;
   int index;
-  double CFL_NUM;
+  double CFL_NUM, CFL_MAX = 0.0;
   h_v = v[1] - v[0];
 
   int rank, numNodes;
@@ -455,6 +455,10 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   for (l = 1; l < nX + 1; l++) {
     if (E[l] > 0) {
       CFL_NUM = dt * E[l] / h_v;
+
+      if (CFL_NUM > CFL_MAX)
+        CFL_MAX = CFL_NUM;
+
       //#pragma omp parallel for private(i,j,k,index)
       for (i = 0; i < N; i++)
         for (j = 0; j < N; j++)
@@ -482,6 +486,10 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
           }
     } else {
       CFL_NUM = dt * E[l] / h_v;
+
+      if (fabs(CFL_NUM) > CFL_MAX)
+        CFL_MAX = fabs(CFL_NUM);
+
       //#pragma omp parallel for private(i,j,k,index)
       for (i = 0; i < N; i++)
         for (j = 0; j < N; j++)
@@ -499,6 +507,12 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
     }
   }
 
+  if (CFL_MAX > 1.0) {
+    printf("\n***********\n");
+    printf("Warning - Electric field CFL is %g\n", CFL_MAX);
+    printf("Code may be unstable\n");
+    printf("\n***********\n");
+  }
   free(E);
 }
 
@@ -533,6 +547,7 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
 
     for (i = N / 2; i < N; i++) {
       CFL_NUM = dt * v[i] / dx[l];
+
       for (j = 0; j < N; j++)
         for (k = 0; k < N; k++) {
           index = k + N * (j + N * i);
@@ -560,6 +575,7 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
     //#pragma omp parallel for private(i,j,k,index,CFL_NUM,f_l,f_rr,f_r,slope)
     for (i = 0; i < N / 2; i++) {
       CFL_NUM = dt * v[i] / dx[l];
+
       for (j = 0; j < N; j++)
         for (k = 0; k < N; k++) {
           index = k + N * (j + N * i);
@@ -594,7 +610,7 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   int i, j, k, l;
   int index;
   double slope[3];
-  double CFL_NUM;
+  double CFL_NUM, CFL_MAX = 0.0;
 
   h_v = v[1] - v[0];
 
@@ -626,6 +642,10 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
 
   for (l = 2; l < nX + 2; l++) {
     CFL_NUM = dt * E[l] / h_v;
+
+    if (fabs(CFL_NUM) > CFL_MAX)
+      CFL_MAX = fabs(CFL_NUM);
+
     //#pragma omp parallel for
     // private(i,j,k,index,neut,up1,up2,down1,down2,slope)
     for (i = 0; i < N; i++)
@@ -708,6 +728,13 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
                   (f[l][sp][index] - 0.5 * (h_v + E[l] * dt) * slope[1]);
           }
         }
+  }
+
+  if (CFL_MAX > 1.0) {
+    printf("\n***********\n");
+    printf("Warning - Electric field CFL is %g\n", CFL_MAX);
+    printf("Code may be unstable\n");
+    printf("\n***********\n");
   }
 
   free(E);

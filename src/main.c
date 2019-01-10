@@ -378,6 +378,7 @@ int main(int argc, char **argv) {
           vref[i] = sqrt((T0 / ERG_TO_EV_CGS) / m[i]);
         else
           vref[i] = sqrt((T_zerod[i] / ERG_TO_EV_CGS) / m[i]);
+
         Lv[i] = v_sigma * vref[i];
       }
 
@@ -560,15 +561,32 @@ int main(int argc, char **argv) {
     c = malloc(nspec * sizeof(double *));
     wts = malloc(nspec * sizeof(double *));
 
+    double vmax = 0.0;
+
     for (i = 0; i < nspec; i++) {
       if (T0_max > T_max[i])
         vref[i] = sqrt((T0_max / ERG_TO_EV_CGS) / m[i]);
       else
         vref[i] = sqrt((T_max[i] / ERG_TO_EV_CGS) / m[i]);
 
+      if (vmax < vref[i])
+        vmax = vref[i];
+
       Lv[i] = v_sigma * vref[i];
       c[i] = malloc(Nv * sizeof(double));
       wts[i] = malloc(Nv * sizeof(double));
+    }
+
+    double CFL = dt * vmax / dx;
+
+    if (rank == 0) {
+      printf("Streaming CFL: %g\n", CFL);
+
+      if ((CFL > 1.0) || ((order == 2) && (CFL > 0.5))) {
+        printf("\n\n******************************\n");
+        printf("STREAMING COURANT CONDITION NOT SATISFIED, MAY BE UNSTABLE\n");
+        printf("******************************\n\n\n");
+      }
     }
 
     if (discret == 0) { // uniform velocity grid
@@ -930,10 +948,10 @@ int main(int argc, char **argv) {
                        "Story. By Michael Scott. With Dwight Schrute.\n NaN "
                        "detected \n");
                 for (j = 0; j < nspec; j++) {
-                  printf(
-                      "rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: %g\n",
-                      rank, l, i, j, n_oned[l][j], v0_oned[l][j], T_oned[l][j],
-                      Z_oned[l][j], Te_arr[l]);
+                  printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
+                         "%g\n",
+                         rank, l, i, j, n_oned[l][j], v0_oned[l][j],
+                         T_oned[l][j], Z_oned[l][j], Te_arr[l]);
                 }
                 exit(1);
               }
