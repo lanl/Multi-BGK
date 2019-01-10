@@ -45,7 +45,8 @@ void store_distributions_homog(double **f, double t, int step, char *fileName) {
   }
 
   fprintf(fid_grids, "%g\n", t);
-  fprintf(fid_grids, "%d\n", step);
+  if (step < 0)
+    fprintf(fid_grids, "%d\n", -1 * step);
 
   printf("Stored time %g\n", t);
 
