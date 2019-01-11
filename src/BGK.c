@@ -7,6 +7,7 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_vector.h>
 #include <math.h>
+#include <mpi.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@ static double mu;
 static int Nv;
 static int nspec;
 static int order;
+static int rank;
 static double *m;
 static double m_e;
 static double **Q;
@@ -427,6 +429,8 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
 
   m_e = M_ELEC_CGS;
 
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   // Allocate
 
   Q = malloc(ns * sizeof(double *));
@@ -571,12 +575,14 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
           // Check reactivity
           if (TNBFlag) {
-            double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_TT, R_BGK_DD;
+            double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
+            char buffer[50];
             R_BGK_DD_HE = GetReactivity_dd_He(mu, f[i], f[i], i, i);
             R_BGK_DD_T = GetReactivity_dd_T(mu, f[i], f[i], i, i);
             R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
             if (R_BGK_DD > 0) {
-              fpii = fopen("TNB_DD.txt", "a");
+              sprintf(buffer, "TNB_DD_%d.dat", rank);
+              fpii = fopen(buffer, "a");
               fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j],
                       R_BGK_DD_HE, R_BGK_DD_T);
               fclose(fpii);
@@ -640,8 +646,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
           if (TNBFlag) {
             double R_BGK_DT = GetReactivity_dt(mu, f[i], f[j], i, j);
+            char buffer[50];
             if (R_BGK_DT > 0) {
-              fpij = fopen("TNB_DT.txt", "a");
+              sprintf(buffer, "TNB_DT_%d.dat", rank);
+              fpij = fopen(buffer, "a");
               fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
               fclose(fpij);
             }
