@@ -1,5 +1,6 @@
 #include "input.h"
 #include "units/unit_data.c"
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,9 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
                 double *beta, int *hydro_flag, int *input_file_data_flag,
                 char *input_file_data_filename, char *inputFilename) {
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   char line[10000] = {"dummy"};
   char input_path[100] = {"./input/"};
@@ -49,81 +53,95 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
 
     read_line(input_file, line);
 
-    printf("%s \n", line);
+    if (rank == 0)
+      printf("%s\n", line);
 
     /*Mesh info*/
     if (strcmp(line, "nspec") == 0) {
       *nspec = read_int(input_file);
-      printf("%d\n", *nspec);
+      if (rank == 0)
+        printf("%d\n", *nspec);
     }
 
     if (strcmp(line, "dims") == 0) {
       *dims = read_int(input_file);
-      printf("%d\n", *dims);
+      if (rank == 0)
+        printf("%d\n", *dims);
     }
 
     /*Number of physical space grid pts*/
     if (strcmp(line, "Nx") == 0) {
       *Nx = read_int(input_file);
-      printf("%d\n", *Nx);
+      if (rank == 0)
+        printf("%d\n", *Nx);
     }
 
     /*Length of physical domain in m*/
     if (strcmp(line, "Lx") == 0) {
       *Lx = read_double(input_file);
-      printf("%g\n", *Lx);
+      if (rank == 0)
+        printf("%g\n", *Lx);
     }
 
     /*Number of velocity nodes in each dimension*/
     if (strcmp(line, "Nv") == 0) {
       *Nv = read_int(input_file);
-      printf("%d\n", *Nv);
+      if (rank == 0)
+        printf("%d\n", *Nv);
     }
 
     if (strcmp(line, "v_width") == 0) {
       *v_sigma = read_double(input_file);
-      printf("%g\n", *v_sigma);
+      if (rank == 0)
+        printf("%g\n", *v_sigma);
     }
 
     if (strcmp(line, "discret") == 0) {
       *discret = read_int(input_file);
-      printf("%d\n", *discret);
+      if (rank == 0)
+        printf("%d\n", *discret);
     }
 
     /*Type of poisson solver*/
     if (strcmp(line, "poiss") == 0) {
       *poissFlavor = read_int(input_file);
-      printf("%d\n", *poissFlavor);
+      if (rank == 0)
+        printf("%d\n", *poissFlavor);
     }
 
     /*Time-step in s*/
     if (strcmp(line, "Time_step") == 0) {
       *dt = read_double(input_file);
-      printf("%g\n", *dt);
+      if (rank == 0)
+        printf("%g\n", *dt);
     }
 
     /*Number of time-steps in s*/
     if (strcmp(line, "Final_time") == 0) {
       *tfinal = read_double(input_file);
-      printf("%g\n", *tfinal);
+      if (rank == 0)
+        printf("%g\n", *tfinal);
     }
 
     /*Order of accuracy of space/time discretization*/
     if (strcmp(line, "Space_order") == 0) {
       *order = read_int(input_file);
-      printf("%d\n", *order);
+      if (rank == 0)
+        printf("%d\n", *order);
     }
 
     /* Flag to use the hydro kinetic scheme*/
     if (strcmp(line, "Hydro_flag") == 0) {
       *hydro_flag = read_int(input_file);
-      printf("%d\n", *hydro_flag);
+      if (rank == 0)
+        printf("%d\n", *hydro_flag);
     }
 
     /*Implicit solve (lagged) for the BGK operator*/
     if (strcmp(line, "Imp_exp") == 0) {
       *im_ex = read_int(input_file);
-      printf("%d\n", *im_ex);
+      if (rank == 0)
+        printf("%d\n", *im_ex);
     }
 
     /*Species info*/
@@ -138,7 +156,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *m = malloc((*nspec) * sizeof(double));
       for (i = 0; i < (*nspec); i++) {
         (*m)[i] = read_double(input_file);
-        printf("%g\n", (*m)[i]);
+        if (rank == 0)
+          printf("%g\n", (*m)[i]);
       }
     }
 
@@ -152,7 +171,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *Z = malloc((*nspec) * sizeof(double));
       for (i = 0; i < (*nspec); i++) {
         (*Z)[i] = read_double(input_file);
-        printf("%g\n", (*Z)[i]);
+        if (rank == 0)
+          printf("%g\n", (*Z)[i]);
       }
     }
 
@@ -210,7 +230,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
 
     if (strcmp(line, "NumIntervals") == 0) {
       *numint = read_int(input_file);
-      printf("%d\n", *numint);
+      if (rank == 0)
+        printf("%d\n", *numint);
 
       *intervalLimits = (double *)malloc((*numint) * sizeof(double));
       *ndens_int = (double *)malloc((*numint) * (*nspec) * sizeof(double));
@@ -220,37 +241,43 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       // load data
       while (strcmp(line, "End_init") != 0) {
         read_line(input_file, line);
-        printf("%s\n", line);
+        if (rank == 0)
+          printf("%s\n", line);
 
         if (strcmp(line, "Interval") == 0) {
           int_id = (int)read_int(input_file);
           int_id--;
-          printf("%d\n", int_id);
+          if (rank == 0)
+            printf("%d\n", int_id);
         }
 
         if (strcmp(line, "x") == 0) {
           (*intervalLimits)[int_id] = read_double(input_file);
-          printf("%g\n", (*intervalLimits)[int_id]);
+          if (rank == 0)
+            printf("%g\n", (*intervalLimits)[int_id]);
         }
 
         if (strcmp(line, "n_i") == 0) {
           for (i = 0; i < (*nspec); i++) {
             (*ndens_int)[int_id * (*nspec) + i] = read_double(input_file);
-            printf("%g\n", (*ndens_int)[int_id * (*nspec) + i]);
+            if (rank == 0)
+              printf("%g\n", (*ndens_int)[int_id * (*nspec) + i]);
           }
         }
 
         if (strcmp(line, "v_i") == 0) {
           for (i = 0; i < (*nspec); i++) {
             (*velo_int)[int_id * (*nspec) + i] = read_double(input_file);
-            printf("%g\n", (*velo_int)[int_id * (*nspec) + i]);
+            if (rank == 0)
+              printf("%g\n", (*velo_int)[int_id * (*nspec) + i]);
           }
         }
 
         if (strcmp(line, "T_i") == 0) {
           for (i = 0; i < (*nspec); i++) {
             (*T_int)[int_id * (*nspec) + i] = read_double(input_file);
-            printf("%g\n", (*T_int)[int_id * (*nspec) + i]);
+            if (rank == 0)
+              printf("%g\n", (*T_int)[int_id * (*nspec) + i]);
           }
         }
       }
@@ -264,7 +291,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // 2 - NRL BGK
     if (strcmp(line, "BGKtype") == 0) {
       *BGK_type = read_int(input_file);
-      printf("%d\n", *BGK_type);
+      if (rank == 0)
+        printf("%d\n", *BGK_type);
     }
 
     // Free parameter for Greene model, if needed
@@ -278,22 +306,26 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // section
     if (strcmp(line, "ecouple") == 0) {
       *ecouple = read_int(input_file);
-      printf("%d\n", *ecouple);
+      if (rank == 0)
+        printf("%d\n", *ecouple);
     }
 
     if (strcmp(line, "ion_fix") == 0) {
       *ionFix = read_int(input_file);
-      printf("%d\n", *ionFix);
+      if (rank == 0)
+        printf("%d\n", *ionFix);
     }
 
     if (strcmp(line, "Te_start") == 0) {
       *Te_start = read_double(input_file);
-      printf("%g\n", *Te_start);
+      if (rank == 0)
+        printf("%g\n", *Te_start);
     }
 
     if (strcmp(line, "Te_end") == 0) {
       *Te_end = read_double(input_file);
-      printf("%g\n", *Te_end);
+      if (rank == 0)
+        printf("%g\n", *Te_end);
     }
 
     // Identify coulomb log type, if needed
@@ -301,7 +333,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // 1 is NRL
     if (strcmp(line, "Coulomb_type") == 0) {
       *CL_type = read_int(input_file);
-      printf("%d\n", *CL_type);
+      if (rank == 0)
+        printf("%d\n", *CL_type);
     }
 
     // Chooses the source for ion-ion collision rates
@@ -309,7 +342,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // 1 - NRL
     if (strcmp(line, "Ion_coll_type") == 0) {
       *ion_type = read_int(input_file);
-      printf("%d\n", *ion_type);
+      if (rank == 0)
+        printf("%d\n", *ion_type);
     }
 
     // Chooses the flavor of coll rate for the given cross section
@@ -317,7 +351,8 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // 1 - Temperature relaxation
     if (strcmp(line, "Ion_coll_flavor") == 0) {
       *MT_or_TR = read_int(input_file);
-      printf("%d\n", *MT_or_TR);
+      if (rank == 0)
+        printf("%d\n", *MT_or_TR);
     }
 
     /*output files info*/
@@ -325,19 +360,22 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     /*Output file writing rate*/
     if (strcmp(line, "Data_writing_frequency") == 0) {
       *dataFreq = read_int(input_file);
-      printf("%d\n", *dataFreq);
+      if (rank == 0)
+        printf("%d\n", *dataFreq);
     }
 
     if (strcmp(line, "Dump_distro") == 0) {
       *outputDist = read_int(input_file);
-      printf("%d\n", *outputDist);
+      if (rank == 0)
+        printf("%d\n", *outputDist);
     }
 
     if (strcmp(line, "RHS_tol") == 0)
       *RHS_tol = read_double(input_file);
   }
 
-  printf("done with input file\n");
+  if (rank == 0)
+    printf("done with input file\n");
   fflush(stdout);
 
   fclose(input_file);
