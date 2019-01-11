@@ -1,3 +1,4 @@
+#include "TNB.c"
 #include "implicit.h"
 #include "io.h"
 #include "momentRoutines.h"
@@ -25,6 +26,7 @@ static int ion_type;
 static int MT_or_TR;
 static double collmin;
 static int tauFlag;
+static int TNBFlag;
 static double t;
 
 static double *n;
@@ -404,7 +406,7 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 }
 
 void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
-                    int ec, int CL, int itype, int MorT, int tFlag,
+                    int ec, int CL, int itype, int MorT, int tFlag, int TNB,
                     char *filename) {
   int i;
 
@@ -419,6 +421,7 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
   ion_type = itype;
   MT_or_TR = MorT;
   tauFlag = tFlag;
+  TNBFlag = TNB;
 
   collmin = 1.0;
 
@@ -477,6 +480,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   double nu11, nu12, nu21;
 
   int i, j, k;
+
+  FILE *fpii, *fpij;
 
   // get moments
 
@@ -563,6 +568,20 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 #pragma omp parallel for private(k)
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
+
+          // Check reactivity
+          if (TNBFlag) {
+            double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_TT, R_BGK_DD;
+            R_BGK_DD_HE = GetReactivity_dd_He(mu, f[i], f[i], i, i);
+            R_BGK_DD_T = GetReactivity_dd_T(mu, f[i], f[i], i, i);
+            R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
+            if (R_BGK_DD > 0) {
+              fpii = fopen("TNB_DD.txt", "a");
+              fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j],
+                      R_BGK_DD_HE, R_BGK_DD_T);
+              fclose(fpii);
+            }
+          }
         }
       } else {
         if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
@@ -618,6 +637,15 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 #pragma omp parallel for private(k)
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
+
+          if (TNBFlag) {
+            double R_BGK_DT = GetReactivity_dt(mu, f[i], f[j], i, j);
+            if (R_BGK_DT > 0) {
+              fpij = fopen("TNB_DT.txt", "a");
+              fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
+              fclose(fpij);
+            }
+          }
         }
       }
     }

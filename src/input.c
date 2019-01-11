@@ -15,7 +15,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 int *numint, double **intervalLimits, double **ndens_int,
                 double **velo_int, double **T_int, int *ecouple, int *ionFix,
                 double *Te_start, double *Te_end, int *CL_type, int *ion_type,
-                int *MT_or_TR, double **n, double **u, double **T,
+                int *MT_or_TR, int *TNB, double **n, double **u, double **T,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
                 double *beta, int *hydro_flag, int *input_file_data_flag,
                 char *input_file_data_filename, char *inputFilename) {
@@ -33,7 +33,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
 
   set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor,
                      ecouple, ionFix, Te_start, Te_end, CL_type, ion_type,
-                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,
+                     MT_or_TR, TNB, dt, tfinal, BGK_type, beta, hydro_flag,
                      input_file_data_flag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path, inputFilename);
@@ -355,6 +355,13 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
         printf("%d\n", *MT_or_TR);
     }
 
+    // Turns on TNB Reactions
+    if (strcmp(line, "TNB") == 0) {
+      *TNB = read_int(input_file);
+      if (rank == 0)
+        printf("%d\n", *TNB);
+    }
+
     /*output files info*/
 
     /*Output file writing rate*/
@@ -389,7 +396,7 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
                         int *order, int *discret, int *im_ex, int *poissFlavor,
                         int *ecouple, int *ionFix, double *Te_start,
                         double *Te_end, int *CL_type, int *ion_type,
-                        int *MT_or_TR, double *dt, double *tfinal,
+                        int *MT_or_TR, int *TNB, double *dt, double *tfinal,
                         int *BGK_type, double *beta, int *hydro_flag,
                         int *input_file_data_flag, int *dataFreq, int *dumpDist,
                         double *RHS_tol) {
@@ -433,6 +440,8 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
   *ion_type = 0;
 
   *MT_or_TR = 0;
+
+  *TNB = 0;
 
   *BGK_type = 0;
 

@@ -22,8 +22,8 @@ void initializeTNB(int Nv_in, double **c_in, double **wts_in) {
 
 double GetTNB_dt(double mu, double *in, double *c1, int sp, int sp2) {
   double result = 0.0;
+  double f2;
   double g1, g2, g3, g;
-  double f1, f2;
   double E_COM;
   double Nuclear_factor;
   double Nuclear_factor_num;
@@ -185,7 +185,7 @@ double GetTNB_dd_He(double mu, double *in, double *c1, int sp, int sp2) {
 
   double result = 0.0;
   double g1, g2, g3, g;
-  double f1, f2;
+  double f2;
   double E_COM;
   double Nuclear_factor;
   double Nuclear_factor_num;
@@ -255,7 +255,7 @@ double GetTNB_dd_T(double mu, double *in, double *c1, int sp, int sp2) {
 
   double result = 0.0;
   double g1, g2, g3, g;
-  double f1, f2;
+  double f2;
   double E_COM;
   double Nuclear_factor;
   double Nuclear_factor_num;
@@ -489,7 +489,7 @@ double GetTNB_tt(double mu, double *in, double *c1, int sp, int sp2) {
 
   double result = 0.0;
   double g1, g2, g3, g;
-  double f1, f2;
+  double f2;
   double E_COM;
   double Nuclear_factor;
   double Nuclear_factor_num;

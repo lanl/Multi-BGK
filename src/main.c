@@ -63,6 +63,7 @@ int main(int argc, char **argv) {
   // Flags for BGK collision rates
   int ecouple, CL_type, ion_type, MT_or_TR;
   int BGK_type;
+  int TNBFlag;
   double beta;
 
   // distribution functions
@@ -168,9 +169,9 @@ int main(int argc, char **argv) {
   read_input(&nspec, &dims, &Nx, &Lx, &Nv, &v_sigma, &discret, &poissFlavor, &m,
              &Z_max, &order, &im_ex, &dt, &tfinal, &numint, &intervalLimits,
              &ndens_int, &velo_int, &T_int, &ecouple, &ionFix, &Te_start,
-             &Te_ref, &CL_type, &ion_type, &MT_or_TR, &n_zerod, &v_val,
-             &T_zerod, &dataFreq, &outputDist, &RHS_tol, &BGK_type, &beta,
-             &hydro_kinscheme_flag, &input_file_data_flag,
+             &Te_ref, &CL_type, &ion_type, &MT_or_TR, &TNBFlag, &n_zerod,
+             &v_val, &T_zerod, &dataFreq, &outputDist, &RHS_tol, &BGK_type,
+             &beta, &hydro_kinscheme_flag, &input_file_data_flag,
              input_file_data_filename, input_filename);
 
   char output_path[100] = {"./Data/"};
@@ -729,7 +730,7 @@ int main(int argc, char **argv) {
 
   initialize_moments(Nv, nspec, c, wts);
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
-                 tauFlag, input_filename);
+                 tauFlag, TNBFlag, input_filename);
 
   if (!((restartFlag == 2) || (restartFlag == 4))) {
     t = 0.0;
@@ -2068,11 +2069,11 @@ int main(int argc, char **argv) {
   }
 
   // Store final timstep data
-  
-  if(dims == 1) {
+
+  if (dims == 1) {
     // Calculate moment data in all cells
     for (l = 0; l < Nx_rank; l++) {
-      
+
       ntot = 0.0;
       rhotot = 0.0;
       for (i = 0; i < nspec; i++) {
@@ -2082,13 +2083,13 @@ int main(int argc, char **argv) {
         getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
         T_oned[l][i] =
             getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
-
       }
     }
-   
-    //moments calculated, now store final step. We are ignoring the e field here
 
-    if(rank == 0) {
+    // moments calculated, now store final step. We are ignoring the e field
+    // here
+
+    if (rank == 0) {
       for (l = 0; l < Nx_rank; l++) {
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
@@ -2096,7 +2097,7 @@ int main(int argc, char **argv) {
           fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
         }
       }
-      
+
       // get from other ranks
       for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
         for (s = 0; s < nspec; s++) {
@@ -2109,7 +2110,7 @@ int main(int argc, char **argv) {
           }
         }
       }
-      
+
       // Close out this timestep
       fprintf(outputFileTime, "%e\n", t);
       for (i = 0; i < nspec; i++) {
@@ -2117,12 +2118,11 @@ int main(int argc, char **argv) {
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
       }
-      
+
       if (outputDist == 1)
         store_distributions_inhomog(f, input_filename, nT);
-      
-    }
-    else { // send to rank 0 for output purposes
+
+    } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
         for (l = 0; l < Nx_rank; l++) {
           momentBuffer[0 + 3 * l] = n_oned[l][s];
@@ -2132,13 +2132,10 @@ int main(int argc, char **argv) {
         MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                  MPI_COMM_WORLD);
       }
-      
     }
-    
+
     MPI_Barrier(MPI_COMM_WORLD);
   }
-   
-
 
   if ((dims == 0) && (restartFlag > 0))
     store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
