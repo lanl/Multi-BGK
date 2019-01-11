@@ -820,7 +820,6 @@ int main(int argc, char **argv) {
 
       BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
 
-      outcount += 1;
       if (outcount == dataFreq) {
         fprintf(outputFileTime, "%e\n", t);
         for (i = 0; i < nspec; i++) {
@@ -843,6 +842,7 @@ int main(int argc, char **argv) {
             fprintf(outputFileBGK, "%e,", BGK_f_minus_eq[i][j]);
         fprintf(outputFileBGK, "\n");
       }
+      outcount += 1;
 
       // check to make sure that we don't need to stop
       RHS_min = 1.0e37;
