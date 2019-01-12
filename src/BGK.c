@@ -1,4 +1,4 @@
-#include "TNB.c"
+#include "TNB.h"
 #include "implicit.h"
 #include "io.h"
 #include "momentRoutines.h"
@@ -30,6 +30,7 @@ static double collmin;
 static int tauFlag;
 static int TNBFlag;
 static double t;
+static int first = 1;
 
 static double *n;
 static double *rho;
@@ -582,7 +583,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
             if (R_BGK_DD > 0) {
               sprintf(buffer, "TNB_DD_%d.dat", rank);
-              fpii = fopen(buffer, "a");
+              if (first)
+                fpii = fopen(buffer, "w");
+              else
+                fpii = fopen(buffer, "a");
               fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j],
                       R_BGK_DD_HE, R_BGK_DD_T);
               fclose(fpii);
@@ -649,7 +653,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             char buffer[50];
             if (R_BGK_DT > 0) {
               sprintf(buffer, "TNB_DT_%d.dat", rank);
-              fpij = fopen(buffer, "a");
+              if (first)
+                fpij = fopen(buffer, "w");
+              else
+                fpij = fopen(buffer, "a");
+
               fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
               fclose(fpij);
             }
@@ -701,6 +709,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
     }
   }
 
+  first = 0;
   // printf("collmin %g\n",collmin);
 }
 
@@ -1109,6 +1118,48 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       for (index = 0; index < Nv * Nv * Nv; index++)
         f_out[sp][index] += dtnu_over_dt_nui * M[index];
     }
+  }
+
+  // TNB
+  printf("TNB Flag! %d\n", TNBFlag);
+  if (TNBFlag == 1) {
+    // Check reactivity
+    double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
+    char buffer[50];
+    int sp, sp2;
+    FILE *fpii, *fpij;
+
+    for (sp = 0; sp < nspec; sp++) {
+      R_BGK_DD_HE = GetReactivity_dd_He(mu, f_out[sp], f_out[sp], sp, sp);
+      R_BGK_DD_T = GetReactivity_dd_T(mu, f_out[sp], f_out[sp], sp, sp);
+      R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
+      if (R_BGK_DD > 0) {
+        sprintf(buffer, "TNB_DD_%d.dat", rank);
+        if (first)
+          fpii = fopen(buffer, "w");
+        else
+          fpii = fopen(buffer, "a");
+        fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], R_BGK_DD_HE,
+                R_BGK_DD_T);
+        fclose(fpii);
+      }
+
+      for (sp2 = sp + 1; sp2 < nspec; sp2++) {
+        printf("i %d j %d\n", sp, sp2);
+        double R_BGK_DT = GetReactivity_dt(mu, f_out[sp2], f_out[sp2], sp, sp2);
+
+        if (R_BGK_DT > 0) {
+          sprintf(buffer, "TNB_DT_%d.dat", rank);
+          if (first)
+            fpij = fopen(buffer, "w");
+          else
+            fpij = fopen(buffer, "a");
+          fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp2], T[sp2], R_BGK_DT);
+          fclose(fpij);
+        }
+      }
+    }
+    first = 0;
   }
 
   for (sp = 0; sp < nspec; sp++) {
