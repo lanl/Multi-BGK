@@ -30,16 +30,16 @@ double GetTNB_dt(double mu, double *in, double *c1, int sp, int sp2) {
   double Nuclear_factor_dem;
   double cross_section;
   // TNB constants
-  double a1 = 5.3701e4;
-  double a2 = 3.3027e2;
-  double a3 = -1.2706e-1;
-  double a4 = 2.9327e-5;
-  double a5 = -2.5151e-9;
-  double b1 = 0.0;
-  double b2 = 0.0;
-  double b3 = 0.0;
-  double b4 = 0.0;
-  double B_G = 31.3970;
+  double a1 = 6.927e4;
+  double a2 = 7.454e8;
+  double a3 = 2.050e6;
+  double a4 = 5.2002e4;
+  double a5 = 0;
+  double b1 = 6.38e1;
+  double b2 = -9.95e-1;
+  double b3 = 6.981e-5;
+  double b4 = 1.728e-4;
+  double B_G = 34.33827;
 
   if (mu > 2.e-24 || mu < 1.8e-24) {
     result += 0.;
@@ -102,16 +102,16 @@ double GetReactivity_dt(double mu, double *in, double *in2, int sp, int sp2) {
   double cross_section;
 
   // TNB constants
-  double a1 = 5.3701e4;
-  double a2 = 3.3027e2;
-  double a3 = -1.2706e-1;
-  double a4 = 2.9327e-5;
-  double a5 = -2.5151e-9;
-  double b1 = 0.0;
-  double b2 = 0.0;
-  double b3 = 0.0;
-  double b4 = 0.0;
-  double B_G = 31.3970;
+  double a1 = 6.927e4;
+  double a2 = 7.454e8;
+  double a3 = 2.050e6;
+  double a4 = 5.2002e4;
+  double a5 = 0;
+  double b1 = 6.38e1;
+  double b2 = -9.95e-1;
+  double b3 = 6.981e-5;
+  double b4 = 1.728e-4;
+  double B_G = 34.33827;
 
   // check to see that we have DT
   if (mu > 2.e-24 || mu < 1.8e-24) {
@@ -167,6 +167,7 @@ double GetReactivity_dt(double mu, double *in, double *in2, int sp, int sp2) {
               //     -> 1 / s cm^3
             }
 
+  printf("Result from DT %g\n", result);
   return result;
 }
 
@@ -392,6 +393,7 @@ double GetReactivity_dd_He(double mu, double *in, double *in2, int sp,
               //     -> 1 / s cm^3
             }
 
+  printf("Result from DD_He %g\n", result);
   return result;
 }
 
@@ -476,6 +478,7 @@ double GetReactivity_dd_T(double mu, double *in, double *in2, int sp, int sp2) {
               //     -> 1 / s cm^3
             }
 
+  printf("Result from DD_T %g\n", result);
   return result;
 }
 

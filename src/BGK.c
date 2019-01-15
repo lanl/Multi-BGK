@@ -578,11 +578,14 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           if (TNBFlag) {
             double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
             char buffer[50];
+
             R_BGK_DD_HE = GetReactivity_dd_He(mu, f[i], f[i], i, i);
             R_BGK_DD_T = GetReactivity_dd_T(mu, f[i], f[i], i, i);
             R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
+            printf("DD Reactivity: %g\n", R_BGK_DD);
+
             if (R_BGK_DD > 0) {
-              sprintf(buffer, "TNB_DD_%d.dat", rank);
+              sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
               if (first)
                 fpii = fopen(buffer, "w");
               else
@@ -650,9 +653,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
           if (TNBFlag) {
             double R_BGK_DT = GetReactivity_dt(mu, f[i], f[j], i, j);
+            printf("DT Reactivity: %g\n", R_BGK_DT);
             char buffer[50];
             if (R_BGK_DT > 0) {
-              sprintf(buffer, "TNB_DT_%d.dat", rank);
+              sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
               if (first)
                 fpij = fopen(buffer, "w");
               else
@@ -1130,9 +1134,14 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     FILE *fpii, *fpij;
 
     for (sp = 0; sp < nspec; sp++) {
-      R_BGK_DD_HE = GetReactivity_dd_He(mu, f_out[sp], f_out[sp], sp, sp);
-      R_BGK_DD_T = GetReactivity_dd_T(mu, f_out[sp], f_out[sp], sp, sp);
+
+      R_BGK_DD_HE =
+          GetReactivity_dd_He(0.5 * m[sp], f_out[sp], f_out[sp], sp, sp);
+      R_BGK_DD_T =
+          GetReactivity_dd_T(0.5 * m[sp], f_out[sp], f_out[sp], sp, sp);
       R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
+
+      printf("DD Reactivity %g, mass %g\n", R_BGK_DD, 0.5 * m[sp]);
       if (R_BGK_DD > 0) {
         sprintf(buffer, "TNB_DD_%d.dat", rank);
         if (first)
@@ -1145,8 +1154,13 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       }
 
       for (sp2 = sp + 1; sp2 < nspec; sp2++) {
-        printf("i %d j %d\n", sp, sp2);
-        double R_BGK_DT = GetReactivity_dt(mu, f_out[sp2], f_out[sp2], sp, sp2);
+        // printf("i %d j %d\n", sp, sp2);
+        double TNB_mu = m[sp] * m[sp2] / (m[sp] + m[sp2]);
+
+        double R_BGK_DT =
+            GetReactivity_dt(TNB_mu, f_out[sp2], f_out[sp2], sp, sp2);
+
+        printf("DT Reactivity %g, mass %g\n", R_BGK_DT, mu);
 
         if (R_BGK_DT > 0) {
           sprintf(buffer, "TNB_DT_%d.dat", rank);
