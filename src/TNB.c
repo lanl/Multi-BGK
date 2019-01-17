@@ -167,7 +167,6 @@ double GetReactivity_dt(double mu, double *in, double *in2, int sp, int sp2) {
               //     -> 1 / s cm^3
             }
 
-  printf("Result from DT %g\n", result);
   return result;
 }
 
@@ -393,7 +392,6 @@ double GetReactivity_dd_He(double mu, double *in, double *in2, int sp,
               //     -> 1 / s cm^3
             }
 
-  printf("Result from DD_He %g\n", result);
   return result;
 }
 
@@ -478,7 +476,6 @@ double GetReactivity_dd_T(double mu, double *in, double *in2, int sp, int sp2) {
               //     -> 1 / s cm^3
             }
 
-  printf("Result from DD_T %g\n", result);
   return result;
 }
 
