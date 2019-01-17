@@ -29,6 +29,7 @@
 
 // BGK/RHS packages
 #include "BGK.h"
+#include "TNB.h"
 
 int main(int argc, char **argv) {
 
@@ -731,6 +732,9 @@ int main(int argc, char **argv) {
   initialize_moments(Nv, nspec, c, wts);
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
                  tauFlag, TNBFlag, input_filename);
+
+  if (TNBFlag)
+    initializeTNB(Nv, c, wts);
 
   if (!((restartFlag == 2) || (restartFlag == 4))) {
     t = 0.0;

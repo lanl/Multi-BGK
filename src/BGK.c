@@ -1125,7 +1125,6 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
   }
 
   // TNB
-  printf("TNB Flag! %d\n", TNBFlag);
   if (TNBFlag == 1) {
     // Check reactivity
     double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
@@ -1141,8 +1140,9 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
           GetReactivity_dd_T(0.5 * m[sp], f_out[sp], f_out[sp], sp, sp);
       R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
 
-      printf("DD Reactivity %g, mass %g\n", R_BGK_DD, 0.5 * m[sp]);
       if (R_BGK_DD > 0) {
+        printf("DD Reactivity %g, mass %g\n", R_BGK_DD, 0.5 * m[sp]);
+
         sprintf(buffer, "TNB_DD_%d.dat", rank);
         if (first)
           fpii = fopen(buffer, "w");
@@ -1160,9 +1160,9 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
         double R_BGK_DT =
             GetReactivity_dt(TNB_mu, f_out[sp2], f_out[sp2], sp, sp2);
 
-        printf("DT Reactivity %g, mass %g\n", R_BGK_DT, mu);
-
         if (R_BGK_DT > 0) {
+          printf("DT Reactivity %g, mass %g\n", R_BGK_DT, mu);
+
           sprintf(buffer, "TNB_DT_%d.dat", rank);
           if (first)
             fpij = fopen(buffer, "w");
