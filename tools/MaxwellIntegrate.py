@@ -126,11 +126,11 @@ if __name__ == "__main__":
     amu = 1.6605e-27
     m1 = 1.0*amu
     m2 = 12.0*amu
-    n = 3.241e21                  #initial number density 1/cm^3
+    n = 1.0                  #initial number density 1/cm^3
     T = 537.0                 
     T_low = 10.0
 
-    Nv = 64                #points per direction in velocity space
+    Nv = 128                #points per direction in velocity space
     width = 8              #Multiple of thermal speeds to define edge of velocity space
 
     c, c3 = getVeloGrid(m1,T,Nv,width)
