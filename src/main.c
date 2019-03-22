@@ -650,7 +650,7 @@ int main(int argc, char **argv) {
 
     io_init_inhomog(Nx_rank, Nv, nspec, c);
     if (outputDist == 1) {
-      store_grid(input_filename);
+      store_grid_inhomog(input_filename, rank);
     }
 
     // Distribution function setup

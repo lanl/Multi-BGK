@@ -93,8 +93,22 @@ void store_grid(char *fileName) {
   fclose(fid_grids);
 }
 
-// Not looking to just dump binary data here - need something that I can load in
-// via python.
+void store_grid_inhomog(char *fileName, int rank) {
+  int s;
+  char grid_buffer[100];
+  FILE *fid_grids;
+
+  sprintf(grid_buffer, "Data/%s_gridinfo_rank%d.dat", fileName, rank);
+  fid_grids = fopen(grid_buffer, "w");
+
+  fprintf(fid_grids, "%d\n", Nx);
+
+  for (s = 0; s < nspec; s++) {
+    fprintf(fid_grids, "%d %d %lf\n", s, Nv, -c[s][0]);
+  }
+  fclose(fid_grids);
+}
+
 void store_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
   int s, xj;
   char name_buffer[100];
@@ -109,6 +123,36 @@ void store_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
     for (xj = 0; xj < Nx; xj++)
       fwrite(f[xj][s], sizeof(double), Nv * Nv * Nv, fid_store);
     fclose(fid_store);
+  }
+}
+
+void load_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
+  int s, xj;
+  char name_buffer[100];
+  FILE *fid_load;
+  int readflag;
+
+  printf("Loading...\n");
+
+  for (s = 0; s < nspec; s++) {
+    sprintf(name_buffer, "Data/%s_spec%d.step%d_rank%d.dat", fileName, s, t,
+            rank);
+
+    fid_load = fopen(name_buffer, "r");
+
+    if (fid_load == NULL) {
+      printf("Cannot find distribution file %s\n", name_buffer);
+      exit(37);
+    }
+
+    for (xj = 0; xj < Nx; xj++) {
+      readflag = fread(f[xj][s], sizeof(double), Nv * Nv * Nv, fid_load);
+      if (readflag != Nv * Nv * Nv) {
+        printf("Error reading values\n");
+        exit(2);
+      }
+    }
+    fclose(fid_load);
   }
 }
 
@@ -185,6 +229,44 @@ void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
 
   *t = t_val;
   *nT = nt_val;
+
+  fclose(fid_load);
+}
+
+void load_grid_inhomog(double *Lv, int *Nx, char *fileName, int rank) {
+  int s, readflag;
+  char name_buffer[100];
+  char line[100];
+  FILE *fid_load;
+
+  int spec, num_v;
+  double Lv_val;
+
+  sprintf(name_buffer, "Data/%s_gridinfo_rank%d.dat", fileName, rank);
+
+  fid_load = fopen(name_buffer, "r");
+
+  if (fid_load == NULL) {
+    printf("Error: unable to open distribution function file %s\n",
+           name_buffer);
+    exit(1);
+  }
+
+  // printf("Opening %s to load grid information\n",name_buffer);
+
+  fgets(line, 100, fid_load);
+  readflag = sscanf(line, "%d\n", Nx);
+
+  printf("Nx %d\n", *Nx);
+
+  for (s = 0; s < nspec; s++) {
+    fgets(line, 100, fid_load);
+    // printf("%s",line);
+
+    readflag = sscanf(line, "%d %d %lf\n", &spec, &num_v, &Lv_val);
+    Lv[s] = Lv_val;
+    // printf("Species %d velo limit is %g\n", s, Lv_val);
+  }
 
   fclose(fid_load);
 }
