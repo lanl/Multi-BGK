@@ -71,6 +71,14 @@ int main(int argc, char **argv) {
 
   // Now do the TNB...
 
+  // TNB will need
+
+  // Nv
+  // Masses of species
+  // velocity grids for each species
+  // integration weights for each species
+  // The distribution functions
+
   MPI_Finalize();
 
   return 0;
