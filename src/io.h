@@ -7,7 +7,7 @@ void store_distributions_homog(double **f, double t, int nT, char *fileName);
 
 void load_distributions_homog(double **f, char *fileName);
 
-void store_distributions_inhomog(double ***f, char *fileName, int t);
+void store_distributions_inhomog(double ***f, char *fileName, int t, int rank);
 
 void store_grid(char *fileName);
 

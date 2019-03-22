@@ -95,13 +95,14 @@ void store_grid(char *fileName) {
 
 // Not looking to just dump binary data here - need something that I can load in
 // via python.
-void store_distributions_inhomog(double ***f, char *fileName, int t) {
+void store_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
   int s, xj;
   char name_buffer[100];
   FILE *fid_store;
 
   for (s = 0; s < nspec; s++) {
-    sprintf(name_buffer, "Data/%s_spec%d.step%d.dat", fileName, s, t);
+    sprintf(name_buffer, "Data/%s_spec%d.step%d_rank%d.dat", fileName, s, t,
+            rank);
 
     fid_store = fopen(name_buffer, "w");
 
