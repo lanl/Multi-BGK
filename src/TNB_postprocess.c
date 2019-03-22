@@ -1,6 +1,7 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "TNB.h"
 #include "io.h"
@@ -13,13 +14,13 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
 
-  int Nv = 24;
-  int Nspec = 2;
+  char input_filename[100];
+
+  strcpy(input_filename, argv[1]);
+  int Nspec = atoi(argv[2]);
+  int Nv = atoi(argv[3]);
 
   int s, i;
-
-  char input_filename[100];
-  sprintf(input_filename, "test_TNB.dms");
 
   int Nx_rank = 0;
   double *Lv = malloc(Nspec * sizeof(double));

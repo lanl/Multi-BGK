@@ -257,8 +257,6 @@ void load_grid_inhomog(double *Lv, int *Nx, char *fileName, int rank) {
   fgets(line, 100, fid_load);
   readflag = sscanf(line, "%d\n", Nx);
 
-  printf("Nx %d\n", *Nx);
-
   for (s = 0; s < nspec; s++) {
     fgets(line, 100, fid_load);
     // printf("%s",line);
