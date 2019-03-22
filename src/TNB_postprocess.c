@@ -1,3 +1,28 @@
+/*
+
+Post-processor for TNB. This assumes that you ran the main code with
+
+mpirun -n <num_ranks> ./exec/MultiBGK_ <input_filename>
+
+and Dump_Distro set to 1 for a 1D run
+
+to build do
+
+mpicc mpicc src/TNB_postprocess.c src/io.c src/TNB.c -o exec/postProc_
+
+to process this data run
+
+mpirun -n <num_ranks> ./exec/postProc_ <input_filename> <nspec> <Nv> <step>
+
+Where
+num_ranks, input_filename, nspec, and Nv are the same as in the original run.
+Select step to do the analysis for the specific timestep
+
+Note: it will automatically find the number of x points on each rank, this is
+stored by the code
+
+*/
+
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +44,7 @@ int main(int argc, char **argv) {
   strcpy(input_filename, argv[1]);
   int Nspec = atoi(argv[2]);
   int Nv = atoi(argv[3]);
+  int step = atoi(argv[4]);
 
   int s, i;
 
@@ -39,9 +65,11 @@ int main(int argc, char **argv) {
 
   io_init_inhomog(Nx_rank, Nv, Nspec, NULL);
 
-  load_distributions_inhomog(f, input_filename, 1, rank);
+  load_distributions_inhomog(f, input_filename, step, rank);
 
   printf("Loaded distributions\n");
+
+  // Now do the TNB...
 
   MPI_Finalize();
 
