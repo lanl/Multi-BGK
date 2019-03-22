@@ -8,7 +8,7 @@ and Dump_Distro set to 1 for a 1D run
 
 to build do
 
-mpicc mpicc src/TNB_postprocess.c src/io.c src/TNB.c -o exec/postProc_
+mpicc src/TNB_postprocess.c src/io.c src/TNB.c -o exec/postProc_
 
 to process this data run
 
