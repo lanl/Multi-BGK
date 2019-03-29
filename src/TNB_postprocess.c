@@ -50,10 +50,11 @@ int main(int argc, char **argv) {
 
   int Nx_rank = 0;
   double *Lv = malloc(Nspec * sizeof(double));
+  double *m = malloc(Nspec * sizeof(double));
 
-  io_init_inhomog(Nx_rank, Nv, Nspec, NULL);
+  io_init_inhomog(Nx_rank, Nv, Nspec, NULL, NULL);
 
-  load_grid_inhomog(Lv, &Nx_rank, input_filename, rank);
+  load_grid_inhomog(Lv, &Nx_rank, m, input_filename, rank);
 
   double ***f = malloc(Nx_rank * sizeof(double **));
   for (i = 0; i < Nx_rank; i++) {
@@ -63,7 +64,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  io_init_inhomog(Nx_rank, Nv, Nspec, NULL);
+  // Just setup for loading distributions.
+  io_init_inhomog(Nx_rank, Nv, Nspec, NULL, NULL);
 
   load_distributions_inhomog(f, input_filename, step, rank);
 
@@ -78,6 +80,44 @@ int main(int argc, char **argv) {
   // velocity grids for each species
   // integration weights for each species
   // The distribution functions
+
+  // So first we must build c and wts from the grid knowledge
+
+  double **c = malloc(Nspec * sizeof(double *));
+  double **wts = malloc(Nspec * sizeof(double *));
+
+  for (int spec = 0; spec < Nspec; spec++) {
+    c[spec] = malloc(Nv * sizeof(double));
+    wts[spec] = malloc(Nv * sizeof(double));
+    double dv = 2.0 * Lv[spec] / (Nv - 1.0);
+    for (int velo = 0; velo < Nv; velo++) {
+      c[spec][velo] = -Lv[i] + dv * velo;
+      wts[spec][velo] = dv;
+    }
+    wts[i][0] *= 0.5;
+    wts[i][Nv - 1] *= 0.5;
+  }
+
+  initializeTNB(Nv, c, wts);
+
+  char outputFileBuffer[50];
+  sprintf(outputFileBuffer, "Data/TNB_DT_%d.dat", rank);
+
+  FILE *F_dt = fopen(outputFileBuffer, "w");
+
+  for (int xval = 0; xval < Nx_rank; xval++) {
+    for (int spec1 = 0; spec1 < Nspec; spec1++) {
+      for (int spec2 = 0; spec2 < Nspec; spec2++) {
+        double mu = m[spec1] * m[spec2] / (m[spec1] + m[spec2]);
+        double R_BGK_DT =
+            GetReactivity_dt(mu, f[xval][spec1], f[xval][spec2], spec1, spec2);
+        if (R_BGK_DT > 0)
+          fprintf(F_dt, "%d %10.6e\n", xval, R_BGK_DT);
+      }
+    }
+  }
+
+  fclose(F_dt);
 
   MPI_Finalize();
 

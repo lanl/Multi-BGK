@@ -648,7 +648,7 @@ int main(int argc, char **argv) {
       free(GLWeights);
     }
 
-    io_init_inhomog(Nx_rank, Nv, nspec, c);
+    io_init_inhomog(Nx_rank, Nv, nspec, c, m);
     if (outputDist == 1) {
       store_grid_inhomog(input_filename, rank);
     }

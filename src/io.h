@@ -1,7 +1,8 @@
 
 void io_init_homog(int numV, int numS, double **velos);
 
-void io_init_inhomog(int numX, int numV, int numS, double **velos);
+void io_init_inhomog(int numX, int numV, int numS, double **velos,
+                     double *mass);
 
 void store_distributions_homog(double **f, double t, int nT, char *fileName);
 
@@ -17,6 +18,7 @@ void store_grid_inhomog(char *fileName, int rank);
 
 void load_grid_restart(double *Lv, double *t, int *nT, char *fileName);
 
-void load_grid_inhomog(double *Lv, int *Nx, char *fileName, int rank);
+void load_grid_inhomog(double *Lv, int *Nx, double *mass, char *fileName,
+                       int rank);
 
 void load_taus_homog(double **nu, char *fileName);

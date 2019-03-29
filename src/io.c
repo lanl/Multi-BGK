@@ -6,6 +6,7 @@ static int Nx;
 static int Nv;
 static int nspec;
 static double **c;
+static double *m;
 
 void io_init_homog(int numV, int numS, double **velos) {
 
@@ -14,11 +15,13 @@ void io_init_homog(int numV, int numS, double **velos) {
   c = velos;
 }
 
-void io_init_inhomog(int numX, int numV, int numS, double **velos) {
+void io_init_inhomog(int numX, int numV, int numS, double **velos,
+                     double *mass) {
   Nx = numX;
   Nv = numV;
   nspec = numS;
   c = velos;
+  m = mass;
 }
 
 void store_distributions_homog(double **f, double t, int step, char *fileName) {
@@ -104,7 +107,7 @@ void store_grid_inhomog(char *fileName, int rank) {
   fprintf(fid_grids, "%d\n", Nx);
 
   for (s = 0; s < nspec; s++) {
-    fprintf(fid_grids, "%d %d %lf\n", s, Nv, -c[s][0]);
+    fprintf(fid_grids, "%d %d %lf %lf\n", s, Nv, -c[s][0], m[s]);
   }
   fclose(fid_grids);
 }
@@ -233,14 +236,15 @@ void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
   fclose(fid_load);
 }
 
-void load_grid_inhomog(double *Lv, int *Nx, char *fileName, int rank) {
+void load_grid_inhomog(double *Lv, int *Nx, double *mass, char *fileName,
+                       int rank) {
   int s, readflag;
   char name_buffer[100];
   char line[100];
   FILE *fid_load;
 
   int spec, num_v;
-  double Lv_val;
+  double Lv_val, m_val;
 
   sprintf(name_buffer, "Data/%s_gridinfo_rank%d.dat", fileName, rank);
 
@@ -261,8 +265,9 @@ void load_grid_inhomog(double *Lv, int *Nx, char *fileName, int rank) {
     fgets(line, 100, fid_load);
     // printf("%s",line);
 
-    readflag = sscanf(line, "%d %d %lf\n", &spec, &num_v, &Lv_val);
+    readflag = sscanf(line, "%d %d %lf %lf\n", &spec, &num_v, &Lv_val, &m_val);
     Lv[s] = Lv_val;
+    m[s] = m_val;
     // printf("Species %d velo limit is %g\n", s, Lv_val);
   }
 
