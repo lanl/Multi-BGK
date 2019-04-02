@@ -8,7 +8,7 @@ and Dump_Distro set to 1 for a 1D run
 
 to build do
 
-mpicc src/TNB_postprocess.c src/io.c src/TNB.c -o exec/postProc_
+make postProc
 
 to process this data run
 
@@ -54,7 +54,11 @@ int main(int argc, char **argv) {
 
   io_init_inhomog(Nx_rank, Nv, Nspec, NULL, NULL);
 
+  // printf("Io init the first time\n");
+
   load_grid_inhomog(Lv, &Nx_rank, m, input_filename, rank);
+
+  // printf("Loaded inhomog grid\n");
 
   double ***f = malloc(Nx_rank * sizeof(double **));
   for (i = 0; i < Nx_rank; i++) {
@@ -91,23 +95,24 @@ int main(int argc, char **argv) {
     wts[spec] = malloc(Nv * sizeof(double));
     double dv = 2.0 * Lv[spec] / (Nv - 1.0);
     for (int velo = 0; velo < Nv; velo++) {
-      c[spec][velo] = -Lv[i] + dv * velo;
+      c[spec][velo] = -Lv[spec] + dv * velo;
       wts[spec][velo] = dv;
     }
-    wts[i][0] *= 0.5;
-    wts[i][Nv - 1] *= 0.5;
+    wts[spec][0] *= 0.5;
+    wts[spec][Nv - 1] *= 0.5;
   }
 
   initializeTNB(Nv, c, wts);
 
   char outputFileBuffer[50];
-  sprintf(outputFileBuffer, "Data/TNB_DT_%d.dat", rank);
+  sprintf(outputFileBuffer, "Data/TNB_DT_rank%d.dat", rank);
 
   FILE *F_dt = fopen(outputFileBuffer, "w");
 
   for (int xval = 0; xval < Nx_rank; xval++) {
     for (int spec1 = 0; spec1 < Nspec; spec1++) {
       for (int spec2 = 0; spec2 < Nspec; spec2++) {
+        // printf("xval %d, spec1 %d, spec2 %d\n", xval, spec1, spec2);
         double mu = m[spec1] * m[spec2] / (m[spec1] + m[spec2]);
         double R_BGK_DT =
             GetReactivity_dt(mu, f[xval][spec1], f[xval][spec2], spec1, spec2);

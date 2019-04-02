@@ -107,7 +107,7 @@ void store_grid_inhomog(char *fileName, int rank) {
   fprintf(fid_grids, "%d\n", Nx);
 
   for (s = 0; s < nspec; s++) {
-    fprintf(fid_grids, "%d %d %lf %lf\n", s, Nv, -c[s][0], m[s]);
+    fprintf(fid_grids, "%d %d %lf %lg\n", s, Nv, -c[s][0], m[s]);
   }
   fclose(fid_grids);
 }
@@ -135,11 +135,11 @@ void load_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
   FILE *fid_load;
   int readflag;
 
-  printf("Loading...\n");
-
   for (s = 0; s < nspec; s++) {
     sprintf(name_buffer, "Data/%s_spec%d.step%d_rank%d.dat", fileName, s, t,
             rank);
+
+    // printf("Loading %s\n",name_buffer);
 
     fid_load = fopen(name_buffer, "r");
 
@@ -156,6 +156,8 @@ void load_distributions_inhomog(double ***f, char *fileName, int t, int rank) {
       }
     }
     fclose(fid_load);
+
+    // printf("Completed %s\n",name_buffer);
   }
 }
 
@@ -265,10 +267,10 @@ void load_grid_inhomog(double *Lv, int *Nx, double *mass, char *fileName,
     fgets(line, 100, fid_load);
     // printf("%s",line);
 
-    readflag = sscanf(line, "%d %d %lf %lf\n", &spec, &num_v, &Lv_val, &m_val);
+    readflag = sscanf(line, "%d %d %lf %lg\n", &spec, &num_v, &Lv_val, &m_val);
     Lv[s] = Lv_val;
-    m[s] = m_val;
-    // printf("Species %d velo limit is %g\n", s, Lv_val);
+    mass[s] = m_val;
+    // printf("Species %d velo limit is %g mass is %g\n", s, Lv_val, m_val);
   }
 
   fclose(fid_load);
