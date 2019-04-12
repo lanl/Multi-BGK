@@ -29,6 +29,7 @@ stored by the code
 #include <string.h>
 
 #include "TNB.h"
+#include "input.h"
 #include "io.h"
 
 int main(int argc, char **argv) {
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
   int rank, numRanks;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
+  MPI_Status status;
 
   char input_filename[100];
 
@@ -104,23 +106,69 @@ int main(int argc, char **argv) {
 
   initializeTNB(Nv, c, wts);
 
-  char outputFileBuffer[50];
-  sprintf(outputFileBuffer, "Data/TNB_DT_rank%d.dat", rank);
+  char outputFileBuffer[500];
+  sprintf(outputFileBuffer, "Data/TNB_DT_step%d.dat", step);
 
-  FILE *F_dt = fopen(outputFileBuffer, "w");
+  double *valueBuffer = malloc((Nx_rank + 1) * sizeof(double));
+
+  FILE *F_dt;
+
+  if (rank == 0) {
+    F_dt = fopen(outputFileBuffer, "w");
+  }
 
   for (int xval = 0; xval < Nx_rank; xval++) {
     for (int spec1 = 0; spec1 < Nspec; spec1++) {
       for (int spec2 = 0; spec2 < Nspec; spec2++) {
         // printf("xval %d, spec1 %d, spec2 %d\n", xval, spec1, spec2);
         double mu = m[spec1] * m[spec2] / (m[spec1] + m[spec2]);
-        double R_BGK_DT =
-            GetReactivity_dt(mu, f[xval][spec1], f[xval][spec2], spec1, spec2);
-        if (R_BGK_DT > 0)
-          fprintf(F_dt, "%d %10.6e\n", xval, R_BGK_DT);
+
+        if (mu > 2.e-24 || mu < 1.8e-24) { // Just get DT reaction
+
+          double R_BGK_DT = GetReactivity_dt(mu, f[xval][spec1], f[xval][spec2],
+                                             spec1, spec2);
+
+          valueBuffer[xval] = R_BGK_DT;
+        }
       }
     }
   }
+
+  // Now print to file
+
+  // Get the x values
+  char xFileBuffer[500];
+  sprintf(xFileBuffer, "./Data/%s_x", input_filename);
+  printf("%s\n", xFileBuffer);
+  FILE *x_file;
+  x_file = fopen(xFileBuffer, "r");
+  double x_point = 0;
+
+  int *rankNx = malloc(sizeof(int));
+
+  if (rank == 0) {
+    for (int xval = 0; xval < Nx_rank; xval++) {
+      x_point = read_double(x_file);
+      fprintf(F_dt, "%10.6e %10.6e\n", x_point, valueBuffer[xval]);
+    }
+
+    // Gather from other ranks
+    for (int recvrank = 1; recvrank < numRanks; recvrank++) {
+      MPI_Recv(rankNx, 1, MPI_INT, recvrank, recvrank, MPI_COMM_WORLD, &status);
+      MPI_Recv(valueBuffer, *rankNx, MPI_DOUBLE, recvrank, 100 + recvrank,
+               MPI_COMM_WORLD, &status);
+      for (int xval = 0; xval < *rankNx; xval++) {
+        x_point = read_double(x_file);
+        fprintf(F_dt, "%10.6e %10.6e\n", x_point, valueBuffer[xval]);
+      }
+    }
+
+  } else {
+    MPI_Send(&Nx_rank, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+    MPI_Send(valueBuffer, Nx_rank, MPI_DOUBLE, 0, 100 + rank, MPI_COMM_WORLD);
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
 
   fclose(F_dt);
 

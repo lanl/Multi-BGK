@@ -21,7 +21,7 @@ objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.
 
 pref_main_objects = $(addprefix $(OBJDIR), $(objects_main))
 
-sources_postproc = $(SRCDIR)TNB_postprocess.c $(SRCDIR)TNB.c $(SRCDIR)io.c
+sources_postproc = $(SRCDIR)TNB_postprocess.c $(SRCDIR)TNB.c $(SRCDIR)io.c $(SRCDIR)input.c
 
 # linking step
 MultiBGK: $(pref_main_objects) $(sources_main)
