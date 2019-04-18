@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
         // printf("xval %d, spec1 %d, spec2 %d\n", xval, spec1, spec2);
         double mu = m[spec1] * m[spec2] / (m[spec1] + m[spec2]);
 
-        if (mu > 2.e-24 || mu < 1.8e-24) { // Just get DT reaction
+        if (mu < 2.e-24 && mu > 1.8e-24) { // Just get DT reaction
 
           double R_BGK_DT = GetReactivity_dt(mu, f[xval][spec1], f[xval][spec2],
                                              spec1, spec2);
