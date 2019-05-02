@@ -138,6 +138,34 @@ void load_taus_homog(double **nu, char *filename) {
   fclose(fid_load);
 }
 
+void load_diffusion_homog(double **Dij, char *filename) {
+  int s, s2, readflag;
+  double tmp;
+  char name_buffer[100];
+  FILE *fid_load;
+
+  sprintf(name_buffer, "Data/%s_Dij.dat", filename);
+
+  fid_load = fopen(name_buffer, "r");
+
+  if (fid_load == NULL) {
+    printf("Error: could not locate diffusion coefficient datafile %s\n",
+           name_buffer);
+    exit(1);
+  }
+
+  for (s = 0; s < nspec; s++) {
+    for (s2 = 0; s2 < nspec; s2++) {
+      // printf("Loading the Dij from %s for species pair %d %d\n", name_buffer,
+      // s, s2);
+      readflag = fscanf(fid_load, "%lf\n", &tmp);
+      Dij[s][s2] = tmp;
+      // printf("i: %d j: %d Dij: %g\n", s, s2, Dij[s][s2]);
+    }
+  }
+  fclose(fid_load);
+}
+
 void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
   int s, readflag;
   char name_buffer[100];

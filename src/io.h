@@ -14,3 +14,5 @@ void store_grid(char *fileName);
 void load_grid_restart(double *Lv, double *t, int *nT, char *fileName);
 
 void load_taus_homog(double **nu, char *fileName);
+
+void load_diffusion_homog(double **nu, char *fileName);
