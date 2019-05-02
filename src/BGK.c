@@ -33,6 +33,7 @@ static double **v;
 static double *T;
 static double *nu_tot, **nu;
 static double **nu_from_MD;
+static double **Dij_from_MD;
 
 //Number density under which we do not collide particles, due to lack of statistics
 #define EPS_COLL 1e6
@@ -49,6 +50,8 @@ static double b_1 = -0.091336;
 static double b_2 = 0.051760;
 static double b_3 = -0.50026;
 static double b_4 = 0.17044;
+
+static char *data_filename;
 
 // Assumes units:       g      1/cc       cm/s        eV
 void GetMaxwell(double m, double n, double *v, double T, double *M, int sp) {
@@ -425,6 +428,8 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
 
   collmin = 1.0;
 
+  data_filename = filename;
+
   m_e = M_ELEC_CGS;
 
   // Allocate
@@ -459,6 +464,14 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
     }
     printf("Loading taus from %s \n", filename);
     load_taus_homog(nu_from_MD, filename);
+  }
+
+  // Allocate for Dij
+  if (tauFlag == 2) {
+    Dij_from_MD = malloc(ns * sizeof(double *));
+    for (i = 0; i < ns; i++) {
+      Dij_from_MD[i] = malloc(ns * sizeof(double));
+    }
   }
 }
 
@@ -527,6 +540,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
   // NOTE: this can probably be refactored/split off for clarity
 
+  if (tauFlag == 2) {
+    load_diffusion_homog(Dij_from_MD, data_filename);
+  }
+
   // do ij and ji at the same time
   for (i = 0; i < nspec; i++) {
     for (j = i; j < nspec; j++) {
@@ -548,8 +565,17 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
+      } else if (tauFlag ==
+                 2) { // Note to self - need to fix to mixture temperature?
+        nu11 = rhotot * rhotot * Dij_from_MD[i][i] * n[i] /
+               (ntot * T[i] / ERG_TO_EV_CGS * n[i] * (m[i] + m[i]));
+        nu12 = rhotot * rhotot * Dij_from_MD[i][j] * n[i] /
+               (ntot * T[i] / ERG_TO_EV_CGS * n[j] * (m[i] + m[j]));
+        nu12 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
+               (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
       } else {
-        printf("Error: set tauflag to 0 or 1\n");
+        printf("Error: set tauflag to 0, 1, or 2\n");
+        printf("Tauflag %d\n", tauFlag);
         exit(37);
       }
 

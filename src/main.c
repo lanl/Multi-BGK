@@ -818,7 +818,8 @@ int main(int argc, char **argv) {
 
       // Output to files
 
-      BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
+      if (restartFlag > 2)
+        BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
 
       if (outcount == dataFreq) {
         fprintf(outputFileTime, "%e\n", t);
@@ -2068,11 +2069,11 @@ int main(int argc, char **argv) {
   }
 
   // Store final timstep data
-  
-  if(dims == 1) {
+
+  if (dims == 1) {
     // Calculate moment data in all cells
     for (l = 0; l < Nx_rank; l++) {
-      
+
       ntot = 0.0;
       rhotot = 0.0;
       for (i = 0; i < nspec; i++) {
@@ -2082,13 +2083,13 @@ int main(int argc, char **argv) {
         getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
         T_oned[l][i] =
             getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
-
       }
     }
-   
-    //moments calculated, now store final step. We are ignoring the e field here
 
-    if(rank == 0) {
+    // moments calculated, now store final step. We are ignoring the e field
+    // here
+
+    if (rank == 0) {
       for (l = 0; l < Nx_rank; l++) {
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
@@ -2096,7 +2097,7 @@ int main(int argc, char **argv) {
           fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
         }
       }
-      
+
       // get from other ranks
       for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
         for (s = 0; s < nspec; s++) {
@@ -2109,7 +2110,7 @@ int main(int argc, char **argv) {
           }
         }
       }
-      
+
       // Close out this timestep
       fprintf(outputFileTime, "%e\n", t);
       for (i = 0; i < nspec; i++) {
@@ -2117,12 +2118,11 @@ int main(int argc, char **argv) {
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
       }
-      
+
       if (outputDist == 1)
         store_distributions_inhomog(f, input_filename, nT);
-      
-    }
-    else { // send to rank 0 for output purposes
+
+    } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
         for (l = 0; l < Nx_rank; l++) {
           momentBuffer[0 + 3 * l] = n_oned[l][s];
@@ -2132,13 +2132,10 @@ int main(int argc, char **argv) {
         MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                  MPI_COMM_WORLD);
       }
-      
     }
-    
+
     MPI_Barrier(MPI_COMM_WORLD);
   }
-   
-
 
   if ((dims == 0) && (restartFlag > 0))
     store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
