@@ -194,6 +194,11 @@ The input files look for certain keywords, then their values listed in the follo
 * 0: use momentum relaxation rates to determine nu (default)
 * 1: use temperature relaxation rates to determin nu
 
+`TNB`
+
+* 0: no fusion reactions are calculated (default)
+* 1: Code calculates the reactivity rate for DD and DT fusion interactions
+* 2: Code calculates the reactivity rate for DD and DT and does tail depletion
 
 ## 0D Setup
 
