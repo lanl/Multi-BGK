@@ -613,6 +613,17 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                     R_BGK_DD_HE, R_BGK_DD_T);
             fclose(fpii);
           }
+        } else {
+          char buffer[50];
+
+          if ((TNBFlag > 0) && (mu > 3.3e-24) && (mu < 3.4e-24)) {
+            if (first)
+              fpii = fopen(buffer, "w");
+            else
+              fpii = fopen(buffer, "a");
+            fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j], 0.0, 0.0);
+            fclose(fpii);
+          }
         }
       } else {
         if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
@@ -694,16 +705,26 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                   }
             }
 
-            if (R_BGK_DT > 0) {
-              sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-              if (first)
-                fpij = fopen(buffer, "w");
-              else
-                fpij = fopen(buffer, "a");
+            sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
+            if (first)
+              fpij = fopen(buffer, "w");
+            else
+              fpij = fopen(buffer, "a");
 
-              fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
-              fclose(fpij);
-            }
+            fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
+            fclose(fpij);
+          }
+        } else {
+          if ((TNBFlag > 0) && (mu < 2.e-24) && (mu > 1.8e-24)) {
+            char buffer[50];
+            sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
+            if (first)
+              fpij = fopen(buffer, "w");
+            else
+              fpij = fopen(buffer, "a");
+
+            fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], 0.0);
+            fclose(fpij);
           }
         }
       }
