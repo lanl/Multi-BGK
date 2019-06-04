@@ -30,7 +30,8 @@ static double collmin;
 static int tauFlag;
 static int TNBFlag;
 static double t;
-static int first = 1;
+static int first_DD = 1;
+static int first_DT = 1;
 
 static double *n;
 static double *rho;
@@ -577,7 +578,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
 
           // Check do see if this is DD
-          if ((TNBFlag > 0) && (mu > 3.3e-24) && (mu < 3.4e-24)) {
+          if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
             double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
             char buffer[50];
             double c1_TNB[3];
@@ -605,9 +606,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             }
 
             sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
-            if (first)
+            if (first_DD) {
               fpii = fopen(buffer, "w");
-            else
+              first_DD = 0;
+            } else
               fpii = fopen(buffer, "a");
             fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j],
                     R_BGK_DD_HE, R_BGK_DD_T);
@@ -616,10 +618,13 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         } else {
           char buffer[50];
 
-          if ((TNBFlag > 0) && (mu > 3.3e-24) && (mu < 3.4e-24)) {
-            if (first)
+          if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
+            sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
+
+            if (first_DD) {
               fpii = fopen(buffer, "w");
-            else
+              first_DD = 0;
+            } else
               fpii = fopen(buffer, "a");
             fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j], 0.0, 0.0);
             fclose(fpii);
@@ -681,7 +686,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
 
           // Check for DT reaction
-          if ((TNBFlag > 0) && (mu < 2.e-24) && (mu > 1.8e-24)) {
+          if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
             double R_BGK_DT = GetReactivity_dt(mu, f[i], f[j], i, j);
             char buffer[50];
             double c1_TNB[3];
@@ -706,21 +711,23 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             }
 
             sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-            if (first)
+            if (first_DT) {
               fpij = fopen(buffer, "w");
-            else
+              first_DT = 0;
+            } else
               fpij = fopen(buffer, "a");
 
             fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
             fclose(fpij);
           }
         } else {
-          if ((TNBFlag > 0) && (mu < 2.e-24) && (mu > 1.8e-24)) {
+          if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
             char buffer[50];
             sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-            if (first)
+            if (first_DT) {
               fpij = fopen(buffer, "w");
-            else
+              first_DT = 0;
+            } else
               fpij = fopen(buffer, "a");
 
             fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], 0.0);
@@ -773,7 +780,6 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
     }
   }
 
-  first = 0;
   // printf("collmin %g\n",collmin);
 }
 
@@ -1204,9 +1210,10 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
         printf("DD Reactivity %g, mass %g\n", R_BGK_DD, 0.5 * m[sp]);
 
         sprintf(buffer, "TNB_DD_%d.dat", rank);
-        if (first)
+        if (first_DD) {
           fpii = fopen(buffer, "w");
-        else
+          first_DD = 0;
+        } else
           fpii = fopen(buffer, "a");
         fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], R_BGK_DD_HE,
                 R_BGK_DD_T);
@@ -1224,16 +1231,16 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
           printf("DT Reactivity %g, mass %g\n", R_BGK_DT, mu);
 
           sprintf(buffer, "TNB_DT_%d.dat", rank);
-          if (first)
+          if (first_DT) {
             fpij = fopen(buffer, "w");
-          else
+            first_DT = 0;
+          } else
             fpij = fopen(buffer, "a");
           fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp2], T[sp2], R_BGK_DT);
           fclose(fpij);
         }
       }
     }
-    first = 0;
   }
 
   for (sp = 0; sp < nspec; sp++) {
