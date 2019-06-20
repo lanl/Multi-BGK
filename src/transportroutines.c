@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 // Computes the transport term
-
+static int bcs;
 static int N;
 static int nX;
 static int ns;
@@ -33,7 +33,7 @@ double minmod(double in1, double in2, double in3) {
     return 0;
 }
 
-void initialize_transport(int numV, int numX, int nspec, double *xnodes,
+void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes,
                           double *dxnodes, double Lx_val, double **vel, int ord,
                           double timestep) {
   N = numV;
@@ -81,9 +81,11 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   // If just one rank, no MPI communication is needed
   if (numRanks == 1) {
-    for (i = 0; i < N * N * N; i++) {
-      f[left_ghost][sp][i] = f[right_actual][sp][i];
-      f[right_ghost][sp][i] = f[left_actual][sp][i];
+    if(bcs == 0){
+      for (i = 0; i < N * N * N; i++) {
+        f[left_ghost][sp][i] = f[right_actual][sp][i];
+        f[right_ghost][sp][i] = f[left_actual][sp][i];
+      }
     }
   } else {
 

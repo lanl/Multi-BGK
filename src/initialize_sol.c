@@ -6,7 +6,9 @@
 #include "units/unit_data.c"
 #include "input.h"
 
-void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, int order, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) {
+void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, int order, double **c, double *m, 
+                          double **n_oned, double ***v_oned, double **T_oned) 
+{
 
   //accessing multid arrays
   //f - (Nx_rank+2*order) nspec Nv*Nv*Nv
@@ -17,10 +19,23 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
   //c - nspec nv
 
   int i,j,k,l,s;
-  int int_id;
+  int int_id, tmp_order, llim;
   int vIndex,inputIndex;
 
-  for(l=0;l<Nx;l++) {
+  if(*rank == 0){
+    //set the left ghost cells, but not the right. this enables non-periodic bcs
+    tmp_order = order;
+    order = 0;
+    llim = Nx+order; 
+  }else if(*rank == *nRanks - 1){
+    //don't set the left ghost cells, but do set the right ghost cells. 
+    llim = Nx+order;
+  }else{
+    //only set the local cells.
+    llim = Nx;
+  }
+
+  for(l=0;l<llim;l++) {
 
     //Figure out the interval
     //If no interval is found it defaults to zero
@@ -67,7 +82,9 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
 	  }	
     }
   }
-
+  if(*rank == 0){
+    order = tmp_order;
+  }
 
   
 }
@@ -182,7 +199,7 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
   for(sp=0;sp<nspec;sp++) {
     printf("Species %d \n",sp);
     for(l=0;l<Nx;l++) {
-      printf("%d: n: %g v: %g T: %g\n",l,n_oned[l][sp],v_oned[l][sp][0],T_oned[l][sp]);
+      printf("%d: n: %g v: %g T: %g\n", l, n_oned[l][sp], v_oned[l][sp][0],T_oned[l][sp]);
     }
   }
 

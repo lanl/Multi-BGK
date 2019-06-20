@@ -9,7 +9,7 @@
  *  This function reads the input file
  */
 
-void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
+void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
                 double *v_sigma, int *discret, int *poissFlavor, double **m,
                 double **Z, int *order, int *im_ex, double *dt, double *tfinal,
                 int *numint, double **intervalLimits, double **ndens_int,
@@ -81,6 +81,13 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *Lx = read_double(input_file);
       if (rank == 0)
         printf("%g\n", *Lx);
+    }
+
+    if(strcmp(line, "Bcs") == 0){
+      *bcs = read_int(input_file);
+      if(rank == 0){
+        printf("%d\n", *bcs);
+      }
     }
 
     /*Number of velocity nodes in each dimension*/
@@ -374,7 +381,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *RHS_tol = read_double(input_file);
   }
 
-  if (rank == 0)
+  if(rank == 0)
     printf("done with input file\n");
   fflush(stdout);
 
@@ -385,7 +392,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
  *  This function sets the input parameters to their defualt values, and sets up
  * flags for a few if they are not set by the input file
  */
-void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
+void set_default_values(int *Nx, double *Lx, int *bcs, int *Nv, double *v_sigma,
                         int *order, int *discret, int *im_ex, int *poissFlavor,
                         int *ecouple, int *ionFix, double *Te_start,
                         double *Te_end, int *CL_type, int *ion_type,
@@ -401,6 +408,8 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
 
   /*Length of physical domain in cm*/
   *Lx = 1000e-6; // 1000 nm;
+
+  *bcs = 0;
 
   /*Number of velocity nodes in each dimension*/
   *Nv = 40;
