@@ -544,7 +544,7 @@ int main(int argc, char **argv) {
     }
 
     // Allocate for poisson calc
-    source = mallloc(Nx_rank * sizeof(double));
+    source = malloc(Nx_rank * sizeof(double));
     source_buf = malloc(2 * (Nx_rank + 1) * sizeof(double));
     PoisPot = malloc((Nx_rank + 2 * order) * sizeof(double));
     Te_arr = malloc(Nx_rank * sizeof(double));
@@ -563,7 +563,7 @@ int main(int argc, char **argv) {
       if(bcs == 0){
         source_allranks = malloc(Nx * sizeof(double));
         Te_arr_allranks = malloc(Nx * sizeof(double));
-        PoisPot_allranks = malloc((Nx * sizeof(double));
+        PoisPot_allranks = malloc(Nx * sizeof(double));
       } else if(bcs == 1){
         //all ghost cells on the left & right have the same source/potential value,
         //i.e. you are now doing kinetic theory in between two infinite square plates,
@@ -739,7 +739,7 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
-    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
+    initialize_transport(bcs, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
 
     // check if we are loading moment data from a file
     // Note: This is not yet MPI-ified
@@ -747,25 +747,25 @@ int main(int argc, char **argv) {
       initialize_sol_inhom_file(f, Nx_rank, nspec, Nv, order, c, m, n_oned,
                                 v_oned, T_oned);
     } else {
-      initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int,
+      initialize_sol_inhom(&rank, &numRanks,f, numint, intervalLimits, ndens_int, velo_int,
                            T_int, Nx_rank, x, nspec, Nv, order, c, m, n_oned,
                            v_oned, T_oned);
       if(rank==0){
         //set left and right params. 
         if(bcs==1){
           double tmp_mixv = 0;
-          double tmp_totndens; tmp_totdens;
+          double tmp_totndens, tmp_totdens;
           //set left bcs (the first interval)
           for(i=0; i<nspec; i++){
-            n_bcs[0][i] = ndens_in[i];
+            n_bcs[0][i] = ndens_int[i];
             Z_bcs[0][i] = Z_max[i];
-            tmp_totndens += ndens_in[i];
-            tmp_totdens += m[i]*ndens_in[i];
-            tmp_mixv += m[i]*ndens_in[i]*v_in[i];
+            tmp_totndens += ndens_int[i];
+            tmp_totdens += m[i]*ndens_int[i];
+            tmp_mixv += m[i]*ndens_int[i]*velo_int[i];
           }
           tmp_mixv = tmp_mixv/tmp_totdens;
           for(i=0; i<nspec; i++){
-            T0_bcs[0] += ndens_in[i]*(T_in[i] + m[i]*(v_in[i]-tmp_mixv)*(v_in[i]-tmp_mixv)/3.0);
+            T0_bcs[0] += ndens_int[i]*(T_int[i] + m[i]*(velo_int[i]-tmp_mixv)*(velo_int[i]-tmp_mixv)/3.0);
           }
           T0_bcs[0] = T0_bcs[0]/tmp_totndens;
           //if only one interval, set the same bounds on each end.
@@ -778,18 +778,18 @@ int main(int argc, char **argv) {
           }else{
             tmp_totndens = 0.0;
             tmp_totdens = 0.0;
-            tmp_mixv = 0.0
+            tmp_mixv = 0.0;
             l = (numint-1)*nspec;
             for(i = 0; i<nspec; i++){
-              n_bcs[1][i] = ndens_in[l + i];
+              n_bcs[1][i] = ndens_int[l + i];
               Z_bcs[1][i] = Z_max[i];
-              tmp_totndens += ndens_in[l+i];
-              tmp_totdens += m[i]*ndens_in[l+i];
-              tmp_mixv += m[i]*ndens_in[l+i]*v_in[l+i];
+              tmp_totndens += ndens_int[l+i];
+              tmp_totdens += m[i]*ndens_int[l+i];
+              tmp_mixv += m[i]*ndens_int[l+i]*velo_int[l+i];
             }
             tmp_mixv = tmp_mixv/tmp_totdens;
             for(i=0; i<nspec; i++){
-              T0_bcs[1] += n_bcs[1][i]*(T_in[l+i] + m[i]*(v_in[l+i]-tmp_mixv)*(v_in[l+i]-tmp_mixv)/3.0);
+              T0_bcs[1] += n_bcs[1][i]*(T_int[l+i] + m[i]*(velo_int[l+i]-tmp_mixv)*(velo_int[l+i]-tmp_mixv)/3.0);
             }
             T0_bcs[1] = T0_bcs[1]/tmp_totndens;
           }
@@ -1046,11 +1046,11 @@ int main(int argc, char **argv) {
      "It is true, we shall be monsters, cut off from the world; 
      but on that account we shall be more attached to one another" - MS, F
      */
-     poisson_solver(&MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+     poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
                    &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
                    &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
                    &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                   &PoisPot, &PoisPot_allranks) 
+                   &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
 
       // Moments and initial electric field calculated - save if needed
 
@@ -1184,25 +1184,27 @@ int main(int argc, char **argv) {
           advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
         }
 
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
+            }
             n_oned[l][i] = getDensity(f_tmp[l+order][i], i);
-
+          }
+        }
         // Do second step of Poisson solve 
         
         //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
         //CHANGE RESULTING FROM THE ABOVE ADVECTION.
 
         //see line 1044
-        poisson_solver(&MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                       &PoisPot, &PoisPot_allranks) 
+                       &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
         // Finished with determining poisson solve, now advect
 
         // RK2 Step 2
@@ -1304,15 +1306,17 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++) {
           advectTwo_x(f_tmp, f_conv, i);
         }
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
-            n_oned[l][i] = getDensity(f[l + order][i], i)
-
+            }
+            n_oned[l][i] = getDensity(f[l + order][i], i);
+          }
+        }
         // Last strang step - V advection with timestep dt/2 (combine?)
 
         // Recalc Poiss
@@ -1321,11 +1325,11 @@ int main(int argc, char **argv) {
         //CHANGE RESULTING FROM THE ABOVE ADVECTION.
 
         //see line 1044
-        poisson_solver(&MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                       &PoisPot, &PoisPot_allranks) 
+                       &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
 
         // Finished with determining poisson solve, now advect
 
@@ -1334,27 +1338,28 @@ int main(int argc, char **argv) {
           advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
         }
 
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-            n_oned[l][i] = getDensity(f[l + order][i], i)
-
- 
+            }
+            n_oned[l][i] = getDensity(f[l + order][i], i);
+          }
+        } 
 
         // Recalc Poiss
         
         //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
         //CHANGE RESULTING FROM THE ABOVE ADVECTION.
 
-        //see line 975
-        poisson_solver(&MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+        //see line 1044
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                       &PoisPot, &PoisPot_allranks) 
+                       &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs); 
 
         // Finished with determining poisson solve, now advect
 

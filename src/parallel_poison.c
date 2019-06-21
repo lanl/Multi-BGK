@@ -46,8 +46,8 @@ void get_ramp_bc_Te(double **Te_arr_allranks, int *Nx, int *order, double *T_sta
 }
 
 
-void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
-                    int *ecouple, int *poissFlavor, int *ionFix, int *nspec, int **Z_max, double *Te_ref, 
+void periodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
+                    int *ecouple, int *poissFlavor, int *ionFix, int *nspec, double **Z_max, double *Te_ref, 
                     double *Te_start, int *order, double *dx, double *Lx, double *t, double *tfinal, double **Te_arr,
                     double **Te_arr_allranks, double **T0_oned, double ***n_oned, double ***Z_oned, 
                     double **source, double **source_buf, double **source_allranks, double **PoisPot, double **PoisPot_allranks)
@@ -91,11 +91,10 @@ void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Statu
 
         if(*numRanks > 1){
             int rankOffset = *Nx_rank;
-
             //get source value and electron Temp from all other ranks.
             for(int rankCounter = 1; rankCounter < *numRanks; rankCounter++){
                 MPI_Recv(*source_buf, 2 * (*Nx_ranks)[rankCounter], MPI_DOUBLE,
-                         rankCounter, 200 + rankCounter, *comm, status);
+                         rankCounter, 200 + rankCounter, comm, status);
                 for(int l = 0; l < (*Nx_ranks)[rankCounter]; l++){
                     (*source_allranks)[l + rankOffset] = (*source_buf)[0 + 2*l];
                     (*Te_arr_allranks)[l + rankOffset] = (*source_buf)[1 + 2*l];
@@ -109,11 +108,11 @@ void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Statu
             (*source_buf)[0 + 2*l] = (*source)[l];
             (*source_buf)[1 + 2*l] = (*Te_arr)[l];
         }
-        MPI_Send(*source_buf, 2 * (*Nx_rank), MPI_DOUBLE, 0, 200 + (*rank), *comm);
+        MPI_Send(*source_buf, 2 * (*Nx_rank), MPI_DOUBLE, 0, 200 + (*rank), comm);
     }
 
     //Wait until all source stuff is sent.
-    MPI_Barrier(*comm);
+    MPI_Barrier(comm);
     
     //Rank 0 performs the solve.
     if(*rank == 0){
@@ -187,7 +186,7 @@ void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Statu
                 }
 
                 MPI_Send(*source_buf, (*Nx_ranks)[rankCounter] + 2*(*order), MPI_DOUBLE,
-                         rankCounter, rankCounter, *comm);
+                         rankCounter, rankCounter, comm);
                 rankOffset += (*Nx_ranks)[rankCounter];
             }
 
@@ -209,11 +208,11 @@ void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Statu
             }
             
             MPI_Send(*source_buf, (*Nx_ranks)[(*numRanks)-1] + 2*(*order), MPI_DOUBLE,
-                     (*numRanks)-1, (*numRanks)-1, *comm);
+                     (*numRanks)-1, (*numRanks)-1, comm);
         }
     }else{
         //Get potential from rank 0
-        MPI_Recv(*source_buf, *Nx_rank + 2*(*order), MPI_DOUBLE, 0,  *rank, *comm, status);
+        MPI_Recv(*source_buf, *Nx_rank + 2*(*order), MPI_DOUBLE, 0,  *rank, comm, status);
 
         //set Poispot
         for(int l = 0; l < (*Nx_rank) + 2*(*order); l++){
@@ -222,8 +221,8 @@ void periodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Statu
     }
 }
 
-void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
-                    int *ecouple, int *poissFlavor, int *ionFix, int *nspec, int **Z_max, double *Te_ref, 
+void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
+                    int *ecouple, int *poissFlavor, int *ionFix, int *nspec, double **Z_max, double *Te_ref, 
                     double *Te_start, int *order, double *dx, double *Lx, double *t, double *tfinal, double **Te_arr,
                     double **Te_arr_allranks, double **T0_oned, double ***n_oned, double ***Z_oned, 
                     double **source, double **source_buf, double **source_allranks, double **PoisPot, double **PoisPot_allranks,
@@ -312,7 +311,7 @@ void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_St
             //get source value and electron Temp from all other ranks.
             for(int rankCounter = 1; rankCounter < *numRanks; rankCounter++){
                 MPI_Recv(*source_buf, 2 * (*Nx_ranks)[rankCounter], MPI_DOUBLE,
-                         rankCounter, 200 + rankCounter, *comm, status);
+                         rankCounter, 200 + rankCounter, comm, status);
                 for(int l = 0; l < (*Nx_ranks)[rankCounter]; l++){
                     (*source_allranks)[l + rankOffset] = (*source_buf)[0 + 2*l];
                     (*Te_arr_allranks)[l + rankOffset] = (*source_buf)[1 + 2*l];
@@ -326,11 +325,11 @@ void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_St
             (*source_buf)[0 + 2*l] = (*source)[l];
             (*source_buf)[1 + 2*l] = (*Te_arr)[l];
         }
-        MPI_Send(*source_buf, 2 * (*Nx_rank), MPI_DOUBLE, 0, 200 + (*rank), *comm);
+        MPI_Send(*source_buf, 2 * (*Nx_rank), MPI_DOUBLE, 0, 200 + (*rank), comm);
     }
 
     //Wait until all source stuff is sent.
-    MPI_Barrier(*comm);
+    MPI_Barrier(comm);
     
     //Rank 0 performs the solve.
     if(*rank == 0){
@@ -404,7 +403,7 @@ void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_St
                 }
 
                 MPI_Send(*source_buf, (*Nx_ranks)[rankCounter] + 2*(*order), MPI_DOUBLE,
-                         rankCounter, rankCounter, *comm);
+                         rankCounter, rankCounter, comm);
                 rankOffset += (*Nx_ranks)[rankCounter];
             }
 
@@ -426,11 +425,11 @@ void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_St
             }
             
             MPI_Send(*source_buf, (*Nx_ranks)[(*numRanks)-1] + 2*(*order), MPI_DOUBLE,
-                     (*numRanks)-1, (*numRanks)-1, *comm);
+                     (*numRanks)-1, (*numRanks)-1, comm);
         }
     }else{
         //Get potential from rank 0
-        MPI_Recv(*source_buf, *Nx_rank + 2*(*order), MPI_DOUBLE, 0,  *rank, *comm, status);
+        MPI_Recv(*source_buf, *Nx_rank + 2*(*order), MPI_DOUBLE, 0,  *rank, comm, status);
 
         //set Poispot
         for(int l = 0; l < (*Nx_rank) + 2*(*order); l++){
@@ -441,8 +440,8 @@ void nonperiodic_poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_St
 
 
 
-void poisson_solver(MPI_Comm *comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
-                    int *ecouple, int *bcs, int *poissFlavor, int *ionFix, int *nspec, int **Z_max, double *Te_ref, 
+void poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status *status, int *Nx, int **Nx_ranks, int *Nx_rank,
+                    int *ecouple, int *bcs, int *poissFlavor, int *ionFix, int *nspec, double **Z_max, double *Te_ref, 
                     double *Te_start, int *order, double *dx, double *Lx, double *t, double *tfinal, double **Te_arr,
                     double **Te_arr_allranks, double **T0_oned, double ***n_oned, double ***Z_oned, 
                     double **source, double **source_buf, double **source_allranks, double **PoisPot, double **PoisPot_allranks,
