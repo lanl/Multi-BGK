@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 // Computes the transport term
-static int bcs;
+static int BC;
 static int N;
 static int nX;
 static int ns;
@@ -36,6 +36,7 @@ double minmod(double in1, double in2, double in3) {
 void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes,
                           double *dxnodes, double Lx_val, double **vel, int ord,
                           double timestep) {
+  BC = bcs;
   N = numV;
   nX = numX; // Remember that this is nX in the rank
   x = xnodes;
@@ -61,7 +62,7 @@ void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes
 }
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
-void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
+void fillGhostCells_firstorder(double ***f, int sp) {
 
   int rank, numRanks;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -81,7 +82,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   // If just one rank, no MPI communication is needed
   if (numRanks == 1) {
-    if(bcs == 0){
+    if(BC == 0){
       for (i = 0; i < N * N * N; i++) {
         f[left_ghost][sp][i] = f[right_actual][sp][i];
         f[right_ghost][sp][i] = f[left_actual][sp][i];
@@ -117,8 +118,9 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, up_nbr, 2, MPI_COMM_WORLD,
                  &status);
 
-        for (i = 0; i < N * N * N; i++)
+        for (i = 0; i < N * N * N; i++){
           f[right_ghost][sp][i] = xremote[i];
+        }
       }
     } else {
 
@@ -137,30 +139,31 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
     // Deal with edge case - boundary for odd numRanks case
     if (numRanks % 2 == 1) {
+      if(BC == 0){
+        if (rank == 0) {
+          for (i = 0; i < N * N * N; i++)
+            xlocal[i] = f[left_actual][sp][i];
 
-      if (rank == 0) {
-        for (i = 0; i < N * N * N; i++)
-          xlocal[i] = f[left_actual][sp][i];
+          MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, numRanks - 1, 1,
+                   MPI_COMM_WORLD, &status);
 
-        MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, numRanks - 1, 1,
-                 MPI_COMM_WORLD, &status);
+          MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, numRanks - 1, 2,
+                   MPI_COMM_WORLD);
+          for (i = 0; i < N * N * N; i++)
+            f[left_ghost][sp][i] = xremote[i];
+        } else if (rank == numRanks - 1) {
 
-        MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, numRanks - 1, 2,
-                 MPI_COMM_WORLD);
-        for (i = 0; i < N * N * N; i++)
-          f[left_ghost][sp][i] = xremote[i];
-      } else if (rank == numRanks - 1) {
+          for (i = 0; i < N * N * N; i++)
+            xlocal[i] = f[right_actual][sp][i];
 
-        for (i = 0; i < N * N * N; i++)
-          xlocal[i] = f[right_actual][sp][i];
+          MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
 
-        MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
+          MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
+                   &status);
 
-        MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
-                 &status);
-
-        for (i = 0; i < N * N * N; i++)
-          f[right_ghost][sp][i] = xremote[i];
+          for (i = 0; i < N * N * N; i++)
+            f[right_ghost][sp][i] = xremote[i];
+        }
       }
     }
 
@@ -182,9 +185,11 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
       MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, up_nbr, 4, MPI_COMM_WORLD,
                &status);
 
-      for (i = 0; i < N * N * N; i++)
-        f[right_ghost][sp][i] = xremote[i];
-
+      if(BC == 0 || rank != numRanks-1){
+        for (i = 0; i < N * N * N; i++){
+          f[right_ghost][sp][i] = xremote[i];
+        }
+      }
     } else {
 
       if (!((numRanks % 2 == 1) &&
@@ -199,8 +204,11 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, down_nbr, 4,
                  MPI_COMM_WORLD);
 
-        for (i = 0; i < N * N * N; i++)
-          f[left_ghost][sp][i] = xremote[i];
+        if(BC == 0 || rank != 0){
+          for (i = 0; i < N * N * N; i++){
+            f[left_ghost][sp][i] = xremote[i];
+          }
+        }
       }
     }
 
@@ -209,7 +217,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
   }
 }
 
-void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
+void fillGhostCells_secondorder(double ***f, int sp) {
 
   int rank, numRanks;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -236,11 +244,13 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
 
   // If just one rank, no MPI communication is needed
   if (numRanks == 1) {
-    for (i = 0; i < N3; i++) {
-      f[left_ghost_1][sp][i] = f[right_actual_1][sp][i];
-      f[left_ghost_2][sp][i] = f[right_actual_2][sp][i];
-      f[right_ghost_1][sp][i] = f[left_actual_1][sp][i];
-      f[right_ghost_2][sp][i] = f[left_actual_2][sp][i];
+    if(BC==0){
+      for (i = 0; i < N3; i++) {
+        f[left_ghost_1][sp][i] = f[right_actual_1][sp][i];
+        f[left_ghost_2][sp][i] = f[right_actual_2][sp][i];
+        f[right_ghost_1][sp][i] = f[left_actual_1][sp][i];
+        f[right_ghost_2][sp][i] = f[left_actual_2][sp][i];
+      }
     }
   } else {
 
@@ -300,38 +310,39 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
 
     // Deal with edge case - boundary for odd numRanks case
     if (numRanks % 2 == 1) {
+      if(BC == 0){
+        if (rank == 0) {
+          for (i = 0; i < N3; i++) {
+            xlocal[i] = f[left_actual_1][sp][i];
+            xlocal[i + N3] = f[left_actual_2][sp][i];
+          }
 
-      if (rank == 0) {
-        for (i = 0; i < N3; i++) {
-          xlocal[i] = f[left_actual_1][sp][i];
-          xlocal[i + N3] = f[left_actual_2][sp][i];
-        }
+          MPI_Recv(&xremote[0], 2 * N3, MPI_DOUBLE, numRanks - 1, 1,
+                   MPI_COMM_WORLD, &status);
 
-        MPI_Recv(&xremote[0], 2 * N3, MPI_DOUBLE, numRanks - 1, 1,
-                 MPI_COMM_WORLD, &status);
+          MPI_Send(&xlocal[0], 2 * N3, MPI_DOUBLE, numRanks - 1, 2,
+                   MPI_COMM_WORLD);
 
-        MPI_Send(&xlocal[0], 2 * N3, MPI_DOUBLE, numRanks - 1, 2,
-                 MPI_COMM_WORLD);
+          for (i = 0; i < N3; i++) {
+            f[left_ghost_1][sp][i] = xremote[i];
+            f[left_ghost_2][sp][i] = xremote[i + N3];
+          }
+        } else if (rank == numRanks - 1) {
 
-        for (i = 0; i < N3; i++) {
-          f[left_ghost_1][sp][i] = xremote[i];
-          f[left_ghost_2][sp][i] = xremote[i + N3];
-        }
-      } else if (rank == numRanks - 1) {
+          for (i = 0; i < N3; i++) {
+            xlocal[i] = f[right_actual_1][sp][i];
+            xlocal[i + N3] = f[right_actual_2][sp][i];
+          }
 
-        for (i = 0; i < N3; i++) {
-          xlocal[i] = f[right_actual_1][sp][i];
-          xlocal[i + N3] = f[right_actual_2][sp][i];
-        }
+          MPI_Send(&xlocal[0], 2 * N3, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
 
-        MPI_Send(&xlocal[0], 2 * N3, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
+          MPI_Recv(&xremote[0], 2 * N3, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
+                   &status);
 
-        MPI_Recv(&xremote[0], 2 * N3, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
-                 &status);
-
-        for (i = 0; i < N3; i++) {
-          f[right_ghost_1][sp][i] = xremote[i];
-          f[right_ghost_2][sp][i] = xremote[i + N3];
+          for (i = 0; i < N3; i++) {
+            f[right_ghost_1][sp][i] = xremote[i];
+            f[right_ghost_2][sp][i] = xremote[i + N3];
+          }
         }
       }
     }
@@ -356,9 +367,11 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
       MPI_Recv(&xremote[0], 2 * N3, MPI_DOUBLE, up_nbr, 4, MPI_COMM_WORLD,
                &status);
 
-      for (i = 0; i < N3; i++) {
-        f[right_ghost_1][sp][i] = xremote[i];
-        f[right_ghost_2][sp][i] = xremote[i + N3];
+      if(BC == 0 || rank != numRanks-1){
+        for (i = 0; i < N3; i++) {
+          f[right_ghost_1][sp][i] = xremote[i];
+          f[right_ghost_2][sp][i] = xremote[i + N3];
+        }
       }
     } else {
 
@@ -375,9 +388,11 @@ void fillGhostCellsPeriodic_secondorder(double ***f, int sp) {
 
         MPI_Send(&xlocal[0], 2 * N3, MPI_DOUBLE, down_nbr, 4, MPI_COMM_WORLD);
 
-        for (i = 0; i < N3; i++) {
-          f[left_ghost_1][sp][i] = xremote[i];
-          f[left_ghost_2][sp][i] = xremote[i + N3];
+        if(BC == 0 || rank != 0){
+          for (i = 0; i < N3; i++) {
+            f[left_ghost_1][sp][i] = xremote[i];
+            f[left_ghost_2][sp][i] = xremote[i + N3];
+          }
         }
       }
     }
@@ -394,7 +409,7 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   double CFL_NUM;
 
   // Update ghost with current solution, prior to transport
-  fillGhostCellsPeriodic_firstorder(f, sp);
+  fillGhostCells_firstorder(f, sp);
 
   // Note - the 'real' data lives in 1...Nx, the ghost points are 0 and Nx+1
 
@@ -419,7 +434,7 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   }
 
   // Get updated ghost solution
-  fillGhostCellsPeriodic_firstorder(f_conv, sp);
+  fillGhostCells_firstorder(f_conv, sp);
 }
 
 // Computes the v direction first order upwind solution FOR A SINGLE SPECIES
@@ -531,7 +546,7 @@ void upwindTwo_x(double ***f, double ***f_conv, double *v, int sp) {
   double slope[3];
   double CFL_NUM;
 
-  fillGhostCellsPeriodic_secondorder(f, sp);
+  fillGhostCells_secondorder(f, sp);
 
   // main upwinding
   double f_l, f_r, f_ll, f_rr, x_l, x_r, x_ll, x_rr, dx_l, dx_r;
