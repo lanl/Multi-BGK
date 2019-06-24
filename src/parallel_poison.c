@@ -119,7 +119,7 @@ void periodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status
         if(*poissFlavor == 0){
             //No E-field
             for(int l = 0; l < *Nx; l++){
-                (*PoisPot_allranks)[l] = 0,0;
+                (*PoisPot_allranks)[l] = 0.0;
             }
         }else if(*poissFlavor == 11){
             //Linear Yukawa
@@ -148,8 +148,8 @@ void periodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status
                 (*PoisPot)[(*Nx_rank) + 1] = (*PoisPot_allranks)[(*Nx_rank)];
             }
         }else if(*order == 2){
-            (*PoisPot)[0] == (*PoisPot_allranks)[(*Nx)-2];
-            (*PoisPot)[1] == (*PoisPot_allranks)[(*Nx)-1];
+            (*PoisPot)[0] = (*PoisPot_allranks)[(*Nx)-2];
+            (*PoisPot)[1] = (*PoisPot_allranks)[(*Nx)-1];
             if(*numRanks == 1){
                 (*PoisPot)[(*Nx_rank) + 2] = (*PoisPot_allranks)[0];
                 (*PoisPot)[(*Nx_rank) + 3] = (*PoisPot_allranks)[1];
@@ -167,11 +167,11 @@ void periodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status
         if(*numRanks > 1){
             rankOffset = *Nx_rank;
             for(int rankCounter = 1; rankCounter < (*numRanks)-1; rankCounter++){
-                if (order == 1) {
+                if (*order == 1) {
                     (*source_buf)[0] = (*PoisPot_allranks)[rankOffset - 1];
                     (*source_buf)[(*Nx_ranks)[rankCounter] + 1] = 
                     (*PoisPot_allranks)[rankOffset + (*Nx_ranks)[rankCounter]];
-                 } else if (order == 2) {
+                 } else if (*order == 2) {
                      (*source_buf)[0] = (*PoisPot_allranks)[rankOffset - 2];
                      (*source_buf)[1] = (*PoisPot_allranks)[rankOffset - 1];
                      (*source_buf)[(*Nx_ranks)[rankCounter] + 2] =
@@ -275,8 +275,8 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
     //calculate ionization data for bcs, store in buffer.
     if(*rank == 0){
         if((*ecouple != 2) && (*ionFix != 1)){
-            zBarFunc2((*n_bcs)[0], (*Te_bcs)[0], *Z_max, (*n_bcs)[0], (*Z_bcs)[0]);
-            zBarFunc2((*n_bcs)[0], (*Te_bcs)[0], *Z_max, (*n_bcs)[1], (*Z_bcs)[1]);
+            zBarFunc2(*nspec, (*Te_bcs)[0], *Z_max, (*n_bcs)[0], (*Z_bcs)[0]);
+            zBarFunc2(*nspec, (*Te_bcs)[0], *Z_max, (*n_bcs)[1], (*Z_bcs)[1]);
         }else{
             (*Z_bcs)[0] = (*Z_max);
             (*Z_bcs)[1] = (*Z_max);
@@ -336,7 +336,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
         if(*poissFlavor == 0){
             //No E-field
             for(int l = 0; l < *Nx; l++){
-                (*PoisPot_allranks)[l] = 0,0;
+                (*PoisPot_allranks)[l] = 0.0;
             }
         }else if(*poissFlavor == 11){
             //Linear Yukawa
@@ -365,8 +365,8 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
                 (*PoisPot)[(*Nx_rank) + 1] = (*PoisPot_allranks)[(*Nx_rank) + 1];
             }
         }else if(*order == 2){
-            (*PoisPot)[0] == (*PoisPot_allranks)[0];
-            (*PoisPot)[1] == (*PoisPot_allranks)[1];
+            (*PoisPot)[0] = (*PoisPot_allranks)[0];
+            (*PoisPot)[1] = (*PoisPot_allranks)[1];
             if(*numRanks == 1){
                 (*PoisPot)[(*Nx_rank) + 2] = (*PoisPot_allranks)[(*Nx_rank) + 2];
                 (*PoisPot)[(*Nx_rank) + 3] = (*PoisPot_allranks)[(*Nx_rank) + 3];
@@ -384,11 +384,11 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
         if(*numRanks > 1){
             rankOffset = *Nx_rank + (*order);
             for(int rankCounter = 1; rankCounter < (*numRanks)-1; rankCounter++){
-                if (order == 1) {
+                if (*order == 1) {
                     (*source_buf)[0] = (*PoisPot_allranks)[rankOffset - 1];
                     (*source_buf)[(*Nx_ranks)[rankCounter] + 1] = 
                     (*PoisPot_allranks)[rankOffset + (*Nx_ranks)[rankCounter]];
-                 } else if (order == 2) {
+                 } else if (*order == 2) {
                      (*source_buf)[0] = (*PoisPot_allranks)[rankOffset - 2];
                      (*source_buf)[1] = (*PoisPot_allranks)[rankOffset - 1];
                      (*source_buf)[(*Nx_ranks)[rankCounter] + 2] =
