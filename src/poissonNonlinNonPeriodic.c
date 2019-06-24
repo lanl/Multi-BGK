@@ -18,11 +18,11 @@ static int phiflag = 0;
 
 
 // Declare nonlinear subroutines here for definiton later
-void electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
+void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
                     double *Te);
-void electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
+void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
                        double *Te);
-double chemPot_TF(int *order, double *source, int N, double *Te, double mu0);
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0);
 
 // subroutines for checking charge conservation
 double chargeTallyYukLin(gsl_vector *phi, double ne0, double Te);
@@ -168,7 +168,7 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
   /* Faster version suggested by Cory */
 
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
-    electronSource(order, phiVec, g, gPrime, ne0, Te);
+    nonperiodic_electronSource(order, phiVec, g, gPrime, ne0, Te);
     int j;
     for (i = 0; i < N+2; i++) {
       gsl_matrix_set(
@@ -228,7 +228,7 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
   free(gPrime);
 }
 
-void electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
+void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
                     double *Te) {
 
   int N = (*phi).size;
@@ -386,7 +386,7 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find average chemical potential
-  double mu = chemPot_TF(order, source, N+2, Te, 1.0); // eV
+  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 1.0); // eV
 
   // Fermi integrals
   double F_mhalf;
@@ -544,7 +544,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   int signum;
 
   // Get chemical potential approximation
-  double mu = chemPot_TF(order, source, N, Te, 1.0);
+  double mu = nonperiodic_chemPot_TF(order, source, N, Te, 1.0);
 
   loop = 0;
 
@@ -593,7 +593,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   /* Faster version suggested by Cory */
 
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
-    electronSource_TF(order, phiVec, g, gPrime, mu, Te);
+    nonperiodic_electronSource_TF(order, phiVec, g, gPrime, mu, Te);
 
     for (i = 0; i < N+2; i++) {
       gsl_matrix_set(
@@ -710,7 +710,7 @@ void simpleNonPeriodicPoisson(int N, double *source, double dx, double Lx, doubl
 // Calculates the average value of the chemical potential for all cells
 // by inverting the Fermi integral
 
-double chemPot_TF(int *order, double *source, int N, double *Te, double mu0) {
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0) {
   double RHS;
   double RHS_prefac = 0.5 * pow(2.0 * M_PI * HBAR_CGS, 3) /
                       pow(2.0 * M_PI * M_ELEC_CGS * ERG_TO_EV_CGS, 1.5);
@@ -754,7 +754,7 @@ double chemPot_TF(int *order, double *source, int N, double *Te, double mu0) {
   return musum / ((double)N + 2.0);
 }
 
-void electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
+void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
                        double *Te) {
 
   int N = (*phi).size;
