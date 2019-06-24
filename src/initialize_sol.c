@@ -22,17 +22,23 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
   int int_id, tmp_order, llim;
   int vIndex,inputIndex;
 
-  if(*rank == 0){
-    //set the left ghost cells, but not the right. this enables non-periodic bcs
+  if(*nRanks == 1){
     tmp_order = order;
     order = 0;
-    llim = Nx+order; 
-  }else if(*rank == *nRanks - 1){
-    //don't set the left ghost cells, but do set the right ghost cells. 
-    llim = Nx+order;
+    llim = Nx + 2*order;
   }else{
-    //only set the local cells.
-    llim = Nx;
+    if(*rank == 0){
+    //set the left ghost cells, but not the right. this enables non-periodic bcs
+      tmp_order = order;
+      order = 0;
+      llim = Nx+order; 
+    }else if(*rank == *nRanks - 1){
+      //don't set the left ghost cells, but do set the right ghost cells. 
+      llim = Nx+order;
+    }else{
+      //only set the local cells.
+      llim = Nx;
+    }
   }
 
   for(l=0;l<llim;l++) {
