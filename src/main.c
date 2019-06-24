@@ -894,8 +894,9 @@ int main(int argc, char **argv) {
       // Output to files
 
       BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
-
-      if (outcount == dataFreq) {
+  
+      //output if time to or initial data.
+      if (outcount == dataFreq || nT==0) {
         fprintf(outputFileTime, "%e\n", t);
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_zerod[i]);
@@ -1055,7 +1056,7 @@ int main(int argc, char **argv) {
       // Moments and initial electric field calculated - save if needed
 
       // MPI-ified output.
-      if (outcount == dataFreq) {
+      if (outcount == dataFreq || nT==0) {
         if (rank == 0) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++) {
