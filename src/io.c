@@ -1,4 +1,5 @@
 #include "io.h"
+#include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -95,19 +96,32 @@ void store_grid(char *fileName) {
 
 // Not looking to just dump binary data here - need something that I can load in
 // via python.
-void store_distributions_inhomog(double ***f, char *fileName, int t) {
-  int s, xj;
+void store_distributions_inhomog(int *nRanks, int *rank, int *order, double ***f, char *fileName, int t) {
+  int i, s, xj;
   char name_buffer[100];
   FILE *fid_store;
+  for(i=0; i<(*nRanks); i++){
+    for (s = 0; s < nspec; s++){
+      sprintf(name_buffer, "Data/%s_spec%d.step%d.dat", fileName, s, t);
 
-  for (s = 0; s < nspec; s++) {
-    sprintf(name_buffer, "Data/%s_spec%d.step%d.dat", fileName, s, t);
-
-    fid_store = fopen(name_buffer, "w");
-
-    for (xj = 0; xj < Nx; xj++)
-      fwrite(f[xj][s], sizeof(double), Nv * Nv * Nv, fid_store);
-    fclose(fid_store);
+      if((*rank)==0){
+        fid_store = fopen(name_buffer, "w");
+      } else{
+       fid_store = fopen(name_buffer, 'a'); 
+      }
+      if(i == (*rank)){
+        if((*rank)==0){
+          fid_store = fopen(name_buffer, "w");
+        } else{
+         fid_store = fopen(name_buffer, 'a'); 
+        }
+        for (xj = 0; xj < Nx; xj++){
+          fwrite(f[xj + (*order)][s], sizeof(double), Nv * Nv * Nv, fid_store);
+        }
+        fclose(fid_store);
+      }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 }
 

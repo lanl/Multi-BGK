@@ -1100,14 +1100,8 @@ int main(int argc, char **argv) {
             fprintf(outputFileVelo[i], "\n");
             fprintf(outputFileTemp[i], "\n");
           }
-
-          if (outputDist == 1)
-            store_distributions_inhomog(f, input_filename, nT);
-
           outcount = 0;
-        }
-
-        else { // send to rank 0 for output purposes
+        } else { // send to rank 0 for output purposes
           for (s = 0; s < nspec; s++) {
             for (l = 0; l < Nx_rank; l++) {
               momentBuffer[0 + 3 * l] = n_oned[l][s];
@@ -1117,8 +1111,11 @@ int main(int argc, char **argv) {
             MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                      MPI_COMM_WORLD);
           }
-
           outcount = 0;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(outputDist==1){
+          store_distributions_inhomog(&numRanks, &rank, &order, f, input_filename, nT);
         }
       }
       outcount += 1;
@@ -1431,10 +1428,6 @@ int main(int argc, char **argv) {
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
       }
-      
-      if (outputDist == 1)
-        store_distributions_inhomog(f, input_filename, nT);
-      
     }
     else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
@@ -1448,7 +1441,10 @@ int main(int argc, char **argv) {
       }
       
     }
-    
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(outputDist==1){
+      store_distributions_inhomog(&numRanks, &rank, &order, f, input_filename, nT);
+    }
     MPI_Barrier(MPI_COMM_WORLD);
   }
    

@@ -109,8 +109,9 @@ void fillGhostCells_firstorder(double ***f, int sp) {
     if ((rank % 2) == 0) {
 
       if (rank != numRanks - 1) {
-        for (i = 0; i < N * N * N; i++)
+        for (i = 0; i < N * N * N; i++){
           xlocal[i] = f[right_actual][sp][i];
+        }
 
         /* exchange up */
         MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, up_nbr, 1, MPI_COMM_WORLD);
