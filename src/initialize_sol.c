@@ -46,11 +46,11 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
 	        v_oned[l-order][s][2] = 0.0;
 	        T_oned[l-order][s] = T_in[inputIndex];	
         } else {
-	        n_oned[l][s] = 0.0;
-	        v_oned[l][s][0] = 0.0;
-	        v_oned[l][s][1] = 0.0;
-	        v_oned[l][s][2] = 0.0;
-	        T_oned[l][s] = 0.0;
+	        n_oned[l-order][s] = 0.0;
+	        v_oned[l-order][s][0] = 0.0;
+	        v_oned[l-order][s][1] = 0.0;
+	        v_oned[l-order][s][2] = 0.0;
+	        T_oned[l-order][s] = 0.0;
         }
       }
 
