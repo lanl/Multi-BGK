@@ -22,77 +22,58 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
   int int_id, tmp_order, llim;
   int vIndex,inputIndex;
 
-  if(*nRanks == 1){
-    tmp_order = order;
-    order = 0;
-    llim = Nx + 2*order;
-  }else{
-    if(*rank == 0){
-    //set the left ghost cells, but not the right. this enables non-periodic bcs
-      tmp_order = order;
-      order = 0;
-      llim = Nx+order; 
-    }else if(*rank == *nRanks - 1){
-      //don't set the left ghost cells, but do set the right ghost cells. 
-      llim = Nx+order;
-    }else{
-      //only set the local cells.
-      llim = Nx;
-    }
-  }
-
+  llim = Nx + 2*order;
   for(l=0;l<llim;l++) {
 
     //Figure out the interval
     //If no interval is found it defaults to zero
     int_id = 0; 
-    for(j=0;j<nint;j++)      
-      if(x[l+order] > int_loc[j])
-	int_id = j;
+    for(j=0;j<nint;j++){      
+      if(x[l] > int_loc[j]){
+        int_id = j;
+      }
+    }
     
     for(s=0;s<nspec;s++) {
       inputIndex = int_id*nspec + s;
 
       //set moment data
-      if(ndens_in[inputIndex] != 0) {
-	n_oned[l][s] = ndens_in[inputIndex];
-	v_oned[l][s][0] = v_in[inputIndex];
-	v_oned[l][s][1] = 0.0;
-	v_oned[l][s][2] = 0.0;
-	T_oned[l][s] = T_in[inputIndex];	
-      }
-      else {
-	n_oned[l][s] = 0.0;
-	v_oned[l][s][0] = 0.0;
-	v_oned[l][s][1] = 0.0;
-	v_oned[l][s][2] = 0.0;
-	T_oned[l][s] = 0.0;
+      if(l>order-1 && l<Nx+order){
+        if(ndens_in[inputIndex] != 0) {
+	        n_oned[l-order][s] = ndens_in[inputIndex];
+	        v_oned[l-order][s][0] = v_in[inputIndex];
+	        v_oned[l-order][s][1] = 0.0;
+	        v_oned[l-order][s][2] = 0.0;
+	        T_oned[l-order][s] = T_in[inputIndex];	
+        } else {
+	        n_oned[l][s] = 0.0;
+	        v_oned[l][s][0] = 0.0;
+	        v_oned[l][s][1] = 0.0;
+	        v_oned[l][s][2] = 0.0;
+	        T_oned[l][s] = 0.0;
+        }
       }
 
       //set distribution data
-      for(i=0;i<Nv;i++) 
-	for(j=0;j<Nv;j++)
-	  for(k=0;k<Nv;k++) {
-	    vIndex = k + Nv*(j + Nv*i);	    
+      for(i=0;i<Nv;i++){
+	      for(j=0;j<Nv;j++){
+	        for(k=0;k<Nv;k++) {
+	          vIndex = k + Nv*(j + Nv*i);	    
 
- 	    if(ndens_in[inputIndex] != 0.0) {
-	      f[l+order][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
-		exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
-		    ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 
+ 	          if(ndens_in[inputIndex] != 0.0) {
+               f[l][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
+		           exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
+		          ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 
 	            + (c[s][j]*c[s][j])
-		    + (c[s][k]*c[s][k]) ));
-	    }
-	    else {
-	      f[l+order][s][vIndex] = 0.0;
-	    }
-	  }	
+		          + (c[s][k]*c[s][k]) ));
+	          } else {
+	            f[l][s][vIndex] = 0.0;
+	          }
+          }
+        }
+      }
     }
   }
-  if(*rank == 0){
-    order = tmp_order;
-  }
-
-  
 }
 
 
