@@ -1104,6 +1104,8 @@ int main(int argc, char **argv) {
         } else { // send to rank 0 for output purposes
           for (s = 0; s < nspec; s++) {
             for (l = 0; l < Nx_rank; l++) {
+              T_oned[l][s] =
+                  getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
               momentBuffer[0 + 3 * l] = n_oned[l][s];
               momentBuffer[1 + 3 * l] = v_oned[l][s][0];
               momentBuffer[2 + 3 * l] = T_oned[l][s];
