@@ -241,7 +241,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
             get_uniform_Te(Te_arr, Nx_rank, Te_ref);
             if(*rank == 0){
                 for(int i = 0; i < *order; i++){
-                    (*Te_arr_allranks)[i] = (*Te_ref);
+                    (*Te_arr_allranks)[i] = (*T0_bcs)[0];
                     (*Te_arr_allranks)[(*Nx) + i] = (*T0_bcs)[1];
                 }
             }
