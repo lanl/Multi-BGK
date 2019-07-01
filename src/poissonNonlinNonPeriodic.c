@@ -85,11 +85,11 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
       gsl_vector_set(phiVec, i, 1e-10);
   } else // use previous field as guess
     for (i = 0; i < N + 2; i++)
-      gsl_vector_set(phiVec, i, phi[i + (*order) -1]);
+      gsl_vector_set(phiVec, i, phi[i]);
 
   // Set up matrices
-  gsl_matrix *A = gsl_matrix_calloc(N, N); //-d_xx operator
-  gsl_matrix *B = gsl_matrix_calloc(N, N); // Jacobian matrix
+  gsl_matrix *A = gsl_matrix_calloc(N+2, N+2); //-d_xx operator
+  gsl_matrix *B = gsl_matrix_calloc(N+2, N+2); // Jacobian matrix
 
   // initialize the matrix A
   gsl_matrix_set(A, 0, 0, 1.0 / dx / dx);
@@ -116,7 +116,7 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
   double Ci = 0;
 
   for (i =  0; i < N + 2; i++)
-    Ci += source[i + (*order) - 1];
+    Ci += source[i];
 
   // distribute charge evenly over each cell
   double ne0 = (Ci * dx / (Lx+2*dx));
@@ -176,7 +176,7 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
       gsl_vector_set(
           RHS, i,
           4.0 * M_PI * E_02_CGS *
-              (source[i + (*order) -1] - g[i] + gPrime[i] * gsl_vector_get(phiVec, i)));
+              (source[i] - g[i] + gPrime[i] * gsl_vector_get(phiVec, i)));
     }
     // solves B*phiNext = RHS
     gsl_linalg_LU_decomp(B, Permut, &signum);
@@ -206,15 +206,15 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
   double e_tot = 0.0;
 
   for (i = 0; i < N + 2; i++) {
-    ion_tot += source[i + (*order) - 1] * dx;
-    e_tot += ne0 * exp(gsl_vector_get(phiVec, i) / Te[i + (*order) - 1]) * dx;
+    ion_tot += source[i] * dx;
+    e_tot += ne0 * exp(gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
   // printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g
   // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi, converted to ergs
   for (i = 0; i < N + 2; i++)
-    phi[i + (*order) -1] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
+    phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
 
   gsl_vector_free(phiVec);
   gsl_vector_free(phiNext);
@@ -235,8 +235,8 @@ void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *
   int i;
 
   for (i = 0; i < N; i++) {
-    g[i] = ne0 * exp(gsl_vector_get(phi, i) / Te[i + (*order) - 1]);
-    gPrime[i] = (1.0 / Te[i + (*order) -1]) * ne0 * exp(gsl_vector_get(phi, i) / Te[i + (*order) - 1]);
+    g[i] = ne0 * exp(gsl_vector_get(phi, i) / Te[i]);
+    gPrime[i] = (1.0 / Te[i]) * ne0 * exp(gsl_vector_get(phi, i) / Te[i]);
   }
 }
 
@@ -285,7 +285,7 @@ void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double 
   double Ci = 0;
 
   for (i = 0; i < N+2; i++)
-    Ci += source[i + (*order) - 1];
+    Ci += source[i];
 
   // distribute charge evenly over each cell
   double ne0 = (Ci * dx / (Lx+2*dx));
@@ -300,12 +300,12 @@ void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double 
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  gsl_matrix_set(A, N + 1, N + 1, 1.0 / dx / dx + ne0_diag / Te[N - 1]);
+  gsl_matrix_set(A, N + 1, N + 1, 1.0 / dx / dx + ne0_diag / Te[N + 1]);
   gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
 
   // set up RHS for solve
   for (i = 0; i < N + 2; i++)
-    gsl_vector_set(RHS, i, 4.0 * M_PI * E_02_CGS * (source[i + (*order) - 1] - ne0));
+    gsl_vector_set(RHS, i, 4.0 * M_PI * E_02_CGS * (source[i] - ne0));
 
   // Set up the LA solve
   gsl_permutation *Permut = gsl_permutation_alloc(N);
@@ -322,16 +322,16 @@ void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double 
   double e_tot = 0.0;
 
   for (i = 0; i < N+2; i++) {
-    ion_tot += source[i + (*order) -1] * dx;
-    e_tot += ne0 * (1 + gsl_vector_get(phiVec, i) / Te[i + (*order) - 1]) * dx;
+    ion_tot += source[i] * dx;
+    e_tot += ne0 * (1 + gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
   // printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g
   // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi and convert to ergs
-  for (i = 0; i < N; i++) {
-    phi[i + (*order) - 1] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
-    phitot += phi[i + (*order) - 1] / Te[i + (*order) - 1];
+  for (i = 0; i < N+2; i++) {
+    phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
+    phitot += phi[i] / Te[i];
   }
   // printf("phitot: %g\n",phitot);
 
@@ -403,20 +403,20 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   double fdfac = sqrt(M_PI) * 0.5;
 
   // initialize the matrix A
-  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[(*order) - 1]);
+  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[0]);
   gsl_matrix_set(A, 0, 0,
-                 1.0 / dx / dx + diag * sqrt(Te[(*order) -1]) * F_mhalf); // 1/cm^2
+                 1.0 / dx / dx + diag * sqrt(Te[0]) * F_mhalf); // 1/cm^2
   gsl_matrix_set(A, 0, 1, -1.0 / dx / dx);
   for (i = 1; i < (N + 1); i++) {
-    F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[i + (*order) -1]);
+    F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[i]);
     gsl_matrix_set(A, i, i,
-                   2.0 / dx / dx + diag * sqrt(Te[i + (*order) -1]) * F_mhalf); // 1/cm^2
+                   2.0 / dx / dx + diag * sqrt(Te[i]) * F_mhalf); // 1/cm^2
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[N + (*order) + 1]);
+  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[N + 1]);
   gsl_matrix_set(A, N + 1, N + 1,
-                 1.0 / dx / dx + diag * sqrt(Te[N + (*order) + 1]) * F_mhalf); // 1/cm^2
+                 1.0 / dx / dx + diag * sqrt(Te[N + 1]) * F_mhalf); // 1/cm^2
   gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
 
   // set up RHS for solve
@@ -425,9 +425,9 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
     gsl_vector_set(
         RHS, i,
         4.0 * M_PI * E_02_CGS *
-            (source[i + (*order) - 1] -
+            (source[i] -
              F_half * 2.0 *
-                 pow(2.0 * M_PI * M_ELEC_CGS * Te[i + (*order) - 1] * ERG_TO_EV_CGS, 1.5) /
+                 pow(2.0 * M_PI * M_ELEC_CGS * Te[i] * ERG_TO_EV_CGS, 1.5) /
                  pow(2.0 * M_PI * HBAR_CGS, 3))); // eV /cm^2
   }
   // Set up the LA solve
@@ -444,19 +444,19 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   double e_tot = 0.0;
 
   for (i = 0; i < N+2; i++) {
-    ion_tot += source[i + (*order)-1] * dx;
-    e_tot += (F_half + gsl_vector_get(phiVec, i) * F_mhalf / Te[i + (*order)-1]) *
-             (2.0 * pow(2.0 * M_PI * M_ELEC_CGS * Te[i + (*order) -1] * ERG_TO_EV_CGS, 1.5) /
+    ion_tot += source[i] * dx;
+    e_tot += (F_half + gsl_vector_get(phiVec, i) * F_mhalf / Te[i]) *
+             (2.0 * pow(2.0 * M_PI * M_ELEC_CGS * Te[i] * ERG_TO_EV_CGS, 1.5) /
               pow(2.0 * M_PI * HBAR_CGS, 3)) *
              dx;
   }
-  // printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g
-  // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
+  printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g\n",
+         ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi and convert to ergs
   for (i = 0; i < N+2; i++) {
-    phi[i + (*order) -1] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
-    phitot += phi[i + (*order) -1] / Te[i + (*order) -1];
+    phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
+    phitot += phi[i] / Te[i];
   }
 
   gsl_vector_free(phiVec);
@@ -516,7 +516,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
       gsl_vector_set(phiVec, i, 1e1);
   } else // use previous field as guess
     for (i = 0; i < N+2; i++)
-      gsl_vector_set(phiVec, i, phi[i + (*order) -1]);
+      gsl_vector_set(phiVec, i, phi[i]);
 
   // Set up matrices
   gsl_matrix *A = gsl_matrix_calloc(N+2, N+2); //-d_xx operator
@@ -601,7 +601,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
       gsl_vector_set(
           RHS, i,
           4.0 * M_PI * E_02_CGS *
-              (source[i + (*order) -1] - g[i] + gPrime[i] * gsl_vector_get(phiVec, i)));
+              (source[i] - g[i] + gPrime[i] * gsl_vector_get(phiVec, i)));
     }
     // solves B*phiNext = RHS
     gsl_linalg_LU_decomp(B, Permut, &signum);
@@ -632,10 +632,10 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   double e_tot = 0.0;
 
   for (i = 0; i < N+2; i++) {
-    ion_tot += source[i+(*order)-1] * dx;
+    ion_tot += source[i] * dx;
     e_tot += fdfac *
-             gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phiVec, i)) / Te[i+(*order)-1]) *
-             (2.0 * pow(2.0 * M_PI * M_ELEC_CGS * Te[i + (*order) -1] * ERG_TO_EV_CGS, 1.5) /
+             gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phiVec, i)) / Te[i]) *
+             (2.0 * pow(2.0 * M_PI * M_ELEC_CGS * Te[i] * ERG_TO_EV_CGS, 1.5) /
               pow(2.0 * M_PI * HBAR_CGS, 3)) *
              dx;
   }
@@ -643,7 +643,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
 
   // put results in phi, converted to ergs
   for (i = 0; i < N+2; i++)
-    phi[i + (*order) - 1] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
+    phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
 
   gsl_vector_free(phiVec);
   gsl_vector_free(phiNext);
@@ -727,11 +727,11 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
   double fdfac = 0.5 * sqrt(M_PI);
 
   for (i = 0; i < N+2; i++) {
-    x0 = mu0 / Te[i + (*order) - 1]; // eV / eV = unitless
+    x0 = mu0 / Te[i]; // eV / eV = unitless
     absErr = 1.0 + absTol;
     relErr = 1.0 + relTol;
 
-    RHS = RHS_prefac * source[i + (*order) - 1] / pow(Te[i + (*order) -1], 1.5); //[source] * cm^3 = unitless
+    RHS = RHS_prefac * source[i] / pow(Te[i], 1.5); //[source] * cm^3 = unitless
 
     loop = 0;
     xn = x0;
@@ -747,7 +747,7 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
     }
 
     // printf("i %d loop %d mu %g abs %g rel %g\n",i,loop,xn, absErr, relErr);
-    musum += xn * Te[i + (*order) - 1];
+    musum += xn * Te[i];
   }
 
   return musum / ((double)N + 2.0);
@@ -766,9 +766,9 @@ void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, doubl
                   pow(2.0 * M_PI * HBAR_CGS, 3);
 
   for (i = 0; i < N; i++) {
-    g[i] = prefac * pow(Te[i + (*order) -1], 1.5) *
-           gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phi, i)) / Te[i + (*order) - 1]);
-    gPrime[i] = (1.0 / Te[i + (*order)-1]) * prefac * pow(Te[i + (*order) - 1], 1.5) *
-                gsl_sf_fermi_dirac_mhalf((mu + gsl_vector_get(phi, i)) / Te[i + (*order) -1]);
+    g[i] = prefac * pow(Te[i], 1.5) *
+           gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phi, i)) / Te[i]);
+    gPrime[i] = (1.0 / Te[i]) * prefac * pow(Te[i], 1.5) *
+                gsl_sf_fermi_dirac_mhalf((mu + gsl_vector_get(phi, i)) / Te[i]);
   }
 }

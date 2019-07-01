@@ -311,6 +311,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
     // code, for now) eV
     // set to 2 to indicate that species 0 is electrons and to use B-Y cross
     // section
+    // set to 3 for coupling with background electron field that matches mixture temp
     if (strcmp(line, "ecouple") == 0) {
       *ecouple = read_int(input_file);
       if (rank == 0)
