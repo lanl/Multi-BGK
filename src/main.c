@@ -1056,7 +1056,7 @@ int main(int argc, char **argv) {
       // Moments and initial electric field calculated - save if needed
 
       // MPI-ified output.
-      if (outcount == dataFreq || nT==0) {
+      if (outcount == dataFreq) {
         if (rank == 0) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++) {
