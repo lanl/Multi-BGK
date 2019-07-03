@@ -1082,16 +1082,22 @@ int main(int argc, char **argv) {
           }
 
           // Print poisson information - TODO double check units
-          fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
-          for (l = 1; l < Nx - 1; l++) {
+          if(bcs == 0){
             fprintf(outputFilePoiss, "%e ",
-                    (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+                    0.5*(PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
+            for (l = 1; l < Nx - 1; l++) {
+              fprintf(outputFilePoiss, "%e ",
+                      0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+            }
+            fprintf(outputFilePoiss, "%e ",
+                    0.5*(PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
+            fprintf(outputFilePoiss, "\n");
+          }else{
+            for(l = 1; l < Nx+1; l++){
+              fprintf(outputFilePoiss, "%e ",
+                      0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+            }
           }
-          fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
-
-          fprintf(outputFilePoiss, "\n");
 
           // Close out this timestep
           fprintf(outputFileTime, "%e\n", t);
@@ -1399,7 +1405,7 @@ int main(int argc, char **argv) {
       }
     }
    
-    //moments calculated, now store final step. We are ignoring the e field here
+    //moments calculated, now store final step. We aren't ignoring the e field here
 
     if(rank == 0) {
       for (l = 0; l < Nx_rank; l++) {
@@ -1422,6 +1428,26 @@ int main(int argc, char **argv) {
           }
         }
       }
+
+      //output e field.
+      if(bcs == 0){
+        fprintf(outputFilePoiss, "%e ",
+              0.5*(PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
+        for (l = 1; l < Nx - 1; l++) {
+          fprintf(outputFilePoiss, "%e ",
+                  0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+        }
+        fprintf(outputFilePoiss, "%e ",
+                  0.5*(PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
+        fprintf(outputFilePoiss, "\n");
+      }else{
+        for(l = 1; l < Nx+1; l++){
+          fprintf(outputFilePoiss, "%e ",
+                  0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+        }
+      }
+
+
       
       // Close out this timestep
       fprintf(outputFileTime, "%e\n", t);
