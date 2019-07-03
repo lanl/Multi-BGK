@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
   double RHS_min;
   double rel_BGK;
 
-  int hydro_kinscheme_flag;
+  int hydro_kinscheme_flag, zerot_flag;
 
   /**********************************
          I/O Setup
@@ -194,8 +194,15 @@ int main(int argc, char **argv) {
   else
     tauFlag = atoi(argv[3]);
 
-  if (argc > 2)
-    printf("restart %d tau %d\n", restartFlag, tauFlag);
+  if(argc < 5){
+    zerot_flag = 0;
+  } else {
+    zerot_flag = atoi(argv[4]);
+  }
+
+  if (argc > 2){
+    printf("restart %d tau %d zerot %d\n", restartFlag, tauFlag, zerot_flag);
+  }
 
   // SHOULD FARM THIS OFF TO A ROUTINE
   char dens_path[100];
@@ -291,16 +298,17 @@ int main(int argc, char **argv) {
     // Set up file to store E-field
     strcpy(poiss_path, output_path);
     strcat(poiss_path, "_poiss");
-
-    if ((restartFlag == 2) || (restartFlag == 4))
-      outputFilePoiss = fopen(poiss_path, "a");
-    else
-      outputFilePoiss = fopen(poiss_path, "w");
-
-    // store physical mesh
+    //store physical mesh
     strcpy(x_path, output_path);
     strcat(x_path, "_x");
-    outputFile_x = fopen(x_path, "w");
+ 
+    if ((restartFlag == 2) || (restartFlag == 4)){
+      outputFilePoiss = fopen(poiss_path, "a");
+      outputFile_x = fopen(x_path, "a");
+    } else {
+      outputFilePoiss = fopen(poiss_path, "w");
+      outputFile_x = fopen(x_path, 'w');
+    }
   }
 
   printf("Input file: %s\n", input_filename);
@@ -468,8 +476,11 @@ int main(int argc, char **argv) {
 
     // Write the full mesh for storage purposes
     if (rank == 0) {
-      for (l = 0; l < Nx; l++)
-        fprintf(outputFile_x, "%+le ", (l + 0.5) * dx - 0.5 * Lx);
+      if(restartFlag < 2){
+        for (l = 0; l < Nx; l++){
+          fprintf(outputFile_x, "%+le ", (l + 0.5) * dx - 0.5 * Lx);
+        }
+      }
 
       fclose(outputFile_x);
     }
