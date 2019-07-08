@@ -586,7 +586,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             R_BGK_DD_HE = GetReactivity_dd_He(mu, f[i], f[i], i, i);
             R_BGK_DD_T = GetReactivity_dd_T(mu, f[i], f[i], i, i);
             R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
-            printf("DD Reactivity: %g\n", R_BGK_DD);
+            printf("DD Reactivity: %g - n %g v %g, T %g \n", R_BGK_DD, n[j], v[j][0], T[j]);
 
             if (TNBFlag == 2) {
               for (int vx = 0; vx < Nv; vx++)
