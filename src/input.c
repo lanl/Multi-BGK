@@ -17,7 +17,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
                 double *Te_start, double *Te_end, int *CL_type, int *ion_type,
                 int *MT_or_TR, double **n, double **u, double **T,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
-                double *beta, int *hydro_flag, int *input_file_data_flag,
+                double *beta, int *hydro_flag, int *eqflag, double *eqrtol, int *input_file_data_flag,
                 char *input_file_data_filename, char *inputFilename) {
 
   int rank;
@@ -142,6 +142,20 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
       *hydro_flag = read_int(input_file);
       if (rank == 0)
         printf("%d\n", *hydro_flag);
+    }
+
+    //if eqflag >0, don't timestep, just run until the total entropy
+    //change is below a certain tolerance, relative to the previous entropy.
+    if (strcmp(line, "Equilibrate_flag") == 0) {
+      *eqflag = read_int(input_file);
+      if (rank == 0)
+        printf("%d\n", *eqflag);
+    }
+
+    if (strcmp(line, "Equilibrate_rtol") == 0) {
+      *eqrtol = read_double(input_file);
+      if (rank == 0)
+        printf("%g\n", *eqrtol);
     }
 
     /*Implicit solve (lagged) for the BGK operator*/
@@ -398,7 +412,7 @@ void set_default_values(int *Nx, double *Lx, int *bcs, int *Nv, double *v_sigma,
                         int *ecouple, int *ionFix, double *Te_start,
                         double *Te_end, int *CL_type, int *ion_type,
                         int *MT_or_TR, double *dt, double *tfinal,
-                        int *BGK_type, double *beta, int *hydro_flag,
+                        int *BGK_type, double *beta, int *hydro_flag, int *eqflag, double *eqrtol,
                         int *input_file_data_flag, int *dataFreq, int *dumpDist,
                         double *RHS_tol) {
 
@@ -449,6 +463,9 @@ void set_default_values(int *Nx, double *Lx, int *bcs, int *Nv, double *v_sigma,
   *beta = 0;
 
   *hydro_flag = 0;
+  *eqflag = 0;
+  *eqrtol = 1e-8;
+
 
   *input_file_data_flag = 0;
 
