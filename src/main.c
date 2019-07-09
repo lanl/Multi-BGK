@@ -300,16 +300,19 @@ int main(int argc, char **argv) {
     strcpy(poiss_path, output_path);
     strcat(poiss_path, "_poiss");
     //store physical mesh
-    strcpy(x_path, output_path);
-    strcat(x_path, "_x");
+    //strcpy(x_path, output_path);
+    //strcat(x_path, "_x");
  
     if ((restartFlag == 2) || (restartFlag == 4)){
       outputFilePoiss = fopen(poiss_path, "a");
-      outputFile_x = fopen(x_path, "a");
+      //outputFile_x = fopen(x_path, "a");
     } else {
       outputFilePoiss = fopen(poiss_path, "w");
-      outputFile_x = fopen(x_path, 'w');
+      //outputFile_x = fopen(x_path, 'w');
     }
+    strcpy(x_path, output_path);
+    strcat(x_path, "_x");
+    outputFile_x = fopen(x_path, "w");
   }
 
   printf("Input file: %s\n", input_filename);
