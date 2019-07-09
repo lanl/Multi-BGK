@@ -477,12 +477,9 @@ int main(int argc, char **argv) {
 
     // Write the full mesh for storage purposes
     if (rank == 0) {
-      if(restartFlag < 2){
-        for (l = 0; l < Nx; l++){
-          fprintf(outputFile_x, "%+le ", (l + 0.5) * dx - 0.5 * Lx);
-        }
+      for (l = 0; l < Nx; l++){
+        fprintf(outputFile_x, "%+le ", (l + 0.5) * dx - 0.5 * Lx);
       }
-
       fclose(outputFile_x);
     }
 
@@ -819,10 +816,8 @@ int main(int argc, char **argv) {
                  tauFlag, input_filename);
 
   if (!((restartFlag == 2) || (restartFlag == 4))) {
-    if(zerot_flag>0){
       t = 0.0;
       nT = 0;
-    }
   }
   if (restartFlag > 2) {
     // Check to see if we need to store initial BGK error data
@@ -1946,8 +1941,7 @@ int main(int argc, char **argv) {
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
       }
-    }
-    else { // send to rank 0 for output purposes
+    } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
         for (l = 0; l < Nx_rank; l++) {
           momentBuffer[0 + 3 * l] = n_oned[l][s];
