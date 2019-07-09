@@ -146,6 +146,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
 
     //if eqflag >0, don't timestep, just run until the total entropy
     //change is below a certain tolerance, relative to the previous entropy.
+    /*
     if (strcmp(line, "Equilibrate_flag") == 0) {
       *eqflag = read_int(input_file);
       if (rank == 0)
@@ -157,6 +158,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
       if (rank == 0)
         printf("%g\n", *eqrtol);
     }
+    */
 
     /*Implicit solve (lagged) for the BGK operator*/
     if (strcmp(line, "Imp_exp") == 0) {
