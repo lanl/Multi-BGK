@@ -33,7 +33,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
 
   set_default_values(Nx, Lx, bcs, Nv, v_sigma, order, discret, im_ex, poissFlavor,
                      ecouple, ionFix, Te_start, Te_end, CL_type, ion_type,
-                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,
+                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag, eqflag, eqrtol,
                      input_file_data_flag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path, inputFilename);
