@@ -1873,9 +1873,8 @@ int main(int argc, char **argv) {
                       0.25 * f_conv[l + order][i][j];
           }
         }
-        t += dt;
-        nT++;
-      }
+      t += dt;
+    }
   }
   // Store final timstep data
   
