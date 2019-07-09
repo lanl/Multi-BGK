@@ -563,7 +563,7 @@ int main(int argc, char **argv) {
     Z_oned = malloc(Nx_rank * sizeof(double*));
 
     for(l = 0; l < Nx_rank; l++){
-      Z_oned[l] = malloc(nspec * sizeof(double));
+      Z_oned[l] = malloc(nspec * sizeof(double*));
       for(i=0; i < nspec; i++){
         //initialize at full ionization
         Z_oned[l][i] = Z_max[i];
