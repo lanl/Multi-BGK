@@ -38,20 +38,19 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
       inputIndex = int_id*nspec + s;
 
       //set moment data
-      if(l>order-1 && l<Nx+order){
-        if(ndens_in[inputIndex] != 0) {
-	        n_oned[l-order][s] = ndens_in[inputIndex];
-	        v_oned[l-order][s][0] = v_in[inputIndex];
-	        v_oned[l-order][s][1] = 0.0;
-	        v_oned[l-order][s][2] = 0.0;
-	        T_oned[l-order][s] = T_in[inputIndex];	
-        } else {
-	        n_oned[l-order][s] = 0.0;
-	        v_oned[l-order][s][0] = 0.0;
-	        v_oned[l-order][s][1] = 0.0;
-	        v_oned[l-order][s][2] = 0.0;
-	        T_oned[l-order][s] = 0.0;
-        }
+      //including ghost cells
+      if(ndens_in[inputIndex] != 0) {
+        n_oned[l-order][s] = ndens_in[inputIndex];
+        v_oned[l-order][s][0] = v_in[inputIndex];
+        v_oned[l-order][s][1] = 0.0;
+        v_oned[l-order][s][2] = 0.0;
+        T_oned[l-order][s] = T_in[inputIndex];	
+      } else {
+        n_oned[l-order][s] = 0.0;
+        v_oned[l-order][s][0] = 0.0;
+        v_oned[l-order][s][1] = 0.0;
+        v_oned[l-order][s][2] = 0.0;
+        T_oned[l-order][s] = 0.0;
       }
 
       //set distribution data
