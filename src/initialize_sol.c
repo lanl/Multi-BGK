@@ -21,7 +21,6 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
   int i,j,k,l,s;
   int int_id, tmp_order, llim;
   int vIndex,inputIndex;
-  double T_edge[order][nspec], v_edge[order][nspec], n_edge[order][nspec]; 
 
   llim = Nx + 2*order;
   for(l=0;l<llim;l++) {
