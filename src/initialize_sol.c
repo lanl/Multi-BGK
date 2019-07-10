@@ -21,6 +21,7 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
   int i,j,k,l,s;
   int int_id, tmp_order, llim;
   int vIndex,inputIndex;
+  double T_edge[order][nspec], v_edge[order][nspec], n_edge[order][nspec]; 
 
   llim = Nx + 2*order;
   for(l=0;l<llim;l++) {
@@ -38,21 +39,22 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
       inputIndex = int_id*nspec + s;
 
       //set moment data
-      //including ghost cells
-      if(ndens_in[inputIndex] != 0) {
-        n_oned[l-order][s] = ndens_in[inputIndex];
-        v_oned[l-order][s][0] = v_in[inputIndex];
-        v_oned[l-order][s][1] = 0.0;
-        v_oned[l-order][s][2] = 0.0;
-        T_oned[l-order][s] = T_in[inputIndex];	
-      } else {
-        n_oned[l-order][s] = 0.0;
-        v_oned[l-order][s][0] = 0.0;
-        v_oned[l-order][s][1] = 0.0;
-        v_oned[l-order][s][2] = 0.0;
-        T_oned[l-order][s] = 0.0;
-      }
-
+      if(l>order-1 && l<Nx+order){
+        if(ndens_in[inputIndex] != 0) {
+          n_oned[l-order][s] = ndens_in[inputIndex];
+          v_oned[l-order][s][0] = v_in[inputIndex];
+          v_oned[l-order][s][1] = 0.0;
+          v_oned[l-order][s][2] = 0.0;
+          T_oned[l-order][s] = T_in[inputIndex];	
+        } else {
+          n_oned[l-order][s] = 0.0;
+          v_oned[l-order][s][0] = 0.0;
+          v_oned[l-order][s][1] = 0.0;
+          v_oned[l-order][s][2] = 0.0;
+          T_oned[l-order][s] = 0.0;
+        }
+      }       
+      
       //set distribution data
       for(i=0;i<Nv;i++){
 	      for(j=0;j<Nv;j++){
