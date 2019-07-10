@@ -10,7 +10,7 @@ CC=mpicc
 # Compiler flags
 CFLAGS= -O0  -Wall
 
-LIBFLAGS = -lm -lgsl -lgslcblas
+LIBFLAGS = -lm -lgsl -lgslcblas -fopenmp
 
 # Command definition
 RM=rm -f
