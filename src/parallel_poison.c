@@ -243,7 +243,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
         }
     }else{
         //local equilibrium dynamic electrons
-        *Te_arr = *T0_oned;
+        Te_arr = T0_oned;
         if(*rank == 0){
             get_bc_Te(Te_arr_allranks, Nx, T0_bcs);
         }
@@ -292,8 +292,8 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
     //Set up source/RHS array for Poisson solve
     if(*rank == 0){
         for(int l = 0; l < *Nx_rank; l++){
-            (*source_allranks)[l + (*order)] = (*source)[l];
-            (*Te_arr_allranks)[l + (*order)] = (*Te_arr)[l];
+            (*source_allranks)[l + 1] = (*source)[l];
+            (*Te_arr_allranks)[l + 1] = (*Te_arr)[l];
         }
 
         if(*numRanks > 1){
