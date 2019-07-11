@@ -746,7 +746,7 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
       loop++;
     }
 
-    printf("i %d loop %d mu %g abs %g rel %g\n",i,loop,xn, absErr, relErr);
+    printf("i %d loop %d Te %g mu %g abs %g rel %g\n",i,loop,Te[i],xn, absErr, relErr);
     musum += xn * Te[i];
   }
 
