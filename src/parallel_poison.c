@@ -297,7 +297,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
         }
 
         if(*numRanks > 1){
-            int rankOffset = *Nx_rank + *order;
+            int rankOffset = *Nx_rank + 1;
 
             //get source value and electron Temp from all other ranks.
             for(int rankCounter = 1; rankCounter < *numRanks; rankCounter++){
