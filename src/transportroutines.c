@@ -37,6 +37,7 @@ void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes
                           double *dxnodes, double Lx_val, double **vel, int ord,
                           double timestep) {
   BC = bcs;
+  printf("TRANSPORT BC:%d", bcs);
   N = numV;
   nX = numX; // Remember that this is nX in the rank
   x = xnodes;
