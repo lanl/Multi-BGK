@@ -1576,7 +1576,6 @@ int main(int argc, char **argv) {
             }
             T0_oned[l] = T0_oned[l] / ntot;
             printf("rank:%d, Nx_r:%d, T0: %g\n", rank, l, T0_oned[l]);
-          }
 
           }
           for (k = 0; k < numRanks; k++) {
