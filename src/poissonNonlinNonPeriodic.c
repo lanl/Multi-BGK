@@ -544,7 +544,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   int signum;
 
   // Get chemical potential approximation
-  double mu = nonperiodic_chemPot_TF(order, source, N, Te, 1.0);
+  double mu = nonperiodic_chemPot_TF(order, source, N, Te, Te[0]);
 
   loop = 0;
 
