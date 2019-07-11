@@ -1545,6 +1545,8 @@ int main(int argc, char **argv) {
             rhotot += m[i] * n_oned[l][i];
             Htot += getH(n_oned[l][i], f[l+order][i], i);
             getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
+            T_oned[l][i] =
+            getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
           }
 
           // get mixture mass avg velocity
