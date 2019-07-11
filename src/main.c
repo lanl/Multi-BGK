@@ -1024,7 +1024,7 @@ int main(int argc, char **argv) {
                                 (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
               }
             }
-            T0_oned[l] = T0_oned[l] / ntot;
+            printf("T0: %g", T0_oned[l]);
           }
           for (k = 0; k < numRanks; k++) {
             if (k == rank) {
