@@ -109,7 +109,7 @@ void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, doub
   double absErr = absTol + 1.0;
 
   // Done with setup, start the iteration
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // Find total charge - for setting n_e0
@@ -308,7 +308,7 @@ void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double 
     gsl_vector_set(RHS, i, 4.0 * M_PI * E_02_CGS * (source[i] - ne0));
 
   // Set up the LA solve
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // solves A*phiVec = RHS
@@ -431,7 +431,7 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
                  pow(2.0 * M_PI * HBAR_CGS, 3))); // eV /cm^2
   }
   // Set up the LA solve
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // solves A*phiVec = RHS
@@ -540,7 +540,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   double absErr = absTol + 1.0;
 
   // Done with setup, start the iteration
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // Get chemical potential approximation
@@ -746,7 +746,7 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
       loop++;
     }
 
-    // printf("i %d loop %d mu %g abs %g rel %g\n",i,loop,xn, absErr, relErr);
+    printf("i %d loop %d mu %g abs %g rel %g\n",i,loop,xn, absErr, relErr);
     musum += xn * Te[i];
   }
 
