@@ -22,7 +22,7 @@ void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *
                     double *Te);
 void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
                        double *Te);
-double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0);
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double *mu0);
 
 // subroutines for checking charge conservation
 double chargeTallyYukLin(gsl_vector *phi, double ne0, double Te);
@@ -544,7 +544,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   int signum;
 
   // Get chemical potential approximation
-  double mu = nonperiodic_chemPot_TF(order, source, N, Te, Te[0]);
+  double mu = nonperiodic_chemPot_TF(order, source, N, Te, Te);
 
   loop = 0;
 
@@ -709,7 +709,7 @@ void simpleNonPeriodicPoisson(int N, double *source, double dx, double Lx, doubl
 // Calculates the average value of the chemical potential for all cells
 // by inverting the Fermi integral
 
-double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0) {
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double *mu0) {
   double RHS;
   double RHS_prefac = 0.5 * pow(2.0 * M_PI * HBAR_CGS, 3) /
                       pow(2.0 * M_PI * M_ELEC_CGS * ERG_TO_EV_CGS, 1.5);
@@ -727,7 +727,7 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
   double fdfac = 0.5 * sqrt(M_PI);
 
   for (i = 0; i < N+2; i++) {
-    x0 = mu0 / Te[i]; // eV / eV = unitless
+    x0 = mu0[i] / Te[i]; // eV / eV = unitless
     absErr = 1.0 + absTol;
     relErr = 1.0 + relTol;
 
