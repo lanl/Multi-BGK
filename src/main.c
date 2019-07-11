@@ -805,6 +805,7 @@ int main(int argc, char **argv) {
             }
             T0_bcs[1] = T0_bcs[1]/tmp_totndens;
           }
+          printf("T0_left:%g, T0_right:%g\n", T0_bcs[0], T0_bcs[1]);
         }
       }
     }
