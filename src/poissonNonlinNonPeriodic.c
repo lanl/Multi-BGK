@@ -386,7 +386,7 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find average chemical potential
-  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 1.0); // eV
+  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, Te); // eV
 
   // Fermi integrals
   double F_mhalf;
