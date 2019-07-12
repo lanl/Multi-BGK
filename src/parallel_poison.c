@@ -294,7 +294,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
         for(int l = 0; l < *Nx_rank; l++){
             (*source_allranks)[l + 1] = (*source)[l];
             (*Te_arr_allranks)[l + 1] = (*Te_arr)[l];
-            printf("x:%d, Te:%g", l, (*Te_arr)[l]);
+            printf("x:%d, Te:%g\n", l, (*Te_arr)[l]);
         }
 
         if(*numRanks > 1){
