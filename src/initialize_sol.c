@@ -52,7 +52,6 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
           v_oned[l-order][s][2] = 0.0;
           T_oned[l-order][s] = 0.0;
         }
-        printf("T_oned in:%g\n", T_oned[l-order][s]);
       }       
       
       //set distribution data

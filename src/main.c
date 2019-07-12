@@ -1025,7 +1025,6 @@ int main(int argc, char **argv) {
                                 (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
               }
             }
-            printf("T0: %g", T0_oned[l]);
           }
           for (k = 0; k < numRanks; k++) {
             if (k == rank) {
@@ -1569,15 +1568,14 @@ int main(int argc, char **argv) {
               }
             }
             T0_oned[l] = T0_oned[l] / ntot;
-            printf("rank:%d, Nx_r:%d, T0: %g\n", rank, l, T0_oned[l]);
           }
         }
         //put the current global entropy from every rank into dh.
         MPI_Allreduce(&Htot, &dh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         dh = fabs(dh - h);
         h = fabs(h);
-
-      for (k = 0; k < numRanks; k++) {
+        
+        for (k = 0; k < numRanks; k++) {
           if (k == rank) {
             for (i = 0; i < nspec; i++) {
               if (isnan(n_oned[l][i])) {
