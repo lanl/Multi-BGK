@@ -1554,14 +1554,7 @@ int main(int argc, char **argv) {
               v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
             v0_oned[l][j] = v0_oned[l][j] / rhotot;
           }
-        }
-        //put the current global entropy from every rank into dh.
-        MPI_Allreduce(&Htot, &dh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        dh = fabs(dh - h);
-        h = fabs(h);
-
-        // Set T0 in all cells
-        for (l = 0; l < Nx_rank; l++) {
+          //set T0 
           if (ecouple == 2)
             T0_oned[l] = T_oned[l][0];
           else {
@@ -1577,24 +1570,28 @@ int main(int argc, char **argv) {
             }
             T0_oned[l] = T0_oned[l] / ntot;
             printf("rank:%d, Nx_r:%d, T0: %g\n", rank, l, T0_oned[l]);
-
           }
-          for (k = 0; k < numRanks; k++) {
-            if (k == rank) {
-              for (i = 0; i < nspec; i++) {
-                if (isnan(n_oned[l][i])) {
-                  printf("Something weird is going on: What did Jan Say? The "
-                         "Michael Scott "
-                         "Story. By Michael Scott. With Dwight Schrute.\n NaN "
-                         "detected \n");
-                  for (j = 0; j < nspec; j++) {
-                    printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
-                           "%g\n",
-                           rank, l, i, j, n_oned[l][j], v0_oned[l][j],
-                           T_oned[l][j], Z_oned[l][j], Te_arr[l]);
-                  }
-                  exit(1);
+        }
+        //put the current global entropy from every rank into dh.
+        MPI_Allreduce(&Htot, &dh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        dh = fabs(dh - h);
+        h = fabs(h);
+
+      for (k = 0; k < numRanks; k++) {
+          if (k == rank) {
+            for (i = 0; i < nspec; i++) {
+              if (isnan(n_oned[l][i])) {
+                printf("Something weird is going on: What did Jan Say? The "
+                        "Michael Scott "
+                        "Story. By Michael Scott. With Dwight Schrute.\n NaN "
+                        "detected \n");
+                for (j = 0; j < nspec; j++) {
+                  printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
+                          "%g\n",
+                          rank, l, i, j, n_oned[l][j], v0_oned[l][j],
+                          T_oned[l][j], Z_oned[l][j], Te_arr[l]);
                 }
+                //exit(1);
               }
             }
           }
