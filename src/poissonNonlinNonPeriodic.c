@@ -386,7 +386,7 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find average chemical potential
-  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 0.0); // eV
+  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 1.0); // eV
 
   // Fermi integrals
   double F_mhalf;
@@ -544,7 +544,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   int signum;
 
   // Get chemical potential approximation
-  double mu = nonperiodic_chemPot_TF(order, source, N, Te, 0.0);
+  double mu = nonperiodic_chemPot_TF(order, source, N, Te, 1.0);
 
   loop = 0;
 
@@ -745,8 +745,6 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
       xn = xnp1;
       loop++;
     }
-
-    printf("i %d loop %d Te %g mu %g abs %g rel %g\n",i,loop,Te[i],xn, absErr, relErr);
     musum += xn * Te[i];
   }
 
