@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef ALDR_ON
+#include "alInterface.h"
+#endif
+
 static int Nx;
 static int Nv;
 static int nspec;
