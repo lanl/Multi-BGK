@@ -3,15 +3,13 @@ DIR=$(PWD)/
 EXECDIR=$(DIR)exec/
 OBJDIR=$(DIR)obj/
 SRCDIR=$(DIR)src/
-ALDR_GLUE_DIR=~/ALDR/glueCode_proofOfConcept/
-
+ALDR_GLUE_DIR=/Users/haack/ALDR/glueCode_proofOfConcept	
 # GNU C compiler 
 CC=mpicc
 
 # Compiler flags
 CFLAGS= -O0 -fopenmp -Wall
 LIBFLAGS = -lm -lgsl -lgslcblas
-CFLAGS_ALDR = $(CFLAGS) -DENABLE_SQL
 
 # Command definition
 RM=rm -f
@@ -19,7 +17,8 @@ RM=rm -f
 # sources for main
 sources_main = $(SRCDIR)main.c
 
-sources_aldr = $(sources_main) $(ALDR_GLUE_DIR)alInterface.h
+#sources_aldr = $(sources_main) $(ALDR_GLUE_DIR)alInterface.h
+sources_aldr = $(sources_main)
 
 objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o mesh.o implicit.o
 
@@ -30,9 +29,10 @@ MultiBGK: $(pref_main_objects) $(sources_main)
 	@echo "Building Multispecies BGK code"
 	$(CC) $(CFLAGS) -o $(EXECDIR)MultiBGK_ $(sources_main) $(pref_main_objects) $(LIBFLAGS)
 
-ALDR: $(pref_main_objects) $(sources_aldr)
+ALDR: CFLAGS += -DALDR_ON -I$(ALDR_GLUE_DIR)
+ALDR: $(pref_main_objects) $(sources_aldr) 
 	@echo "Building Multispecies BGK code"
-	$(CC) $(CFLAGS_ALDR) -o $(EXECDIR)MultiBGK_AL_ $(sources_main) $(pref_main_objects) $(LIBFLAGS)
+	$(CC) $(CFLAGS) -o $(EXECDIR)MultiBGK_AL_ $(sources_main) $(pref_main_objects) $(LIBFLAGS)
 
 $(OBJDIR)%.o : $(SRCDIR)%.c
 	@echo "Compiling  $< ... " ; \
