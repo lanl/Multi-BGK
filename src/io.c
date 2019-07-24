@@ -3,7 +3,8 @@
 #include <stdlib.h>
 
 #ifdef ALDR_ON
-#include "alInterface.h"
+#include <alInterface.h>
+#include <sqlite3.h>
 #endif
 
 static int Nx;
@@ -219,3 +220,30 @@ void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
 
   fclose(fid_load);
 }
+
+#ifdef ALDR_ON
+
+void test_aldr() {
+
+  icf_request_t input;
+  icf_result_t output;
+
+  char tag[100] = "dummy";
+  char dbfile[100] = "dummy.db";
+
+  sqlite3 *db;
+
+  db = initDB(0, dbfile);
+
+  input.temperature = 1.0;
+  for (int i = 0; i < 4; i++) {
+    input.density[i] = 1.0;
+    input.charges[i] = 1.0;
+  }
+
+  output = icf_req_single(input, 0, tag, db);
+
+  closeDB(db);
+}
+
+#endif
