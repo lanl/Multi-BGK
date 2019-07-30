@@ -1276,17 +1276,18 @@ int main(int argc, char **argv) {
                 BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
                 for (i = 0; i < nspec; i++)
                   for (j = 0; j < Nv * Nv * Nv; j++)
-                    f_tmp[l + order][i][j] =
-                        f[l + order][i][j] + dt * f_conv[l + order][i][j];
+                    f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
+                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
 
                 // Step 2
                 BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
                        Te_arr[l]);
                 for (i = 0; i < nspec; i++)
                   for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] =
-                        0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                        0.5 * dt * f_conv[l + order][i][j];
+                    f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
+                    f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
+                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+                    f[l+order][i][j] += (f_conv[l+order][i][j] < -1*f[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
               }
 
               else if (im_ex == 1) {
@@ -1544,6 +1545,7 @@ int main(int argc, char **argv) {
             rhotot += m[i] * n_oned[l][i];
             Htot += getH(n_oned[l][i], f[l+order][i], i);
             getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
+            T_oned[l][i] = getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l+order][i], i);
           }
 
           // get mixture mass avg velocity
@@ -1675,7 +1677,7 @@ int main(int argc, char **argv) {
           for (i = 0; i < nspec; i++) {
             advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
           }
-
+  
           for (l = 0; l < Nx_rank; l++){
             for (i = 0; i < nspec; i++){
               //#pragma omp parallel for private(j)
@@ -1748,17 +1750,18 @@ int main(int argc, char **argv) {
                 BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
                 for (i = 0; i < nspec; i++)
                   for (j = 0; j < Nv * Nv * Nv; j++)
-                    f_tmp[l + order][i][j] =
-                        f[l + order][i][j] + dt * f_conv[l + order][i][j];
+                    f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
+                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
 
                 // Step 2
                 BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
                        Te_arr[l]);
                 for (i = 0; i < nspec; i++)
                   for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] =
-                        0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                        0.5 * dt * f_conv[l + order][i][j];
+                    f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
+                    f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
+                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+                    f[l+order][i][j] += (f_conv[l+order][i][j] < -1*f[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
               }
 
               else if (im_ex == 1) {
