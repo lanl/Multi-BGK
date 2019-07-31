@@ -229,9 +229,12 @@ void test_aldr() {
   icf_result_t output;
 
   char tag[100] = "dummy";
-  char dbfile[100] = "dummy.db";
+  char dbfile[100] = "testDB.db";
 
   sqlite3 *db;
+
+  printf("testing ALDR linking\n");
+  fflush(stdout);
 
   db = initDB(0, dbfile);
 
@@ -242,6 +245,9 @@ void test_aldr() {
   }
 
   output = icf_req_single(input, 0, tag, db);
+
+  printf("Output: viscosity %g, TC %g D11 %g\n", output.viscosity,
+         output.thermalConductivity, output.diffusionCoefficient[0]);
 
   closeDB(db);
 }
