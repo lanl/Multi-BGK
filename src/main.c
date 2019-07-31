@@ -298,6 +298,11 @@ int main(int argc, char **argv) {
   printf("Input file: %s\n", input_filename);
   printf("Output filename: %s\n", output_path);
 
+#ifdef ALDR_ON
+  test_aldr();
+  exit(1);
+#endif
+
   ///////////////////
   // PARAMETER SETUP//
   ///////////////////
