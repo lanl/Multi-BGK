@@ -7,7 +7,7 @@ ALDR_GLUE_DIR=/Users/haack/ALDR/glueCode_proofOfConcept/
 SQL_DIR=/Users/haack/spack/opt/spack/darwin-highsierra-x86_64/clang-4/sqlite-3.26.0-pbpvhmzw5xp5abrxclqp4tjmdbeht2dz
 # GNU C compiler 
 CC=mpicc
-CC_AL=mpicxx
+CC_AL=mpicc
 
 # Compiler flags
 CFLAGS= -O0 -fopenmp -Wall
@@ -30,9 +30,9 @@ MultiBGK: $(pref_main_objects) $(sources_main)
 	@echo "Building Multispecies BGK code"
 	$(CC) $(CFLAGS) -o $(EXECDIR)MultiBGK_ $(sources_main) $(pref_main_objects) $(LIBFLAGS)
 
-ALDR: CFLAGS += -DALDR_ON -I$(ALDR_GLUE_DIR) -DSQLITE_DIR=$(SQL_DIR)
+ALDR: CFLAGS += -DALDR_ON -I$(ALDR_GLUE_DIR)
 
-ALDR: LIBFLAGS += -L$(ALDR_GLUE_DIR) -lalGlue
+ALDR: LIBFLAGS += -lstdc++ -L$(ALDR_GLUE_DIR) -lalGlue -L${SQL_DIR}/lib -lsqlite3
 
 ALDR: $(pref_main_objects) $(sources_aldr) 
 	@echo "Building Multispecies BGK code"
