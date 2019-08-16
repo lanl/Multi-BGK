@@ -926,6 +926,9 @@ int main(int argc, char **argv) {
         }
       }
 
+      T_oned[l][i] =
+          getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+
       // Set T0 in all cells
       for (l = 0; l < Nx_rank; l++) {
         if (ecouple == 2)
@@ -1178,8 +1181,6 @@ int main(int argc, char **argv) {
         if (rank == 0) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++) {
-              T_oned[l][i] =
-                  getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
               fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
               fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
               fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
