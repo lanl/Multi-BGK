@@ -924,10 +924,9 @@ int main(int argc, char **argv) {
             v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
           v0_oned[l][j] = v0_oned[l][j] / rhotot;
         }
-      }
-
-      T_oned[l][i] =
+        T_oned[l][i] =
           getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+      }
 
       // Set T0 in all cells
       for (l = 0; l < Nx_rank; l++) {
