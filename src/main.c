@@ -914,7 +914,7 @@ int main(int argc, char **argv) {
           ntot += n_oned[l][i];
           rhotot += m[i] * n_oned[l][i];
           getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
-          getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+          T_oned[l][i] = getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
         }
 
         // get mixture mass avg velocity
@@ -924,8 +924,6 @@ int main(int argc, char **argv) {
             v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
           v0_oned[l][j] = v0_oned[l][j] / rhotot;
         }
-        T_oned[l][i] =
-          getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
       }
 
       // Set T0 in all cells
