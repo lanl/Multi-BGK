@@ -454,6 +454,11 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
+    if (restartFlag == 2) {
+      load_time_inhomog(input_filename, &nT, &t);
+      printf("Initial timestep and time %d %lg\n", nT, t);
+    }
+
     // Physical grid allocation and initialization
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
@@ -648,7 +653,7 @@ int main(int argc, char **argv) {
       free(GLWeights);
     }
 
-    io_init_inhomog(Nx_rank, Nv, nspec, c, m);
+    io_init_inhomog(Nx_rank, Nv, nspec, order, c, m);
     if (outputDist == 1) {
       store_grid_inhomog(input_filename, rank);
     }
@@ -722,6 +727,20 @@ int main(int argc, char **argv) {
       initialize_sol_inhom(f, numint, intervalLimits, ndens_int, velo_int,
                            T_int, Nx_rank, x, nspec, Nv, order, c, m, n_oned,
                            v_oned, T_oned);
+
+    if (restartFlag == 2) {
+      // initialize distribution function with something non-physical
+      for (l = 0; l < Nx_rank + 2 * order; l++) {
+        for (s = 0; s < nspec; s++) {
+          for (i = 0; i < Nv * Nv * Nv; i++) {
+            f[l][s][i] = -1.0;
+          }
+        }
+      }
+
+      // Now load the distros
+      load_distributions_inhomog(f, input_filename, nT, rank);
+    }
 
     if (rank == 0) {
       printf("Initial condition setup complete\n");
@@ -914,7 +933,8 @@ int main(int argc, char **argv) {
           ntot += n_oned[l][i];
           rhotot += m[i] * n_oned[l][i];
           getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
-          T_oned[l][i] = getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+          T_oned[l][i] =
+              getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
         }
 
         // get mixture mass avg velocity
@@ -1217,7 +1237,7 @@ int main(int argc, char **argv) {
             fprintf(outputFileTemp[i], "\n");
           }
           if (outputDist == 1)
-            store_distributions_inhomog(f, input_filename, nT, rank);
+            store_distributions_inhomog(f, input_filename, nT, t, rank);
 
           outcount = 0;
         } else { // send to rank 0 for output purposes
@@ -1232,7 +1252,7 @@ int main(int argc, char **argv) {
           }
 
           if (outputDist == 1)
-            store_distributions_inhomog(f, input_filename, nT, rank);
+            store_distributions_inhomog(f, input_filename, nT, t, rank);
 
           outcount = 0;
         }
@@ -2123,7 +2143,7 @@ int main(int argc, char **argv) {
       }
 
       if (outputDist == 1)
-        store_distributions_inhomog(f, input_filename, nT, rank);
+        store_distributions_inhomog(f, input_filename, nT, t, rank);
 
     } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
@@ -2136,14 +2156,18 @@ int main(int argc, char **argv) {
                  MPI_COMM_WORLD);
       }
       if (outputDist == 1)
-        store_distributions_inhomog(f, input_filename, nT, rank);
+        store_distributions_inhomog(f, input_filename, nT, t, rank);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
   }
 
-  if ((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
+  if (restartFlag > 0) {
+    if (dims == 0)
+      store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
+    else
+      store_distributions_inhomog(f, input_filename, nT, t, rank);
+  }
 
   // clean up
 
