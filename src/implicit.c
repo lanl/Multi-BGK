@@ -272,7 +272,7 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
     for (j = 0; j < nspec; j++) {
       v2mix[i][j] = 0.0;
       for (dim = 0; dim < 3; dim++)
-        v2mix[i][j] += vmix_new[i][j][dim];
+        v2mix[i][j] += vmix_new[i][j][dim] * vmix_mew[i][j][dim];
     }
   }
 
