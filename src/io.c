@@ -304,8 +304,8 @@ void request_aldr(double *n, double *T, double *Z, char *tag, char *dbfile, doub
   D_ij[2][0] = D_ij[0][2];
   D_ij[3][0] = D_ij[0][3];
   D_ij[2][1] = D_ij[1][2];
-  D_ij[3][1] = D_if[1][3];
-  D_ij[3][2] = D_if[2][3];
+  D_ij[3][1] = D_ij[1][3];
+  D_ij[3][2] = D_ij[2][3];
 }
 
 void test_aldr() {
