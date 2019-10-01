@@ -543,7 +543,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
   #ifdef ALDR_ON
   if (tauFlag == 3) {
-    request_ALDR(n, T, Dij_from_MD);
+    request_aldr(n, T, Z, "dummy", "dummy.db", Dij_from_MD);
   }
   #endif
   
