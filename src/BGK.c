@@ -470,7 +470,7 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
   // NOTE - hard coded for the interface at the moment
   if ((tauFlag == 2) || (tauFlag == 3)) {
     Dij_from_MD = malloc(4 * sizeof(double *));
-    for (i = 0; i < ns; i++) {
+    for (i = 0; i < 4; i++) {
       Dij_from_MD[i] = malloc(4 * sizeof(double));
     }
   }
