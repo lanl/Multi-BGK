@@ -544,6 +544,12 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
     load_diffusion_homog(Dij_from_MD, data_filename);
   }
 
+  #ifdef ALDR_ON
+  if (tauFlag == 3) {
+    request_ALDR(n, T, Dij_from_MD);
+  }
+  #endif
+  
   // do ij and ji at the same time
   for (i = 0; i < nspec; i++) {
     for (j = i; j < nspec; j++) {
@@ -565,15 +571,15 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
-      } else if (tauFlag ==
-                 2) { // Note to self - need to fix to mixture temperature?
+      } else if ((tauFlag == 2) || (tauFlag == 3)) { // Note to self - need to fix to mixture temperature?
         nu11 = rhotot * rhotot * Dij_from_MD[i][i] * n[i] /
                (ntot * T[i] / ERG_TO_EV_CGS * n[i] * (m[i] + m[i]));
         nu12 = rhotot * rhotot * Dij_from_MD[i][j] * n[i] /
                (ntot * T[i] / ERG_TO_EV_CGS * n[j] * (m[i] + m[j]));
         nu12 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
                (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
-      } else {
+      }
+      else if (tauFlag != 3) {
         printf("Error: set tauflag to 0, 1, or 2\n");
         printf("Tauflag %d\n", tauFlag);
         exit(37);

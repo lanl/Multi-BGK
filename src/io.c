@@ -13,12 +13,28 @@ static int Nv;
 static int nspec;
 static double **c;
 
+#ifdef ALDR_ON
+static sqlite3 *db;
+#endif
+
 void io_init_homog(int numV, int numS, double **velos) {
 
   Nv = numV;
   nspec = numS;
   c = velos;
+
 }
+
+#ifdef ALDR_ON
+void io_init_db(char *filename) {
+  db = initDB(0, filename);  
+}
+
+void io_close_db() {
+  closeDB(db);
+}
+
+#endif
 
 void io_init_inhomog(int numX, int numV, int numS, double **velos) {
   Nx = numX;
@@ -224,20 +240,88 @@ void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
 
 #ifdef ALDR_ON
 
+void request_aldr(double *n, double *T, double *Z, char *tag, char *dbfile, double **D_ij) {
+
+  bgk_request_t input;
+  bgk_result_t output;
+
+  //Initialize input request
+  input.density[0] = 0.0;
+  input.density[1] = 0.0;
+  input.density[2] = 0.0;
+  input.density[3] = 0.0;
+  input.charges[0] = 0.0;
+  input.charges[1] = 0.0;
+  input.charges[2] = 0.0;
+  input.charges[3] = 0.0;
+  input.temperature = 0.0;
+
+  output.viscosity = 0.0;
+  output.thermalConductivity = 0.0;
+  output.diffusionCoefficient[0] = 0.0;
+  output.diffusionCoefficient[1] = 0.0;
+  output.diffusionCoefficient[2] = 0.0;
+  output.diffusionCoefficient[3] = 0.0;
+  output.diffusionCoefficient[4] = 0.0;
+  output.diffusionCoefficient[5] = 0.0;
+  output.diffusionCoefficient[6] = 0.0;
+  output.diffusionCoefficient[7] = 0.0;
+  output.diffusionCoefficient[8] = 0.0;
+  output.diffusionCoefficient[9] = 0.0;
+
+  double Tmix = 0.0;
+  double ntot = 0.0;;
+
+  //Calculate mixture T
+  for(int sp=0; sp < nspec; sp++) {
+    Tmix += n[sp]*T[sp];
+    ntot += n[sp];
+  }
+  Tmix /= ntot;
+  
+  input.temperature = Tmix;
+  
+  for(int sp=0; sp < nspec; sp++) {
+    input.density[sp] = n[sp];
+    input.charges[sp] = Z[sp];
+  }
+
+  output = bgk_req_single(input, 0, tag, db);
+  
+  D_ij[0][0] = output.diffusionCoefficient[0];
+  D_ij[0][1] = output.diffusionCoefficient[1];
+  D_ij[0][2] = output.diffusionCoefficient[2];
+  D_ij[0][3] = output.diffusionCoefficient[3];
+  D_ij[1][1] = output.diffusionCoefficient[4];
+  D_ij[1][2] = output.diffusionCoefficient[5];
+  D_ij[1][3] = output.diffusionCoefficient[6];
+  D_ij[2][2] = output.diffusionCoefficient[7];
+  D_ij[2][3] = output.diffusionCoefficient[8];
+  D_ij[3][3] = output.diffusionCoefficient[9];
+
+  // Symmetric components
+  D_ij[1][0] = D_ij[0][1];
+  D_ij[2][0] = D_ij[0][2];
+  D_ij[3][0] = D_ij[0][3];
+  D_ij[2][1] = D_ij[1][2];
+  D_ij[3][1] = D_if[1][3];
+  D_ij[3][2] = D_if[2][3];
+}
+
 void test_aldr() {
 
-  icf_request_t input;
-  icf_result_t output;
+  bgk_request_t input;
+  bgk_result_t output;
 
   char tag[100] = "dummy";
   char dbfile[100] = "testDB.db";
 
-  sqlite3 *db;
+  sqlite3 *db_test;
 
   printf("testing ALDR linking\n");
   fflush(stdout);
 
-  db = initDB(0, dbfile);
+  db_test = initDB(0, dbfile);
 
   input.temperature = 1.0;
   for (int i = 0; i < 4; i++) {
@@ -245,7 +329,7 @@ void test_aldr() {
     input.charges[i] = 1.0;
   }
 
-  output = icf_req_single(input, 0, tag, db);
+  output = bgk_req_single(input, 0, tag, db_test);
 
   printf("Output: viscosity %g, TC %g D11 %g\n", output.viscosity,
          output.thermalConductivity, output.diffusionCoefficient[0]);

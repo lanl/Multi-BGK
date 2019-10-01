@@ -298,11 +298,6 @@ int main(int argc, char **argv) {
   printf("Input file: %s\n", input_filename);
   printf("Output filename: %s\n", output_path);
 
-#ifdef ALDR_ON
-  test_aldr();
-  exit(1);
-#endif
-
   ///////////////////
   // PARAMETER SETUP//
   ///////////////////
@@ -361,6 +356,10 @@ int main(int argc, char **argv) {
     }
 
     io_init_homog(Nv, nspec, c);
+
+    #ifdef ALDR_ON
+    io_init_db("dummy.db");
+    #endif
 
     double dv;
 
@@ -2216,6 +2215,10 @@ int main(int argc, char **argv) {
     free(H_spec);
     free(H_spec_prev);
   }
+
+  #ifdef ALDR_ON
+  io_close_db();
+  #endif
 
   MPI_Finalize();
 
