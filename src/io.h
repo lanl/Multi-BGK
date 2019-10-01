@@ -19,6 +19,12 @@ void load_diffusion_homog(double **nu, char *fileName);
 
 #ifdef ALDR_ON
 
+void request_aldr(double *n, double *T, double *Z, char *tag, char *dbfile, double **D_ij);
+
 void test_aldr();
+
+void io_init_db(char *filename);
+
+void io_close_db();
 
 #endif
