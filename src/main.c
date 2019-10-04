@@ -839,814 +839,456 @@ int main(int argc, char **argv) {
   }
 
   // Setup complete, begin main loop
-  if(eq_flag == 0){
-    while (t < tfinal) {
+  while (t < tfinal) {
 
-      if (rank == 0) {
-        printf("At time %g of %g\n", t, tfinal);
+    if (rank == 0) {
+      printf("At time %g of %g\n", t, tfinal);
+    }
+
+    if (dims == 0) {
+      // GET MOMENTS
+
+      ntot = 0.0;
+      rhotot = 0.0;
+      Htot_prev = Htot;
+      Htot = 0.0;
+
+      for (i = 0; i < nspec; i++) {
+        n_zerod[i] = getDensity(f_zerod[i], i);
+        ntot += n_zerod[i];
+        rhotot += m[i] * n_zerod[i];
+
+        H_spec_prev[i] = H_spec[i];
+        H_spec[i] = getH(n_zerod[i], f_zerod[i], i);
+        Htot += H_spec[i];
+
+        getBulkVel(f_zerod[i], v_zerod[i], n_zerod[i], i);
       }
 
-      if (dims == 0) {
-        // GET MOMENTS
-
-        ntot = 0.0;
-        rhotot = 0.0;
-        Htot_prev = Htot;
-        Htot = 0.0;
-
-        for (i = 0; i < nspec; i++) {
-          n_zerod[i] = getDensity(f_zerod[i], i);
-          ntot += n_zerod[i];
-          rhotot += m[i] * n_zerod[i];
-
-          H_spec_prev[i] = H_spec[i];
-          H_spec[i] = getH(n_zerod[i], f_zerod[i], i);
-          Htot += H_spec[i];
-
-          getBulkVel(f_zerod[i], v_zerod[i], n_zerod[i], i);
-        }
-
-        // get mixture mass avg velocity
-        for (j = 0; j < 3; j++) {
-          v0_zerod[j] = 0.0;
-          for (i = 0; i < nspec; i++)
-            v0_zerod[j] += m[i] * n_zerod[i] * v_zerod[i][j];
-          v0_zerod[j] = v0_zerod[j] / rhotot;
-        }
-
-        // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result
-        // is in eV
+      // get mixture mass avg velocity
+      for (j = 0; j < 3; j++) {
+        v0_zerod[j] = 0.0;
         for (i = 0; i < nspec; i++)
-          T_zerod[i] = getTemp(m[i], n_zerod[i], v_zerod[i], f_zerod[i], i);
+          v0_zerod[j] += m[i] * n_zerod[i] * v_zerod[i][j];
+        v0_zerod[j] = v0_zerod[j] / rhotot;
+      }
 
-        // calculate mixture temperature (not the same as what goes into the
-        // Maxwellians)
-        T0 = 0.0;
+      // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result
+      // is in eV
+      for (i = 0; i < nspec; i++)
+        T_zerod[i] = getTemp(m[i], n_zerod[i], v_zerod[i], f_zerod[i], i);
+
+      // calculate mixture temperature (not the same as what goes into the
+      // Maxwellians)
+      T0 = 0.0;
+      for (i = 0; i < nspec; i++) {
+        if (n_zerod[i] != 0.0) {
+          T0 += n_zerod[i] * T_zerod[i];
+          for (j = 0; j < 3; j++)
+            T0 += ERG_TO_EV_CGS * m[i] * n_zerod[i] *
+                  (v_zerod[i][j] - v0_zerod[j]) *
+                  (v_zerod[i][j] - v0_zerod[j]) / 3.0;
+        }
+      }
+      T0 = T0 / ntot;
+
+      // note - T0 is used as the electron temperature
+      if (ecouple == 1)
+        T0 = Te_ref;
+      else if (ecouple == 2)
+        T0 = T_zerod[0];
+
+      // calc Zbar
+      if ((ecouple != 2) && (ionFix != 1))
+        zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
+      else
+        Z_zerod = Z_max;
+
+      // Output to files
+
+      BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
+
+      //output if time to or initial data.
+      if (outcount == dataFreq || nT==0) {
+        fprintf(outputFileTime, "%e\n", t);
         for (i = 0; i < nspec; i++) {
-          if (n_zerod[i] != 0.0) {
-            T0 += n_zerod[i] * T_zerod[i];
-            for (j = 0; j < 3; j++)
-              T0 += ERG_TO_EV_CGS * m[i] * n_zerod[i] *
-                    (v_zerod[i][j] - v0_zerod[j]) *
-                    (v_zerod[i][j] - v0_zerod[j]) / 3.0;
+          fprintf(outputFileDens[i], "%e ", n_zerod[i]);
+          fprintf(outputFileVelo[i], "%e ", v_zerod[i][0]);
+          fprintf(outputFileTemp[i], "%e ", T_zerod[i]);
+          fprintf(outputFileH, "%e ", (H_spec[i] - H_spec_prev[i]) / dt);
+          fprintf(outputFileDens[i], "\n");
+          fprintf(outputFileVelo[i], "\n");
+          fprintf(outputFileTemp[i], "\n");
+          outcount = 0;
+        }
+        fprintf(outputFileH, "%e\n", (Htot - Htot_prev) / dt);
+
+        if (outputDist == 1)
+          store_distributions_homog(f_zerod, t, nT, input_filename);
+
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < nspec; j++)
+            fprintf(outputFileBGK, "%e,", BGK_f_minus_eq[i][j]);
+        fprintf(outputFileBGK, "\n");
+      }
+      outcount += 1;
+
+      // check to make sure that we don't need to stop
+      RHS_min = 1.0e37;
+      if (restartFlag > 2) {
+        for (i = 0; i < nspec; i++){
+          for (j = 0; j < nspec; j++) {
+            if (i != j) {
+              rel_BGK = BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j];
+              RHS_min = rel_BGK < RHS_min ? rel_BGK : RHS_min;
+            }
           }
         }
-        T0 = T0 / ntot;
 
-        // note - T0 is used as the electron temperature
-        if (ecouple == 1)
-          T0 = Te_ref;
-        else if (ecouple == 2)
-          T0 = T_zerod[0];
+        // Stop computation
+        if (RHS_min < RHS_tol) {
+          printf("Stale collision rate detected\n");
+          printf("RHS_min %g\n", RHS_min);
+          for (i = 0; i < nspec; i++)
+            for (j = 0; j < nspec; j++)
+              printf("%d %d %g\n", i, j,
+                      BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j]);
+          break;
+        }
+      }
 
-        // calc Zbar
-        if ((ecouple != 2) && (ionFix != 1))
-          zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
-        else
-          Z_zerod = Z_max;
+      if (im_ex == 0) {
 
-        // Output to files
+        // pick yer poison
+        if (BGK_type == 0)
+          BGK_ex(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
+        else if (BGK_type == 1)
+          BGK_Greene(f_zerod, f_zerod_tmp, Z_max, dt, beta, T0);
+        else if (BGK_type == 2)
+          BGK_NRL(f_zerod, f_zerod_tmp, Z_max, dt, T0);
 
-        BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < Nv * Nv * Nv; j++)
+            f_zerod[i][j] += dt * f_zerod_tmp[i][j];
+      } else if (im_ex == 1) {
+        BGK_im_linear(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < Nv * Nv * Nv; j++)
+            f_zerod[i][j] = f_zerod_tmp[i][j];
+      } else if (im_ex == 2) {
+        /*
+        BGK_im_nonlinear();
+        for (i = 0; i < nspec; i++)
+          for (j = 0; j < Nv * Nv * Nv; j++)
+            f_zerod[i][j] = f_zerod_tmp[i][j];
+        */
+      } else {
+        printf("Error - please set im_ex = 0 (explicit), 1 (linear implicit), "
+                "or 2 (nonlinear implicit) in your input file.\n");
+        exit(1);
+      }
+    } else if (dims == 1) {
+      // Calculate moment data in all cells
+      for (l = 0; l < Nx_rank; l++) {
+        ntot = 0.0;
+        rhotot = 0.0;
+        for (i = 0; i < nspec; i++) {
+          n_oned[l][i] = getDensity(f[l + order][i], i);
+          ntot += n_oned[l][i];
+          rhotot += m[i] * n_oned[l][i];
+          getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
+        }
+        // get mixture mass avg velocity
+        for (j = 0; j < 3; j++) {
+          v0_oned[l][j] = 0.0;
+          for (i = 0; i < nspec; i++)
+            v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
+          v0_oned[l][j] = v0_oned[l][j] / rhotot;
+        }
+      }
 
-        //output if time to or initial data.
-        if (outcount == dataFreq || nT==0) {
+      // Set T0 in all cells
+      for (l = 0; l < Nx_rank; l++) {
+        if (ecouple == 2)
+          T0_oned[l] = T_oned[l][0];
+        else {
+          T0_oned[l] = 0.0;
+          for (i = 0; i < nspec; i++) {
+            if (n_oned[l][i] != 0.0) {
+              T0_oned[l] += n_oned[l][i] * T_oned[l][i];
+              for (j = 0; j < 3; j++)
+                T0_oned[l] += ERG_TO_EV_CGS * m[i] * n_oned[l][i] *
+                              (v_oned[l][i][j] - v0_oned[l][j]) *
+                              (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
+            }
+          }
+        }
+        for (k = 0; k < numRanks; k++) {
+          if (k == rank) {
+            for (i = 0; i < nspec; i++) {
+              if (isnan(n_oned[l][i])) {
+                printf("Something weird is going on: What did Jan Say? The "
+                        "Michael Scott "
+                        "Story. By Michael Scott. With Dwight Schrute.\n NaN "
+                        "detected \n");
+                for (j = 0; j < nspec; j++) {
+                  printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
+                          "%g\n",
+                          rank, l, i, j, n_oned[l][j], v0_oned[l][j],
+                          T_oned[l][j], Z_oned[l][j], Te_arr[l]);
+                }
+                exit(1);
+              }
+            }
+          }
+        }
+      }
+
+      // Flag - do we want to run this like the kinetic scheme for hydro
+      if (hydro_kinscheme_flag == 1) {
+        for (l = 0; l < Nx_rank; l++)
+          for (i = 0; i < nspec; i++)
+            GetMaxwell(m[i], n_oned[l][i], v_oned[l][i], T_oned[l][i],
+                        f[l + order][i], i);
+      }
+
+      /*
+      Regarding the number of input arguments:
+      "It is true, we shall be monsters, cut off from the world; 
+      but on that account we shall be more attached to one another" - MS, F
+      */
+      poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+                    &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
+                    &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
+                    &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
+                    &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
+
+      // Moments and initial electric field calculated - save if needed
+
+      // MPI-ified output.
+      if (outcount == dataFreq) {
+        if (rank == 0) {
+          for (l = 0; l < Nx_rank; l++) {
+            for (i = 0; i < nspec; i++) {
+              T_oned[l][i] =
+                  getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+              fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
+              fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
+              fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
+            }
+          }
+
+          // get from other ranks
+          for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+            for (s = 0; s < nspec; s++) {
+              MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
+                        rankCounter, 100 + s, MPI_COMM_WORLD, &status);
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
+                fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
+                fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
+              }
+            }
+          }
+
+          // Print poisson information - TODO double check units
+          if(bcs == 0){
+            fprintf(outputFilePoiss, "%e ",
+                    0.5*(PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
+            for (l = 1; l < Nx - 1; l++) {
+              fprintf(outputFilePoiss, "%e ",
+                      0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+            }
+            fprintf(outputFilePoiss, "%e ",
+                    0.5*(PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
+            fprintf(outputFilePoiss, "\n");
+          }else{
+            for(l = 1; l < Nx+1; l++){
+              fprintf(outputFilePoiss, "%e ",
+                      0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+            }
+          }
+
+          // Close out this timestep
           fprintf(outputFileTime, "%e\n", t);
           for (i = 0; i < nspec; i++) {
-            fprintf(outputFileDens[i], "%e ", n_zerod[i]);
-            fprintf(outputFileVelo[i], "%e ", v_zerod[i][0]);
-            fprintf(outputFileTemp[i], "%e ", T_zerod[i]);
-            fprintf(outputFileH, "%e ", (H_spec[i] - H_spec_prev[i]) / dt);
             fprintf(outputFileDens[i], "\n");
             fprintf(outputFileVelo[i], "\n");
             fprintf(outputFileTemp[i], "\n");
-            outcount = 0;
           }
-          fprintf(outputFileH, "%e\n", (Htot - Htot_prev) / dt);
-
-          if (outputDist == 1)
-            store_distributions_homog(f_zerod, t, nT, input_filename);
-
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < nspec; j++)
-              fprintf(outputFileBGK, "%e,", BGK_f_minus_eq[i][j]);
-          fprintf(outputFileBGK, "\n");
-        }
-        outcount += 1;
-
-        // check to make sure that we don't need to stop
-        RHS_min = 1.0e37;
-        if (restartFlag > 2) {
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < nspec; j++) {
-              if (i != j) {
-                rel_BGK = BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j];
-                RHS_min = rel_BGK < RHS_min ? rel_BGK : RHS_min;
-              }
-            }
-
-          // Stop computation
-          if (RHS_min < RHS_tol) {
-            printf("Stale collision rate detected\n");
-            printf("RHS_min %g\n", RHS_min);
-            for (i = 0; i < nspec; i++)
-              for (j = 0; j < nspec; j++)
-                printf("%d %d %g\n", i, j,
-                       BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j]);
-            break;
-          }
-        }
-
-        if (im_ex == 0) {
-
-          // pick yer poison
-          if (BGK_type == 0)
-            BGK_ex(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
-          else if (BGK_type == 1)
-            BGK_Greene(f_zerod, f_zerod_tmp, Z_max, dt, beta, T0);
-          else if (BGK_type == 2)
-            BGK_NRL(f_zerod, f_zerod_tmp, Z_max, dt, T0);
-
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f_zerod[i][j] += dt * f_zerod_tmp[i][j];
-        } else if (im_ex == 1) {
-          BGK_im_linear(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f_zerod[i][j] = f_zerod_tmp[i][j];
-        } else if (im_ex == 2) {
-          /*
-          BGK_im_nonlinear();
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < Nv * Nv * Nv; j++)
-              f_zerod[i][j] = f_zerod_tmp[i][j];
-          */
-        } else {
-          printf("Error - please set im_ex = 0 (explicit), 1 (linear implicit), "
-                 "or 2 (nonlinear implicit) in your input file.\n");
-          exit(1);
-        }
-      } else if (dims == 1) {
-
-        // Calculate moment data in all cells
-        for (l = 0; l < Nx_rank; l++) {
-
-          ntot = 0.0;
-          rhotot = 0.0;
-          for (i = 0; i < nspec; i++) {
-            n_oned[l][i] = getDensity(f[l + order][i], i);
-            ntot += n_oned[l][i];
-            rhotot += m[i] * n_oned[l][i];
-            getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
-          }
-
-          // get mixture mass avg velocity
-          for (j = 0; j < 3; j++) {
-            v0_oned[l][j] = 0.0;
-            for (i = 0; i < nspec; i++)
-              v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
-            v0_oned[l][j] = v0_oned[l][j] / rhotot;
-          }
-        }
-
-        // Set T0 in all cells
-        for (l = 0; l < Nx_rank; l++) {
-          if (ecouple == 2)
-            T0_oned[l] = T_oned[l][0];
-          else {
-            T0_oned[l] = 0.0;
-            for (i = 0; i < nspec; i++) {
-              if (n_oned[l][i] != 0.0) {
-                T0_oned[l] += n_oned[l][i] * T_oned[l][i];
-                for (j = 0; j < 3; j++)
-                  T0_oned[l] += ERG_TO_EV_CGS * m[i] * n_oned[l][i] *
-                                (v_oned[l][i][j] - v0_oned[l][j]) *
-                                (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
-              }
-            }
-          }
-          for (k = 0; k < numRanks; k++) {
-            if (k == rank) {
-              for (i = 0; i < nspec; i++) {
-                if (isnan(n_oned[l][i])) {
-                  printf("Something weird is going on: What did Jan Say? The "
-                         "Michael Scott "
-                         "Story. By Michael Scott. With Dwight Schrute.\n NaN "
-                         "detected \n");
-                  for (j = 0; j < nspec; j++) {
-                    printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
-                           "%g\n",
-                           rank, l, i, j, n_oned[l][j], v0_oned[l][j],
-                           T_oned[l][j], Z_oned[l][j], Te_arr[l]);
-                  }
-                  exit(1);
-                }
-              }
-            }
-          }
-        }
-
-        // Flag - do we want to run this like the kinetic scheme for hydro
-        if (hydro_kinscheme_flag == 1) {
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              GetMaxwell(m[i], n_oned[l][i], v_oned[l][i], T_oned[l][i],
-                         f[l + order][i], i);
-        }
-
-       /*
-       Regarding the number of input arguments:
-       "It is true, we shall be monsters, cut off from the world; 
-       but on that account we shall be more attached to one another" - MS, F
-       */
-       poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                     &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                     &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                     &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                     &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-
-        // Moments and initial electric field calculated - save if needed
-
-        // MPI-ified output.
-        if (outcount == dataFreq) {
-          if (rank == 0) {
+          outcount = 0;
+        } else { // send to rank 0 for output purposes
+          for (s = 0; s < nspec; s++) {
             for (l = 0; l < Nx_rank; l++) {
-              for (i = 0; i < nspec; i++) {
-                T_oned[l][i] =
-                    getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
-                fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
-                fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
-                fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
-              }
+              T_oned[l][s] =
+                  getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
+              momentBuffer[0 + 3 * l] = n_oned[l][s];
+              momentBuffer[1 + 3 * l] = v_oned[l][s][0];
+              momentBuffer[2 + 3 * l] = T_oned[l][s];
             }
-
-            // get from other ranks
-            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
-              for (s = 0; s < nspec; s++) {
-                MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
-                         rankCounter, 100 + s, MPI_COMM_WORLD, &status);
-                for (l = 0; l < Nx_ranks[rankCounter]; l++) {
-                  fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
-                  fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
-                  fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
-                }
-              }
-            }
-
-            // Print poisson information - TODO double check units
-            if(bcs == 0){
-              fprintf(outputFilePoiss, "%e ",
-                      0.5*(PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
-              for (l = 1; l < Nx - 1; l++) {
-                fprintf(outputFilePoiss, "%e ",
-                        0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
-              }
-              fprintf(outputFilePoiss, "%e ",
-                      0.5*(PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
-              fprintf(outputFilePoiss, "\n");
-            }else{
-              for(l = 1; l < Nx+1; l++){
-                fprintf(outputFilePoiss, "%e ",
-                        0.5*(PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
-              }
-            }
-
-            // Close out this timestep
-            fprintf(outputFileTime, "%e\n", t);
-            for (i = 0; i < nspec; i++) {
-              fprintf(outputFileDens[i], "\n");
-              fprintf(outputFileVelo[i], "\n");
-              fprintf(outputFileTemp[i], "\n");
-            }
-            outcount = 0;
-          } else { // send to rank 0 for output purposes
-            for (s = 0; s < nspec; s++) {
-              for (l = 0; l < Nx_rank; l++) {
-                T_oned[l][s] =
-                    getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
-                momentBuffer[0 + 3 * l] = n_oned[l][s];
-                momentBuffer[1 + 3 * l] = v_oned[l][s][0];
-                momentBuffer[2 + 3 * l] = T_oned[l][s];
-              }
-              MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
-                       MPI_COMM_WORLD);
-            }
-            outcount = 0;
+            MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
+                      MPI_COMM_WORLD);
           }
-
-          MPI_Barrier(MPI_COMM_WORLD);
-          if(outputDist==1){
-            store_distributions_inhomog(&numRanks, &rank, &order, f, input_filename, nT);
-          }
+          outcount = 0;
         }
-        outcount += 1;
-
-        // IO done, advance to the actual solution...
 
         MPI_Barrier(MPI_COMM_WORLD);
+        if(outputDist==1){
+          store_distributions_inhomog(&numRanks, &rank, &order, f, input_filename, nT);
+        }
+      }
+      outcount += 1;
 
-        if (order == 1) {
-          // ADVECT
+      // IO done, advance to the actual solution...
 
-          for (i = 0; i < nspec; i++) {
-            advectOne(f, PoisPot, Z_oned, m[i], i);
-          }
+      MPI_Barrier(MPI_COMM_WORLD);
 
-          if (!(BGK_type < 0)) {
-            // COLLIDE
-            if (im_ex == 0) {
-              for (l = 0; l < Nx_rank; l++) {
-                BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] += dt * f_tmp[l + order][i][j];
-              }
-            } else if (im_ex == 1) {
-              for (l = 0; l < Nx_rank; l++) {
-                BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
-                              Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] = f_tmp[l + order][i][j];
-              }
-            } else if (im_ex == 2) {
-              printf("Error - nonlinear implicit solve not implemented for 1D\n");
-              exit(1);
-              /*
-                BGK_im_nonlinear();
-                for (i = 0; i < nspec; i++)
-                for (j = 0; j < Nv * Nv * Nv; j++)
-                f_zerod[i][j] = f_zerod_tmp[i][j];
-              */
-            } else {
-              printf("Error - please set Imp_exp = 0 (explicit), 1 (linear "
-                     "implicit), or 2 (nonlinear implicit) in your input "
-                     "file.\n");
-              exit(1);
-            }
-          }
+      if (order == 1) {
+        // ADVECT
+
+        for (i = 0; i < nspec; i++) {
+          advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
-        if (order == 2) {
-          // ADVECT
-
-          // First strang step - V advection with timestep dt/2
-
-          // SSP RK2 method:
-          // u^(1) = u^n + dt*f(u^n)
-          // u^(2) = 0.5*(u^n + u^(1)) + 0.5*dt*f(u^(1))
-          // u^n+1 = u^(2)
-          // but we are doing dt/2 steps due to strang
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-
-          for (l = 0; l < Nx_rank; l++){
-            for (i = 0; i < nspec; i++){
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++){
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-              }
-              n_oned[l][i] = getDensity(f_tmp[l+order][i], i);
-            }
-          }
-          // Do second step of Poisson solve 
-
-          //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-          //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-          //see line 1044
-          poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                         &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                         &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                         &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                         &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-          // Finished with determining poisson solve, now advect
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-
-          // Next strang step - x advection with timestep dt/2
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f_tmp, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-
-          if (!(BGK_type == -1)) {
-            // Next Strang step - RK2 for collision with timstep dt
+        if (!(BGK_type < 0)) {
+          // COLLIDE
+          if (im_ex == 0) {
             for (l = 0; l < Nx_rank; l++) {
-
-              if (im_ex == 0) {
-                // Step 1
-                BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
-                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
-
-                // Step 2
-                BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
-                       Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
-                    f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
-                    f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
-                    f[l+order][i][j] += (f_conv[l+order][i][j] < -1*f[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
-              }
-
-              else if (im_ex == 1) {
-                printf("Error - implicit solve in 1D only implemented for first "
-                       "oder solve \n");
-              } else if (im_ex == 2) {
-                /*
-                  BGK_im_nonlinear();
-                  for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                  f_zerod[i][j] = f_zerod_tmp[i][j];
-                */
-              } else {
-                printf("Error - please set im_ex = 0 (explicit), 1 (linear "
-                       "implicit), or 2 (nonlinear implicit) in your input "
-                       "file.\n");
-                exit(1);
-              }
-            }
-          }
-
-          // Next strang step - x advection with timestep dt/2
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f_tmp, f_conv, i);
-          }
-          for (l = 0; l < Nx_rank; l++){
-            for (i = 0; i < nspec; i++){
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++){
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-              }
-              n_oned[l][i] = getDensity(f[l + order][i], i);
-            }
-          }
-          // Last strang step - V advection with timestep dt/2 (combine?)
-
-          // Recalc Poiss
-
-          //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-          //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-          //see line 1044
-          poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                         &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                         &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                         &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                         &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-
-          // Finished with determining poisson solve, now advect
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-
-          for (l = 0; l < Nx_rank; l++){
-              for (i = 0; i < nspec; i++){
-                //#pragma omp parallel for private(j)
-                for (j = 0; j < Nv * Nv * Nv; j++){
-                  f_tmp[l + order][i][j] =
-                      f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-                }
-                n_oned[l][i] = getDensity(f[l + order][i], i);
-              }
-            } 
-
-            // Recalc Poiss
-
-            //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-            //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-            //see line 1044
-            poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                           &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                           &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                           &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                           &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs); 
-
-            // Finished with determining poisson solve, now advect
-
-            // RK2 Step 2
-            for (i = 0; i < nspec; i++) {
-              advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
-            }
-            for (l = 0; l < Nx_rank; l++)
+              BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
               for (i = 0; i < nspec; i++)
-                //#pragma omp parallel for private(j)
                 for (j = 0; j < Nv * Nv * Nv; j++)
-                  f[l + order][i][j] =
-                      0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                      0.25 * f_conv[l + order][i][j];
-          }
-        }
-        t += dt;
-        nT++;
-      }
-  } else {
-    //ensure we step at least once
-    double h = 1.0;
-    double dh = eq_rtol*h + 1.0;
-    while (dh > eq_rtol*h) {
-
-      if (rank == 0) {
-        printf("At time %g\n", t);
-      }
-
-      if (dims == 0) {
-        //if dims == 0, the stagnation of the entropy is used rather than the grid norm
-        //to determine equilibration.
-        // GET MOMENTS
-
-        ntot = 0.0;
-        rhotot = 0.0;
-        Htot_prev = Htot;
-        Htot = 0.0;
-        h = fabs(Htot_prev);
-
-        for (i = 0; i < nspec; i++) {
-          n_zerod[i] = getDensity(f_zerod[i], i);
-          ntot += n_zerod[i];
-          rhotot += m[i] * n_zerod[i];
-
-          H_spec_prev[i] = H_spec[i];
-          H_spec[i] = getH(n_zerod[i], f_zerod[i], i);
-          Htot += H_spec[i];
-
-          getBulkVel(f_zerod[i], v_zerod[i], n_zerod[i], i);
-        }
-        dh = abs(Htot - Htot_prev);
-
-        // get mixture mass avg velocity
-        for (j = 0; j < 3; j++) {
-          v0_zerod[j] = 0.0;
-          for (i = 0; i < nspec; i++)
-            v0_zerod[j] += m[i] * n_zerod[i] * v_zerod[i][j];
-          v0_zerod[j] = v0_zerod[j] / rhotot;
-        }
-
-        // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result
-        // is in eV
-        for (i = 0; i < nspec; i++)
-          T_zerod[i] = getTemp(m[i], n_zerod[i], v_zerod[i], f_zerod[i], i);
-
-        // calculate mixture temperature (not the same as what goes into the
-        // Maxwellians)
-        T0 = 0.0;
-        for (i = 0; i < nspec; i++) {
-          if (n_zerod[i] != 0.0) {
-            T0 += n_zerod[i] * T_zerod[i];
-            for (j = 0; j < 3; j++)
-              T0 += ERG_TO_EV_CGS * m[i] * n_zerod[i] *
-                    (v_zerod[i][j] - v0_zerod[j]) *
-                    (v_zerod[i][j] - v0_zerod[j]) / 3.0;
-          }
-        }
-        T0 = T0 / ntot;
-
-        // note - T0 is used as the electron temperature
-        if (ecouple == 1)
-          T0 = Te_ref;
-        else if (ecouple == 2)
-          T0 = T_zerod[0];
-
-        // calc Zbar
-        if ((ecouple != 2) && (ionFix != 1))
-          zBarFunc2(nspec, T0, Z_max, n_zerod, Z_zerod);
-        else
-          Z_zerod = Z_max;
-
-
-        BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
-
-        // check to make sure that we don't need to stop based on collision rate.
-        RHS_min = 1.0e37;
-        if (restartFlag > 2) {
-          for (i = 0; i < nspec; i++)
-            for (j = 0; j < nspec; j++) {
-              if (i != j) {
-                rel_BGK = BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j];
-                RHS_min = rel_BGK < RHS_min ? rel_BGK : RHS_min;
-              }
+                  f[l + order][i][j] += dt * f_tmp[l + order][i][j];
             }
-
-          // Stop computation
-          if (RHS_min < RHS_tol) {
-            printf("Stale collision rate detected\n");
-            printf("RHS_min %g\n", RHS_min);
-            for (i = 0; i < nspec; i++)
-              for (j = 0; j < nspec; j++)
-                printf("%d %d %g\n", i, j,
-                       BGK_f_minus_eq[i][j] / BGK_f_minus_eq_init[i][j]);
-            break;
+          } else if (im_ex == 1) {
+            for (l = 0; l < Nx_rank; l++) {
+              BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
+                            Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f[l + order][i][j] = f_tmp[l + order][i][j];
+            }
+          } else if (im_ex == 2) {
+            printf("Error - nonlinear implicit solve not implemented for 1D\n");
+            exit(1);
+            /*
+              BGK_im_nonlinear();
+              for (i = 0; i < nspec; i++)
+              for (j = 0; j < Nv * Nv * Nv; j++)
+              f_zerod[i][j] = f_zerod_tmp[i][j];
+            */
+          } else {
+            printf("Error - please set Imp_exp = 0 (explicit), 1 (linear "
+                    "implicit), or 2 (nonlinear implicit) in your input "
+                    "file.\n");
+            exit(1);
           }
         }
-        if (im_ex == 0) {
+      }
 
-          // pick yer poison
-          if (BGK_type == 0)
-            BGK_ex(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
-          else if (BGK_type == 1)
-            BGK_Greene(f_zerod, f_zerod_tmp, Z_max, dt, beta, T0);
-          else if (BGK_type == 2)
-            BGK_NRL(f_zerod, f_zerod_tmp, Z_max, dt, T0);
+      if (order == 2) {
+        // ADVECT
 
-         for (i = 0; i < nspec; i++){
+        // First strang step - V advection with timestep dt/2
+
+        // SSP RK2 method:
+        // u^(1) = u^n + dt*f(u^n)
+        // u^(2) = 0.5*(u^n + u^(1)) + 0.5*dt*f(u^(1))
+        // u^n+1 = u^(2)
+        // but we are doing dt/2 steps due to strang
+
+        // RK2 Step 1
+        for (i = 0; i < nspec; i++) {
+          advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
+        }
+
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
+            //#pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++){
-              f_zerod[i][j] += dt * f_zerod_tmp[i][j];
+              f_tmp[l + order][i][j] =
+                  f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
             }
+            n_oned[l][i] = getDensity(f_tmp[l+order][i], i);
           }
-        } else if (im_ex == 1) {
-          BGK_im_linear(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
+        }
+        // Do second step of Poisson solve 
+
+        //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
+        //CHANGE RESULTING FROM THE ABOVE ADVECTION.
+
+        //see line 1044
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
+                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
+                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
+                        &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
+        // Finished with determining poisson solve, now advect
+
+        // RK2 Step 2
+        for (i = 0; i < nspec; i++) {
+          advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
+        }
+
+        for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
+            //#pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
-              f_zerod[i][j] = f_zerod_tmp[i][j];
-        } else if (im_ex == 2) {
-          /*
-          BGK_im_nonlinear();
+              f[l + order][i][j] =
+                  0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
+                  0.25 * f_conv[l + order][i][j];
+
+        // Next strang step - x advection with timestep dt/2
+
+        // RK2 Step 1
+        for (i = 0; i < nspec; i++) {
+          advectTwo_x(f, f_conv, i);
+        }
+
+        for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
+            //#pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
-              f_zerod[i][j] = f_zerod_tmp[i][j];
-          */
-        } else {
-          printf("Error - please set im_ex = 0 (explicit), 1 (linear implicit), "
-                 "or 2 (nonlinear implicit) in your input file.\n");
-          exit(1);
+              f_tmp[l + order][i][j] =
+                  f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
+
+        // RK2 Step 2
+        for (i = 0; i < nspec; i++) {
+          advectTwo_x(f_tmp, f_conv, i);
         }
-      } else if (dims == 1) {
-        
-        //put value of previous global H in h,
-        h = Htot;
-        Htot = 0.0;
-        // Calculate moment data in all cells
-        for (l = 0; l < Nx_rank; l++) {
-          ntot = 0.0;
-          rhotot = 0.0;
-          for (i = 0; i < nspec; i++) {
-            n_oned[l][i] = getDensity(f[l + order][i], i);
-            ntot += n_oned[l][i];
-            rhotot += m[i] * n_oned[l][i];
-            Htot += getH(n_oned[l][i], f[l+order][i], i);
-            getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
-            T_oned[l][i] = getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l+order][i], i);
-          }
+        for (l = 0; l < Nx_rank; l++)
+          for (i = 0; i < nspec; i++)
+            //#pragma omp parallel for private(j)
+            for (j = 0; j < Nv * Nv * Nv; j++)
+              f[l + order][i][j] =
+                  0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
+                  0.25 * f_conv[l + order][i][j];
 
-          // get mixture mass avg velocity
-          for (j = 0; j < 3; j++) {
-            v0_oned[l][j] = 0.0;
-            for (i = 0; i < nspec; i++)
-              v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
-            v0_oned[l][j] = v0_oned[l][j] / rhotot;
-          }
-          //set T0 
-          if (ecouple == 2)
-            T0_oned[l] = T_oned[l][0];
-          else {
-            T0_oned[l] = 0.0;
-            for (i = 0; i < nspec; i++) {
-              if (n_oned[l][i] != 0.0) {
-                T0_oned[l] += n_oned[l][i] * T_oned[l][i];
-                for (j = 0; j < 3; j++)
-                  T0_oned[l] += ERG_TO_EV_CGS * m[i] * n_oned[l][i] *
-                                (v_oned[l][i][j] - v0_oned[l][j]) *
-                                (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
-              }
-            }
-            T0_oned[l] = T0_oned[l] / ntot;
-          }
-          for (k = 0; k < numRanks; k++) {
-            if (k == rank) {
-              for (i = 0; i < nspec; i++) {
-                if (isnan(n_oned[l][i])) {
-                  printf("Something weird is going on: What did Jan Say? The "
-                          "Michael Scott "
-                          "Story. By Michael Scott. With Dwight Schrute.\n NaN "
-                          "detected \n");
-                  for (j = 0; j < nspec; j++) {
-                    printf("rank %d x %d i %d j %d n: %g v: %g T: %g Z: %g Te: "
-                            "%g\n",
-                            rank, l, i, j, n_oned[l][j], v0_oned[l][j],
-                            T_oned[l][j], Z_oned[l][j], Te_arr[l]);
-                  }
-                  exit(1);
-                }
-              }
-            }
-          }
-        }
-        //put the current global entropy from every rank into dh.
-        MPI_Allreduce(&Htot, &dh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        dh = fabs(dh - h);
-        h = fabs(h);
-        
-        // Flag - do we want to run this like the kinetic scheme for hydro
-        if (hydro_kinscheme_flag == 1) {
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              GetMaxwell(m[i], n_oned[l][i], v_oned[l][i], T_oned[l][i],
-                         f[l + order][i], i);
-        }
-
-       /*
-       Regarding the number of input arguments:
-       "It is true, we shall be monsters, cut off from the world; 
-       but on that account we shall be more attached to one another" - MS, F
-       */
-       poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                     &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                     &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                     &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                     &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-
-        // Moments and initial electric field calculated - don't save since equilibrating.
-       // IO done, advance to the actual solution...
-
-        MPI_Barrier(MPI_COMM_WORLD);
-
-        if (order == 1) {
-          // ADVECT
-
-          for (i = 0; i < nspec; i++) {
-            advectOne(f, PoisPot, Z_oned, m[i], i);
-          }
-
-          if (!(BGK_type < 0)) {
-            // COLLIDE
+        if (!(BGK_type == -1)) {
+          // Next Strang step - RK2 for collision with timstep dt
+          for (l = 0; l < Nx_rank; l++) {
             if (im_ex == 0) {
-              for (l = 0; l < Nx_rank; l++) {
-                BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] += dt * f_tmp[l + order][i][j];
-              }
-            } else if (im_ex == 1) {
-              for (l = 0; l < Nx_rank; l++) {
-                BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
-                              Te_arr[l]);
-                for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                    f[l + order][i][j] = f_tmp[l + order][i][j];
-              }
+              // Step 1
+              BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
+                  f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+
+              // Step 2
+              BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
+                      Te_arr[l]);
+              for (i = 0; i < nspec; i++)
+                for (j = 0; j < Nv * Nv * Nv; j++)
+                  f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
+                  f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
+                  f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+                  f[l+order][i][j] += (f_conv[l+order][i][j] < -1*f[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+            }
+
+            else if (im_ex == 1) {
+              printf("Error - implicit solve in 1D only implemented for first "
+                      "oder solve \n");
             } else if (im_ex == 2) {
-              printf("Error - nonlinear implicit solve not implemented for 1D\n");
-              exit(1);
               /*
                 BGK_im_nonlinear();
                 for (i = 0; i < nspec; i++)
@@ -1654,235 +1296,105 @@ int main(int argc, char **argv) {
                 f_zerod[i][j] = f_zerod_tmp[i][j];
               */
             } else {
-              printf("Error - please set Imp_exp = 0 (explicit), 1 (linear "
-                     "implicit), or 2 (nonlinear implicit) in your input "
-                     "file.\n");
+              printf("Error - please set im_ex = 0 (explicit), 1 (linear "
+                      "implicit), or 2 (nonlinear implicit) in your input "
+                      "file.\n");
               exit(1);
             }
           }
         }
 
-        if (order == 2) {
-          // ADVECT
+        // Next strang step - x advection with timestep dt/2
 
-          // First strang step - V advection with timestep dt/2
+        // RK2 Step 1
+        for (i = 0; i < nspec; i++) {
+          advectTwo_x(f, f_conv, i);
+        }
 
-          // SSP RK2 method:
-          // u^(1) = u^n + dt*f(u^n)
-          // u^(2) = 0.5*(u^n + u^(1)) + 0.5*dt*f(u^(1))
-          // u^n+1 = u^(2)
-          // but we are doing dt/2 steps due to strang
+        for (l = 0; l < Nx_rank; l++)
+          for (i = 0; i < nspec; i++)
+            //#pragma omp parallel for private(j)
+            for (j = 0; j < Nv * Nv * Nv; j++)
+              f_tmp[l + order][i][j] =
+                  f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
 
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-  
-          for (l = 0; l < Nx_rank; l++){
-            for (i = 0; i < nspec; i++){
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++){
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-              }
-              n_oned[l][i] = getDensity(f_tmp[l+order][i], i);
+        // RK2 Step 2
+        for (i = 0; i < nspec; i++) {
+          advectTwo_x(f_tmp, f_conv, i);
+        }
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
+            //#pragma omp parallel for private(j)
+            for (j = 0; j < Nv * Nv * Nv; j++){
+              f[l + order][i][j] =
+                  0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
+                  0.25 * f_conv[l + order][i][j];
             }
-          }
-          // Do second step of Poisson solve 
-
-          //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-          //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-          //see line 1044
-          poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                         &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                         &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                         &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                         &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-          // Finished with determining poisson solve, now advect
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-
-          // Next strang step - x advection with timestep dt/2
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f_tmp, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-
-          if (!(BGK_type == -1)) {
-            // Next Strang step - RK2 for collision with timstep dt
-            for (l = 0; l < Nx_rank; l++) {
-
-              if (im_ex == 0) {
-                // Step 1
-                BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-                for (i = 0; i < nspec; i++){
-                  for (j = 0; j < Nv * Nv * Nv; j++){
-                    f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
-                    if(f_conv[l+order][i][j] >= -1.0*(f[l+order][i][j])){
-		      f_tmp[l+order][i][j] = f[l+order][i][j] + f_conv[l+order][i][j];
-		    }else{
-                      f_tmp[l+order][i][j] = f[l+order][i][j];
-		    }
-		  }
-                }
-
-                // Step 2
-                BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
-                       Te_arr[l]);
-                for (i = 0; i < nspec; i++){
-                  for (j = 0; j < Nv * Nv * Nv; j++){
-                    f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
-                    f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
-                    if(f_conv[l+order][i][j] > -1.0*f[l+order][i][j]){
-		      f[l+order][i][j] = f[l+order][i][j] + f_conv[l+order][i][j];
-		    }
-		  }
-                }
-              }
-
-              else if (im_ex == 1) {
-                printf("Error - implicit solve in 1D only implemented for first "
-                       "oder solve \n");
-              } else if (im_ex == 2) {
-                /*
-                  BGK_im_nonlinear();
-                  for (i = 0; i < nspec; i++)
-                  for (j = 0; j < Nv * Nv * Nv; j++)
-                  f_zerod[i][j] = f_zerod_tmp[i][j];
-                */
-              } else {
-                printf("Error - please set im_ex = 0 (explicit), 1 (linear "
-                       "implicit), or 2 (nonlinear implicit) in your input "
-                       "file.\n");
-                exit(1);
-              }
-            }
-          }
-
-          // Next strang step - x advection with timestep dt/2
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f, f_conv, i);
-          }
-
-          for (l = 0; l < Nx_rank; l++)
-            for (i = 0; i < nspec; i++)
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++)
-                f_tmp[l + order][i][j] =
-                    f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-
-          // RK2 Step 2
-          for (i = 0; i < nspec; i++) {
-            advectTwo_x(f_tmp, f_conv, i);
-          }
-          for (l = 0; l < Nx_rank; l++){
-            for (i = 0; i < nspec; i++){
-              //#pragma omp parallel for private(j)
-              for (j = 0; j < Nv * Nv * Nv; j++){
-                f[l + order][i][j] =
-                    0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                    0.25 * f_conv[l + order][i][j];
-              }
-              n_oned[l][i] = getDensity(f[l + order][i], i);
-            }
-          }
-          // Last strang step - V advection with timestep dt/2 (combine?)
-
-          // Recalc Poiss
-
-          //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-          //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-          //see line 1044
-          poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                         &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                         &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                         &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                         &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
-
-          // Finished with determining poisson solve, now advect
-
-          // RK2 Step 1
-          for (i = 0; i < nspec; i++) {
-            advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
-          }
-
-          for (l = 0; l < Nx_rank; l++){
-              for (i = 0; i < nspec; i++){
-                //#pragma omp parallel for private(j)
-                for (j = 0; j < Nv * Nv * Nv; j++){
-                  f_tmp[l + order][i][j] =
-                      f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
-                }
-                n_oned[l][i] = getDensity(f[l + order][i], i);
-              }
-            } 
-
-            // Recalc Poiss
-
-            //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
-            //CHANGE RESULTING FROM THE ABOVE ADVECTION.
-
-            //see line 1044
-            poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
-                           &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
-                           &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
-                           &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
-                           &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs); 
-
-            // Finished with determining poisson solve, now advect
-
-            // RK2 Step 2
-            for (i = 0; i < nspec; i++) {
-              advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
-            }
-            for (l = 0; l < Nx_rank; l++)
-              for (i = 0; i < nspec; i++)
-                //#pragma omp parallel for private(j)
-                for (j = 0; j < Nv * Nv * Nv; j++)
-                  f[l + order][i][j] =
-                      0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
-                      0.25 * f_conv[l + order][i][j];
+            n_oned[l][i] = getDensity(f[l + order][i], i);
           }
         }
+        // Last strang step - V advection with timestep dt/2 (combine?)
+
+        // Recalc Poiss
+
+        //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
+        //CHANGE RESULTING FROM THE ABOVE ADVECTION.
+
+        //see line 1044
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
+                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
+                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
+                        &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
+
+        // Finished with determining poisson solve, now advect
+
+        // RK2 Step 1
+        for (i = 0; i < nspec; i++) {
+          advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
+        }
+
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
+          //#pragma omp parallel for private(j)
+           for (j = 0; j < Nv * Nv * Nv; j++){
+              f_tmp[l + order][i][j] =
+                  f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
+            }
+           n_oned[l][i] = getDensity(f[l + order][i], i);
+          }
+        } 
+
+        // Recalc Poiss
+
+        //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
+        //CHANGE RESULTING FROM THE ABOVE ADVECTION.
+
+        //see line 1044
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+                      &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
+                      &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
+                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
+                        &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs); 
+
+        // Finished with determining poisson solve, now advect
+
+        // RK2 Step 2
+        for (i = 0; i < nspec; i++) {
+          advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
+        }
+        for (l = 0; l < Nx_rank; l++)
+          for (i = 0; i < nspec; i++)
+            //#pragma omp parallel for private(j)
+            for (j = 0; j < Nv * Nv * Nv; j++)
+              f[l + order][i][j] =
+                  0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
+                  0.25 * f_conv[l + order][i][j];
+        }
+      }
       t += dt;
+      nT++;
     }
-  }
   // Store final timstep data
   
   if(dims == 1) {
