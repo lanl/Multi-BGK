@@ -989,6 +989,7 @@ int main(int argc, char **argv) {
       }
     } else if (dims == 1) {
       // Calculate moment data in all cells
+      printf("Calculating moments...\n");
       for (l = 0; l < Nx_rank; l++) {
         ntot = 0.0;
         rhotot = 0.0;
@@ -1145,11 +1146,11 @@ int main(int argc, char **argv) {
 
       if (order == 1) {
         // ADVECT
-
+        printf("Advecting\n");
         for (i = 0; i < nspec; i++) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
-
+        printf("Colliding\n");
         if (!(BGK_type < 0)) {
           // COLLIDE
           if (im_ex == 0) {
