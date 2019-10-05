@@ -261,7 +261,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
             (*source)[l] -= (*Z_oned)[l][0]*(*n_oned)[l][0];
         }
         for(int i = 1; i < *nspec; i++){
-            (*source)[l] += (*Z_oned)[l][i]*(*n_oned)[l][0];
+            (*source)[l] += (*Z_oned)[l][i]*(*n_oned)[l][i];
         }
     }
     //calculate ionization data for bcs, store in buffer.
