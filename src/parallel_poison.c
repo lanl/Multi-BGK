@@ -1,5 +1,4 @@
 #include "mpi.h"
-
 #include "parallel_poisson.h"
 #include "poissonNonlinPeriodic.h"
 #include "poissonNonlinNonPeriodic.h"
@@ -75,7 +74,7 @@ void periodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Status
             (*source)[l] -= (*Z_oned)[l][0]*(*n_oned)[l][0];
         }
         for(int i = 1; i < *nspec; i++){
-            (*source)[l] += (*Z_oned)[l][i];
+            (*source)[l] += (*Z_oned)[l][i]*(*n_oned)[l][i];
         }
     }
     //Set up source/RHS array for Poisson solve
@@ -262,7 +261,7 @@ void nonperiodic_poisson_solver(MPI_Comm comm, int *rank, int *numRanks, MPI_Sta
             (*source)[l] -= (*Z_oned)[l][0]*(*n_oned)[l][0];
         }
         for(int i = 1; i < *nspec; i++){
-            (*source)[l] += (*Z_oned)[l][i];
+            (*source)[l] += (*Z_oned)[l][i]*(*n_oned)[l][0];
         }
     }
     //calculate ionization data for bcs, store in buffer.
