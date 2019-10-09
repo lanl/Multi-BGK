@@ -2,7 +2,6 @@
 // By Jeff Haack
 
 // All units are CGS unless otherwise noted.
-
 // C libraries
 #include <math.h>
 #include <mpi.h>
@@ -71,9 +70,9 @@ int main(int argc, char **argv) {
   double **f_zerod;
   double **f_zerod_tmp;
 
-  // For 1D - First dimension is species, second is position (x), third is
+  // For 1D - First dimension is position, second is species, third is velocity
   // velocity
-  double ***f, ***f_tmp, ***f_conv;
+  double ***f, ***f_tmp, ***f_conv, ***fprev;
 
   // initial condition stuff - 0D
   double *v_val;
@@ -698,15 +697,24 @@ int main(int argc, char **argv) {
     f = malloc((Nx_rank + 2 * order) * sizeof(double *));
     f_tmp = malloc((Nx_rank + 2 * order) * sizeof(double *));
     f_conv = malloc((Nx_rank + 2 * order) * sizeof(double *));
+    if(eq_flag){
+      fprev = malloc((Nx_rank + 2*order) * sizeof(double *))
+    }
 
     for (l = 0; l < (Nx_rank + 2 * order); l++) {
       f[l] = malloc(nspec * sizeof(double *));
       f_tmp[l] = malloc(nspec * sizeof(double *));
       f_conv[l] = malloc(nspec * sizeof(double *));
+      if(eq_flag){
+        fprev[l] = malloc(nspec * sizeof(double *));
+      }
       for (i = 0; i < nspec; i++) {
         f[l][i] = malloc(Nv * Nv * Nv * sizeof(double));
         f_tmp[l][i] = malloc(Nv * Nv * Nv * sizeof(double));
         f_conv[l][i] = malloc(Nv * Nv * Nv * sizeof(double));
+        if(eq_flag){
+          fprev[l][i] = malloc(Nv*Nv*Nv * sizeof(double));
+        }
       }
     }
   }
@@ -839,7 +847,14 @@ int main(int argc, char **argv) {
   }
 
   // Setup complete, begin main loop
-  while (t < tfinal) {
+  
+  //variable condition, starts out as true. 
+  int cond = 1;
+  double diff = 0.0;
+  double max_diff = 0.0;
+  double global_mdiff = 0.0;
+
+  while (cond) {
 
     if (rank == 0) {
       printf("At time %g of %g\n", t, tfinal);
@@ -988,6 +1003,16 @@ int main(int argc, char **argv) {
         exit(1);
       }
     } else if (dims == 1) {
+      //Update the previous f if equilibrating
+      if(eq_flag){
+        for(l=0; l < Nx_rank + 2*order; l++){
+          for(i=0; i<nspec; i++){
+            for(j=0; j < Nv*Nv*Nv; j++){
+              fprev[l][i][j] = f[l][i][j];
+            }
+          }
+        }
+      }
       // Calculate moment data in all cells
       printf("Calculating moments...\n");
       for (l = 0; l < Nx_rank; l++) {
@@ -1230,13 +1255,16 @@ int main(int argc, char **argv) {
           advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
         }
 
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
+            }
+          }
+        }
 
         // Next strang step - x advection with timestep dt/2
 
@@ -1245,24 +1273,30 @@ int main(int argc, char **argv) {
           advectTwo_x(f, f_conv, i);
         }
 
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
+            }
+          }
+        }
 
         // RK2 Step 2
         for (i = 0; i < nspec; i++) {
           advectTwo_x(f_tmp, f_conv, i);
         }
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
+            }
+          }
+        }
 
         if (!(BGK_type == -1)) {
           // Next Strang step - RK2 for collision with timstep dt
@@ -1384,18 +1418,41 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++) {
           advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
         }
-        for (l = 0; l < Nx_rank; l++)
-          for (i = 0; i < nspec; i++)
+        for (l = 0; l < Nx_rank; l++){
+          for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
-            for (j = 0; j < Nv * Nv * Nv; j++)
+            for (j = 0; j < Nv * Nv * Nv; j++){
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
+            }
+          }
         }
       }
+    //End of 1d timestep. Compute max L-infinity change of solution
+      if(eq_flag){
+        for(l=0; l < Nx_rank + 2*order; l++){
+          for(i=0; i<nspec; i++){
+            for(j=0; j<Nv*Nv*Nv; j++){
+              diff = fabs(f[l][i][j]-fprev[l][i][j])/fprev[l][i][j];
+              if(diff > max_diff){
+                max_diff = diff;
+              }
+            }
+          }
+        }
+        MPI_Allreduce(MPI_IN_PLACE, &max_diff, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      }
+    }
       t += dt;
       nT++;
-    }
+      //update loop condition.
+      if(eq_flag){
+        cond = max_diff>eq_rtol;
+      }else{
+        cond = t<tfinal;
+      }
+  }
   // Store final timstep data
   
   if(dims == 1) {
@@ -1543,11 +1600,17 @@ int main(int argc, char **argv) {
       free(f[l]);
       free(f_tmp[l]);
       free(f_conv[l]);
+      if(eq_flag){
+        free(fprev[l]);
+      }
     }
 
     free(f);
     free(f_tmp);
     free(f_conv);
+    if(eq_flag){
+      free(fprev);
+    }
     free(n_oned);
     free(v_oned);
     free(v0_oned);

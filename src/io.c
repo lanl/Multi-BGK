@@ -102,7 +102,7 @@ void store_distributions_inhomog(int *nRanks, int *rank, int *order, double ***f
   FILE *fid_store;
   for(i=0; i<(*nRanks); i++){
     for (s = 0; s < nspec; s++){
-      sprintf(name_buffer, "Data/%s_spec%d.step%d.dat", fileName, s, t);
+      sprintf(name_buffer, "Data/%s_spec%d.step%06d.dat", fileName, s, t);
       if(i == (*rank)){
         if((*rank)==0){
           fid_store = fopen(name_buffer, "w");
