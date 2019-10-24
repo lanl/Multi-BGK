@@ -109,6 +109,7 @@ void store_distributions_inhomog(int *nRanks, int *rank, int *order, double ***f
         } else{
          fid_store = fopen(name_buffer, "a"); 
         }
+        //TODO: Output left and right boundary conditions of entire sim as well. 
         for (xj = 0; xj < Nx; xj++){
           fwrite(f[xj + (*order)][s], sizeof(double), Nv * Nv * Nv, fid_store);
         }

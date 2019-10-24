@@ -193,8 +193,8 @@ void fillGhostCells_firstorder(double ***f, int sp) {
       }
     } else {
 
-      if (!((numRanks % 2 == 1) &&
-            (rank == 0))) { // this case was dealt with above
+      if (((numRanks % 2 == 0) ||
+            (rank != 0))) { // this case was dealt with above
         for (i = 0; i < N * N * N; i++)
           xlocal[i] = f[left_actual][sp][i];
 

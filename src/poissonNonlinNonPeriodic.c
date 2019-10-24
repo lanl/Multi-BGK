@@ -386,7 +386,7 @@ void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, doub
   gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find average chemical potential
-  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 0.0); // eV
+  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 1.0); // eV
 
   // Fermi integrals
   double F_mhalf;
@@ -513,7 +513,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
     printf("Initializing phi\n");
     phiflag = 1;
     for (i = 0; i < N+2; i++)
-      gsl_vector_set(phiVec, i, 1e1);
+      gsl_vector_set(phiVec, i, 1e0);
   } else // use previous field as guess
     for (i = 0; i < N+2; i++)
       gsl_vector_set(phiVec, i, phi[i]);
@@ -593,6 +593,7 @@ void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, d
   /* Faster version suggested by Cory */
 
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
+    printf("Loop %d\n", loop);
     nonperiodic_electronSource_TF(order, phiVec, g, gPrime, mu, Te);
 
     for (i = 0; i < N+2; i++) {
@@ -745,8 +746,6 @@ double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, dou
       xn = xnp1;
       loop++;
     }
-
-    printf("i %d loop %d Te %g mu %g abs %g rel %g\n",i,loop,Te[i],xn, absErr, relErr);
     musum += xn * Te[i];
   }
 
@@ -766,6 +765,11 @@ void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, doubl
                   pow(2.0 * M_PI * HBAR_CGS, 3);
 
   for (i = 0; i < N; i++) {
+    printf("i=%d\n", i);
+    printf("Te[i]=%e\n", Te[i]);
+    printf("mu: %e\n", mu);
+    double in = (mu + gsl_vector_get(phi, i))/Te[i];
+    printf("In: %e", in);
     g[i] = prefac * pow(Te[i], 1.5) *
            gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phi, i)) / Te[i]);
     gPrime[i] = (1.0 / Te[i]) * prefac * pow(Te[i], 1.5) *
