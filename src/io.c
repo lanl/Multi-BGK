@@ -239,7 +239,7 @@ void load_grid_restart(double *Lv, double *t, int *nT, char *fileName) {
 
 #ifdef ALDR_ON
 
-void request_aldr(double *n, double *T, double *Z, char *tag, char *dbfile, double **D_ij) {
+void request_aldr_single(double *n, double *T, double *Z, char *tag, char *dbfile, double **D_ij) {
 
   bgk_request_t input;
   bgk_result_t output;
@@ -306,6 +306,92 @@ void request_aldr(double *n, double *T, double *Z, char *tag, char *dbfile, doub
   D_ij[3][1] = D_ij[1][3];
   D_ij[3][2] = D_ij[2][3];
 }
+
+// Sends a whole buncha results to the glue code
+void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbfile, double ***D_ij) {
+
+  bgk_request_t *input_list  = malloc(Nx * sizeof(bgk_request_t));
+  bgk_result_t *output_list;
+  //bgk_result_t *output_list = malloc(Nx * sizeof(bgk_result_t));
+
+  for(unsigned x_node = 0; x_node < Nx; ++ x_node) {
+
+    //Initialize input request
+    input_list[x_node].density[0] = 0.0;
+    input_list[x_node].density[1] = 0.0;
+    input_list[x_node].density[2] = 0.0;
+    input_list[x_node].density[3] = 0.0;
+    input_list[x_node].charges[0] = 0.0;
+    input_list[x_node].charges[1] = 0.0;
+    input_list[x_node].charges[2] = 0.0;
+    input_list[x_node].charges[3] = 0.0;
+    input_list[x_node].temperature = 0.0;
+    
+    /*
+    output_list[x_node].viscosity = 0.0;
+    output_list[x_node].thermalConductivity = 0.0;
+    output_list[x_node].diffusionCoefficient[0] = 0.0;
+    output_list[x_node].diffusionCoefficient[1] = 0.0;
+    output_list[x_node].diffusionCoefficient[2] = 0.0;
+    output_list[x_node].diffusionCoefficient[3] = 0.0;
+    output_list[x_node].diffusionCoefficient[4] = 0.0;
+    output_list[x_node].diffusionCoefficient[5] = 0.0;
+    output_list[x_node].diffusionCoefficient[6] = 0.0;
+    output_list[x_node].diffusionCoefficient[7] = 0.0;
+    output_list[x_node].diffusionCoefficient[8] = 0.0;
+    output_list[x_node].diffusionCoefficient[9] = 0.0;
+
+    */
+    
+    double Tmix = 0.0;
+    double ntot = 0.0;;
+    
+    //Calculate mixture T
+    for(int sp=0; sp < nspec; sp++) {
+      Tmix += n[x_node][sp]*T[sp];
+      ntot += n[x_node][sp];
+    }
+    Tmix /= ntot;
+    
+    input_list[x_node].temperature = Tmix;
+    
+    for(int sp=0; sp < nspec; sp++) {
+      input_list[x_node].density[sp] = n[x_node][sp];
+      input_list[x_node].charges[sp] = Z[x_node][sp];
+    }
+    
+  }
+
+  //Note - who handles allocation of output_list?
+  output_list = bgk_req_batch(input_list, Nx, 0, tag, db);
+
+  //Store the results
+  for(unsigned x_node = 0; x_node < Nx; ++x_node) {
+    D_ij[x_node][0][0] = output_list[x_node].diffusionCoefficient[0];
+    D_ij[x_node][0][1] = output_list[x_node].diffusionCoefficient[1];
+    D_ij[x_node][0][2] = output_list[x_node].diffusionCoefficient[2];
+    D_ij[x_node][0][3] = output_list[x_node].diffusionCoefficient[3];
+    D_ij[x_node][1][1] = output_list[x_node].diffusionCoefficient[4];
+    D_ij[x_node][1][2] = output_list[x_node].diffusionCoefficient[5];
+    D_ij[x_node][1][3] = output_list[x_node].diffusionCoefficient[6];
+    D_ij[x_node][2][2] = output_list[x_node].diffusionCoefficient[7];
+    D_ij[x_node][2][3] = output_list[x_node].diffusionCoefficient[8];
+    D_ij[x_node][3][3] = output_list[x_node].diffusionCoefficient[9];
+    
+    // Symmetric components
+    D_ij[x_node][1][0] = D_ij[x_node][0][1];
+    D_ij[x_node][2][0] = D_ij[x_node][0][2];
+    D_ij[x_node][3][0] = D_ij[x_node][0][3];
+    D_ij[x_node][2][1] = D_ij[x_node][1][2];
+    D_ij[x_node][3][1] = D_ij[x_node][1][3];
+    D_ij[x_node][3][2] = D_ij[x_node][2][3];
+  }
+
+  free(input_list);
+  free(output_list);
+
+}
+
 
 void test_aldr() {
 
