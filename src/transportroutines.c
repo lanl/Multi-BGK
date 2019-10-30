@@ -57,7 +57,7 @@ void initialize_transport(int bcs, double ****f, int numV, int numX, int nspec, 
       f_star[l][i] = malloc(N * N * N * sizeof(double));
       for(j=0; j<N*N*N; j++){
         //makes sure f_star starts with same bcs as f.
-        f_star[l][i][j] = (*f)[l][i][j]
+        f_star[l][i][j] = (*f)[l][i][j];
       }
   }
 
@@ -539,7 +539,7 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
 }
 
 // does a first order splitting, solving v first and returns the updated f
-void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp, int *bcs) {
+void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp) {
   upwindOne_v(f, f_star, PoisPot, qm, m, c[sp], sp);
   upwindOne_x(f_star, f, c[sp], sp);
 }
