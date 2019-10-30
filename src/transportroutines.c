@@ -33,7 +33,7 @@ double minmod(double in1, double in2, double in3) {
     return 0;
 }
 
-void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes,
+void initialize_transport(int bcs, double ****f, int numV, int numX, int nspec, double *xnodes,
                           double *dxnodes, double Lx_val, double **vel, int ord,
                           double timestep) {
   BC = bcs;
@@ -49,12 +49,16 @@ void initialize_transport(int bcs, int numV, int numX, int nspec, double *xnodes
   order = ord;
   dt = timestep;
 
-  int i, l;
+  int i, l,j;
   f_star = (double ***)malloc((nX + 2 * order) * sizeof(double **));
   for (l = 0; l < nX + 2 * order; l++) {
     f_star[l] = (double **)malloc(nspec * sizeof(double *));
     for (i = 0; i < nspec; i++)
       f_star[l][i] = malloc(N * N * N * sizeof(double));
+      for(j=0; j<N*N*N; j++){
+        //makes sure f_star starts with same bcs as f.
+        f_star[l][i][j] = (*f)[l][i][j]
+      }
   }
 
   x = xnodes;
@@ -535,7 +539,7 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
 }
 
 // does a first order splitting, solving v first and returns the updated f
-void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp) {
+void advectOne(double ***f, double *PoisPot, double **qm, double m, int sp, int *bcs) {
   upwindOne_v(f, f_star, PoisPot, qm, m, c[sp], sp);
   upwindOne_x(f_star, f, c[sp], sp);
 }
