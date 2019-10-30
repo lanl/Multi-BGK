@@ -758,7 +758,7 @@ int main(int argc, char **argv) {
   }
 
   if (dims == 1) {
-
+    printf("Setting initial conditions for 1D\n");
     // check if we are loading moment data from a file
     // Note: This is not yet MPI-ified
     if (input_file_data_flag) {
@@ -817,6 +817,7 @@ int main(int argc, char **argv) {
         }
       }
     }
+    printf("Code breaks at initialize transport.")
     initialize_transport(bcs, &f, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
 
     if (rank == 0) {
