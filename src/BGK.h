@@ -14,3 +14,10 @@ void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta, d
 void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te);
 
 void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te);
+
+#ifdef ALDR_ON
+void get_diffusion_from_MD_0d(double *n, double *T, double *Z, char *tag, char *dbname);
+
+void set_diffusion_from_MD_1d(double **Dij_in);
+
+#endif
