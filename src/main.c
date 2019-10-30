@@ -698,7 +698,7 @@ int main(int argc, char **argv) {
     f_tmp = malloc((Nx_rank + 2 * order) * sizeof(double *));
     f_conv = malloc((Nx_rank + 2 * order) * sizeof(double *));
     if(eq_flag){
-      fprev = malloc((Nx_rank + 2*order) * sizeof(double *))
+      fprev = malloc((Nx_rank + 2*order) * sizeof(double *));
     }
 
     for (l = 0; l < (Nx_rank + 2 * order); l++) {
