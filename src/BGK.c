@@ -409,6 +409,26 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
   // printf("%d %d %g %g\n",i,j,1.0 / *nuij,1.0 / *nuji);
 }
 
+#ifdef ALDR_ON
+
+// This fills the Dij array
+void get_diffusion_from_MD_0d(double *n, double *T, double *Z, char *tag, char *dbname) {
+  request_aldr_single(n, T, Z, tag, dbname, Dij_from_MD);
+}
+
+
+//Sets the individual Dij array, since the BGK operator interface is geared to 0D
+// Super kludgy...
+void set_diffusion_from_MD_1d(double **Dij_in) {
+  for(int i=0; i < 4; i++) {
+    for(int j=0; j < 4; j++) {
+      Dij_from_MD[i][j] = Dij_in[i][j];
+    }
+  }
+}
+
+#endif
+
 void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
                     int ec, int CL, int itype, int MorT, int tFlag,
                     char *filename) {
@@ -468,12 +488,13 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
 
   // Allocate for Dij
   // NOTE - hard coded for the interface at the moment
-  if ((tauFlag == 2) || (tauFlag == 3)) {
+  if ((tauFlag == 2) || (tauFlag == 3) || (tauFlag == 4)) {
     Dij_from_MD = malloc(4 * sizeof(double *));
     for (i = 0; i < 4; i++) {
       Dij_from_MD[i] = malloc(4 * sizeof(double));
     }
   }
+
 }
 
 // Does explicit update of the distribution functions f at a single grid point.
@@ -544,12 +565,6 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   if (tauFlag == 2) {
     load_diffusion_homog(Dij_from_MD, data_filename);
   }
-
-  #ifdef ALDR_ON
-  if (tauFlag == 3) {
-    request_aldr(n, T, Z, "dummy", "dummy.db", Dij_from_MD);
-  }
-  #endif
   
   // do ij and ji at the same time
   for (i = 0; i < nspec; i++) {
@@ -572,7 +587,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
-      } else if ((tauFlag == 2) || (tauFlag == 3)) { // Note to self - need to fix to mixture temperature?
+      } else if ((tauFlag == 2) || (tauFlag == 3) || (tauFlag == 4)) { // Note to self - need to fix to mixture temperature?
         nu11 = rhotot * rhotot * Dij_from_MD[i][i] * n[i] /
                (ntot * T[i] / ERG_TO_EV_CGS * n[i] * (m[i] + m[i]));
         nu12 = rhotot * rhotot * Dij_from_MD[i][j] * n[i] /
@@ -580,8 +595,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu12 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
                (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
       }
-      else if (tauFlag != 3) {
-        printf("Error: set tauflag to 0, 1, or 2\n");
+      else {
+        printf("Error: set tauflag to 0, 1, 2, 3. or 4\n");
         printf("Tauflag %d\n", tauFlag);
         exit(37);
       }

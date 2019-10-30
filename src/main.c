@@ -90,6 +90,10 @@ int main(int argc, char **argv) {
   double *H_spec, *H_spec_prev;
   double **BGK_f_minus_eq, **BGK_f_minus_eq_init;
 
+  #ifdef ALDR_ON
+  double ***Dij_from_MD_1d;
+  #endif
+  
   double T0;
   double *Te_arr, *Te_arr_allranks;
   double Te_ref; // background electron temperature for interface problem
@@ -219,6 +223,18 @@ int main(int argc, char **argv) {
     BGK_f_minus_eq_init[i] = malloc(nspec * sizeof(double));
   }
 
+  #ifdef ALDR_ON
+  if((tauFlag == 4) && (dims == 1)) {
+    Dij_from_MD_1d = malloc(Nx*sizeof(double **));
+    for(int xnode_dij = 0; xnode_dij < Nx; xnode_dij++) {
+      Dij_from_MD_1d[xnode_dij] = malloc(4 * sizeof(double *));
+      for(int sp_dij =0 ; sp_dij < 4; sp_dij++) {
+	Dij_from_MD_1d[xnode_dij][i] = malloc(4 * sizeof(double));
+      }
+    }
+  }
+  #endif
+  
   if ((dims == 0) || (rank == 0)) {
     for (i = 0; i < nspec; i++) {
       strcpy(dens_path, output_path);
@@ -875,8 +891,13 @@ int main(int argc, char **argv) {
       if (im_ex == 0) {
 
         // pick yer poison
-        if (BGK_type == 0)
+        if (BGK_type == 0) {
+	  #ifdef ALDR_ON
+	  if(tauFlag == 3)
+	    get_diffusion_from_MD_0d(n_zerod, T_zerod, Z_zerod, "dummy", "dummy.db");
+	  #endif
           BGK_ex(f_zerod, f_zerod_tmp, Z_zerod, dt, T0);
+	}
         else if (BGK_type == 1)
           BGK_Greene(f_zerod, f_zerod_tmp, Z_max, dt, beta, T0);
         else if (BGK_type == 2)
@@ -1254,7 +1275,20 @@ int main(int argc, char **argv) {
         if (!(BGK_type < 0)) {
           // COLLIDE
           if (im_ex == 0) {
+
+            #ifdef ALDR_ON
+	    //Note - might want to update these moments first
+	    if(tauFlag == 4)
+	      request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
+	    #endif
+
             for (l = 0; l < Nx_rank; l++) {
+	      
+	      #ifdef ALDR_ON
+	      if(tauFlag == 4)
+		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
+	      #endif
+	      
               BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
               for (i = 0; i < nspec; i++)
                 for (j = 0; j < Nv * Nv * Nv; j++)

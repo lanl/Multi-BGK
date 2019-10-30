@@ -349,7 +349,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbf
     
     //Calculate mixture T
     for(int sp=0; sp < nspec; sp++) {
-      Tmix += n[x_node][sp]*T[sp];
+      Tmix += n[x_node][sp]*T[x_node][sp];
       ntot += n[x_node][sp];
     }
     Tmix /= ntot;
