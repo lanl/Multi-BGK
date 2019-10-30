@@ -759,8 +759,6 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
-    initialize_transport(bcs, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
-
     // check if we are loading moment data from a file
     // Note: This is not yet MPI-ified
     if (input_file_data_flag) {
@@ -819,7 +817,7 @@ int main(int argc, char **argv) {
         }
       }
     }
-    initialize_transport(bcs, &f, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt)
+    initialize_transport(bcs, &f, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
 
     if (rank == 0) {
       printf("Initial condition setup complete\n");
