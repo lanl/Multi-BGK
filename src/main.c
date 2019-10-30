@@ -1271,12 +1271,21 @@ int main(int argc, char **argv) {
         }
 
         // Next strang step - x advection with timestep dt/2
+<<<<<<< HEAD
 
         // RK2 Step 1
         for (i = 0; i < nspec; i++) {
           advectTwo_x(f, f_conv, i);
         }
 
+=======
+
+        // RK2 Step 1
+        for (i = 0; i < nspec; i++) {
+          advectTwo_x(f, f_conv, i);
+        }
+
+>>>>>>> c9414c23ae57e89297706f686fb324d0af79c8a5
         for (l = 0; l < Nx_rank; l++){
           for (i = 0; i < nspec; i++){
             //#pragma omp parallel for private(j)
@@ -1378,6 +1387,7 @@ int main(int argc, char **argv) {
 
         //CONCERN: WE DO A SECOND POISSON SOLVE WITHOUT FIRST UPDATING THE MIXTURE TEMPERATURE
         //CHANGE RESULTING FROM THE ABOVE ADVECTION.
+<<<<<<< HEAD
 
         //see line 1044
         poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
@@ -1388,6 +1398,18 @@ int main(int argc, char **argv) {
 
         // Finished with determining poisson solve, now advect
 
+=======
+
+        //see line 1044
+        poisson_solver(MPI_COMM_WORLD, &rank, &numRanks, &status, &Nx, &Nx_ranks, &Nx_rank,
+                        &ecouple, &bcs, &poissFlavor, &ionFix, &nspec, &Z_max, &Te_ref, 
+                        &Te_start, &order, &dx, &Lx, &t, &tfinal, &Te_arr, &Te_arr_allranks,
+                        &T0_oned, &n_oned, &Z_oned, &source, &source_buf, &source_allranks,
+                        &PoisPot, &PoisPot_allranks, &T0_bcs, &n_bcs, &Z_bcs, &Te_bcs);
+
+        // Finished with determining poisson solve, now advect
+
+>>>>>>> c9414c23ae57e89297706f686fb324d0af79c8a5
         // RK2 Step 1
         for (i = 0; i < nspec; i++) {
           advectTwo_v(f, f_conv, PoisPot, Z_oned, m[i], i);
