@@ -1278,8 +1278,9 @@ int main(int argc, char **argv) {
 
             #ifdef ALDR_ON
 	    //Note - might want to update these moments first
-	    if(tauFlag == 4)
+	    if(tauFlag == 4) {
 	      request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
+	    }
 	    #endif
 
             for (l = 0; l < Nx_rank; l++) {
