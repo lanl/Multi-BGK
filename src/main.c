@@ -472,6 +472,10 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
+    #ifdef ALDR_ON
+    io_init_db("dummy.db");
+    #endif
+
     // Physical grid allocation and initialization
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
