@@ -589,7 +589,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                (ntot * T[i] / ERG_TO_EV_CGS * n[i] * (m[i] + m[i]));
         nu12 = rhotot * rhotot * Dij_from_MD[i][j] * n[i] /
                (ntot * T[i] / ERG_TO_EV_CGS * n[j] * (m[i] + m[j]));
-        nu12 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
+        nu21 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
                (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
       }
       else {
