@@ -229,7 +229,7 @@ int main(int argc, char **argv) {
     for(int xnode_dij = 0; xnode_dij < Nx; xnode_dij++) {
       Dij_from_MD_1d[xnode_dij] = malloc(4 * sizeof(double *));
       for(int sp_dij =0 ; sp_dij < 4; sp_dij++) {
-	Dij_from_MD_1d[xnode_dij][i] = malloc(4 * sizeof(double));
+	Dij_from_MD_1d[xnode_dij][sp_dij] = malloc(4 * sizeof(double));
       }
     }
   }
