@@ -1024,6 +1024,7 @@ int main(int argc, char **argv) {
           rhotot += m[i] * n_oned[l][i];
           getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
         }
+
         // get mixture mass avg velocity
         for (j = 0; j < 3; j++) {
           v0_oned[l][j] = 0.0;
@@ -1032,7 +1033,8 @@ int main(int argc, char **argv) {
           v0_oned[l][j] = v0_oned[l][j] / rhotot;
         }
       }
-
+      printf("Setting T0\n");
+     
       // Set T0 in all cells
       for (l = 0; l < Nx_rank; l++) {
         if (ecouple == 2)
@@ -1069,7 +1071,7 @@ int main(int argc, char **argv) {
           }
         }
       }
-
+      printf("Setting hydro kinetic scheme.");
       // Flag - do we want to run this like the kinetic scheme for hydro
       if (hydro_kinscheme_flag == 1) {
         for (l = 0; l < Nx_rank; l++)
@@ -1304,20 +1306,23 @@ int main(int argc, char **argv) {
             if (im_ex == 0) {
               // Step 1
               BGK_ex(f[l + order], f_conv[l + order], Z_oned[l], dt, Te_arr[l]);
-              for (i = 0; i < nspec; i++)
-                for (j = 0; j < Nv * Nv * Nv; j++)
+              for (i = 0; i < nspec; i++){
+                for (j = 0; j < Nv * Nv * Nv; j++){
                   f_conv[l+order][i][j] = dt*f_conv[l+order][i][j];
-                  f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
-
+                  f_tmp[l + order][i][j] += f_conv[l+order][i][j] < -1*(f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+                }
+              }
               // Step 2
               BGK_ex(f_tmp[l + order], f_conv[l + order], Z_oned[l], dt,
                       Te_arr[l]);
-              for (i = 0; i < nspec; i++)
-                for (j = 0; j < Nv * Nv * Nv; j++)
+              for (i = 0; i < nspec; i++){
+                for (j = 0; j < Nv * Nv * Nv; j++){
                   f_conv[l+order][i][j] = 0.5*dt*f_conv[l+order][i][j];
                   f[l+order][i][j] = 0.5*(f[l+order][i][j] + f_tmp[l+order][i][j]);
                   f_tmp[l + order][i][j] += (f_conv[l+order][i][j] < -1*f_tmp[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
                   f[l+order][i][j] += (f_conv[l+order][i][j] < -1*f[l+order][i][j]) ? 0.0 : f_conv[l+order][i][j];
+                }
+              }
             }
 
             else if (im_ex == 1) {

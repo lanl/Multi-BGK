@@ -8,7 +8,7 @@ SRCDIR=$(DIR)src/
 CC=mpicc
 
 # Compiler flags
-CFLAGS= -O0  -Wall
+CFLAGS= -O0  -Wall -g
 
 LIBFLAGS = -lm -lgsl -lgslcblas -fopenmp
 
