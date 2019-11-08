@@ -21,7 +21,6 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
   int i,j,k,l,s;
   int int_id, tmp_order, llim;
   int vIndex,inputIndex;
-
   llim = Nx + 2*order;
   for(l=0;l<llim;l++) {
 
@@ -53,13 +52,11 @@ void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double 
           T_oned[l-order][s] = 0.0;
         }
       }       
-      
       //set distribution data
       for(i=0;i<Nv;i++){
 	      for(j=0;j<Nv;j++){
 	        for(k=0;k<Nv;k++) {
 	          vIndex = k + Nv*(j + Nv*i);	    
-
  	          if(ndens_in[inputIndex] != 0.0) {
                f[l][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
 		           exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*

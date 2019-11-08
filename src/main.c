@@ -813,13 +813,10 @@ int main(int argc, char **argv) {
           }
           printf("T0_left:%g, T0_right:%g\n", T0_bcs[0], T0_bcs[1]);
           //Set ghost cells in intermediate f vals. 
-
         }
       }
     }
-    printf("Code breaks at initialize transport.")
-    initialize_transport(bcs, &f, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
-
+    initialize_transport(bcs, f, Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
     if (rank == 0) {
       printf("Initial condition setup complete\n");
       fflush(stdout);

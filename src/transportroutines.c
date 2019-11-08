@@ -33,7 +33,7 @@ double minmod(double in1, double in2, double in3) {
     return 0;
 }
 
-void initialize_transport(int bcs, double ****f, int numV, int numX, int nspec, double *xnodes,
+void initialize_transport(int bcs, double ***f, int numV, int numX, int nspec, double *xnodes,
                           double *dxnodes, double Lx_val, double **vel, int ord,
                           double timestep) {
   BC = bcs;
@@ -50,15 +50,16 @@ void initialize_transport(int bcs, double ****f, int numV, int numX, int nspec, 
   dt = timestep;
 
   int i, l,j;
-  f_star = (double ***)malloc((nX + 2 * order) * sizeof(double **));
+  f_star = malloc((nX + 2 * order) * sizeof(double *));
   for (l = 0; l < nX + 2 * order; l++) {
-    f_star[l] = (double **)malloc(nspec * sizeof(double *));
-    for (i = 0; i < nspec; i++)
+    f_star[l] = malloc(nspec * sizeof(double *));
+    for (i = 0; i < nspec; i++){
       f_star[l][i] = malloc(N * N * N * sizeof(double));
       for(j=0; j<N*N*N; j++){
         //makes sure f_star starts with same bcs as f.
-        f_star[l][i][j] = (*f)[l][i][j];
+        f_star[l][i][j] = f[l][i][j];
       }
+    }
   }
 
   x = xnodes;
