@@ -592,12 +592,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
       } else if ((tauFlag == 2) || (tauFlag == 3) || (tauFlag == 4)) { // Note to self - need to fix to mixture temperature?
-        nu11 = rhotot * rhotot * Dij_from_MD[i][i] * n[i] /
-               (ntot * T[i] / ERG_TO_EV_CGS * n[i] * (m[i] + m[i]));
-        nu12 = rhotot * rhotot * Dij_from_MD[i][j] * n[i] /
-               (ntot * T[i] / ERG_TO_EV_CGS * n[j] * (m[i] + m[j]));
-        nu21 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
-               (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
+	
+        nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot  
+	       * n[j] * (m[i] + m[j]) / Dij_from_MD[i][j];
+
 	printf("tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n", 1.0/nu11, 1.0/nu12, 1.0/nu21, i, j, Dij_from_MD[i][i], Dij_from_MD[i][j], Dij_from_MD[j][i]);
       }
       else {
@@ -606,7 +604,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         exit(37);
       }
 
-      // if(i != j)
+â      // if(i != j)
       // printf("i: %d j: %d tauij: %g tauji: %g Te:
       // %g\n",i,j,1.0/nu12,1.0/nu21,Te);
 
@@ -641,7 +639,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                        (n[i] * nu12 + n[j] * nu21) +
                    ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
                                     rho[j] * nu21 * (v2_2 - mixU_sq)) /
-                       (3.0 * (n[i] * nu12 + n[j] * nu21));
+ˆ                       (3.0 * (n[i] * nu12 + n[j] * nu21));
           } else {
             // simplified formulas for mixT
             double vdiff2 = (v[i][0] - v[j][0]) * (v[i][0] - v[j][0]) +
@@ -676,6 +674,12 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
         }
       }
+
+        nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
+	  * n[j] * (m[i] + m[j]) /  Dij_from_MD[i][j]; 
+        nu21 = nu12 * n[i] / n[j];
+	nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
+	  * n[i] * (m[i] + m[i]) /  Dij_from_MD[i][i]; 
     }
   }
 
