@@ -604,7 +604,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         exit(37);
       }
 
-â      // if(i != j)
+      // if(i != j)
       // printf("i: %d j: %d tauij: %g tauji: %g Te:
       // %g\n",i,j,1.0/nu12,1.0/nu21,Te);
 
@@ -636,10 +636,10 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           if (tauFlag == 1) {
             // original formula for mixT
             mixT = (n[i] * nu12 * T[i] + n[j] * nu21 * T[j]) /
-                       (n[i] * nu12 + n[j] * nu21) +
-                   ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
+	      (n[i] * nu12 + n[j] * nu21) +
+	      ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
                                     rho[j] * nu21 * (v2_2 - mixU_sq)) /
-ˆ                       (3.0 * (n[i] * nu12 + n[j] * nu21));
+	      (3.0 * (n[i] * nu12 + n[j] * nu21));
           } else {
             // simplified formulas for mixT
             double vdiff2 = (v[i][0] - v[j][0]) * (v[i][0] - v[j][0]) +
