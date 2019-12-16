@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef NDENS_TOL
+#define NDENS_TOL 1e10
+#endif
+
 static double mu;
 static int Nv;
 static int nspec;
@@ -568,7 +572,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n[i] > 1.0e-10) && (n[j] > 1.0e-10)) {
+        if ((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
@@ -591,6 +595,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                (ntot * T[i] / ERG_TO_EV_CGS * n[j] * (m[i] + m[j]));
         nu21 = rhotot * rhotot * Dij_from_MD[j][i] * n[j] /
                (ntot * T[j] / ERG_TO_EV_CGS * n[i] * (m[i] + m[j]));
+	printf("tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n", 1.0/nu11, 1.0/nu12, 1.0/nu21, i, j, Dij_from_MD[i][i], Dij_from_MD[i][j], Dij_from_MD[j][i]);
       }
       else {
         printf("Error: set tauflag to 0, 1, 2, 3. or 4\n");
@@ -605,7 +610,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= 1e-10) {
+        if (n[j] >= NDENS_TOL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
@@ -613,7 +618,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
         }
       } else {
-        if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
+        if (!((n[i] < NDENS_TOL) || (n[j] < NDENS_TOL))) {
 
           // Get Maxwell cross terms
           mixU_sq = 0.0;
@@ -686,7 +691,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
       collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
 
-      if (n[j] > 1e-10) {
+      if (n[j] > NDENS_TOL) {
 
         // Get Maxwell cross terms
 
@@ -1034,7 +1039,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n_linear[i] > 1.0e-10) && (n_linear[j] > 1.0e-10)) {
+        if ((n_linear[i] > NDENS_TOL) && (n_linear[j] > NDENS_TOL)) {
           getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, i, j);
         }
 
@@ -1212,7 +1217,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n[i] > 1.0e-10) && (n[j] > 1.0e-10)) {
+        if ((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
@@ -1232,7 +1237,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= 1e-10) {
+        if (n[j] >= NDENS_TOL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
@@ -1244,7 +1249,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
         } else
           f_err[i][j] = 0.0;
       } else {
-        if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
+        if (!((n[i] < NDENS_TOL) || (n[j] < NDENS_TOL))) {
 
           // Get Maxwell cross terms
           for (k = 0; k < 3; k++) {
