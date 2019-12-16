@@ -270,21 +270,34 @@ void request_aldr_single(double *n, double *T, double *Z, char *tag, char *dbfil
   output.diffusionCoefficient[9] = 0.0;
 
   double Tmix = 0.0;
-  double ntot = 0.0;;
+  double ntot = 0.0;
 
-  //Calculate mixture T
-  for(int sp=0; sp < nspec; sp++) {
-    Tmix += n[sp]*T[sp];
-    ntot += n[sp];
-  }
-  Tmix /= ntot;
   
   input.temperature = Tmix;
   
   for(int sp=0; sp < nspec; sp++) {
-    input.density[sp] = n[sp];
+    if(n[sp] > 1.0e10)
+      input.density[sp] = n[sp];
+    else
+      input.density[sp] = 0.0;
+
     input.charges[sp] = Z[sp];
   }
+
+  //Calculate mixture T
+  for(int sp=0; sp < nspec; sp++) {
+    if(n[sp] > 1.0e10) {
+      Tmix += n[sp]*T[sp];
+      ntot += n[sp];
+    }
+  }
+  if(ntot == 0.0) {
+    printf("Error - zero number density\n");
+    exit(37);
+  }
+
+  Tmix /= ntot;
+
 
   output = bgk_req_single(input, 0, tag, db);
   
@@ -348,20 +361,33 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbf
     
     double Tmix = 0.0;
     double ntot = 0.0;;
+
+    for(int sp=0; sp < nspec; sp++) {
+      if(n[x_node][sp] > 1e10) {
+	input_list[x_node].density[sp] = n[x_node][sp];
+      }
+      else {
+	input_list[x_node].density[sp] = 0.0;
+      }
+      input_list[x_node].charges[sp] = Z[x_node][sp];
+    }
     
     //Calculate mixture T
     for(int sp=0; sp < nspec; sp++) {
-      Tmix += n[x_node][sp]*T[x_node][sp];
-      ntot += n[x_node][sp];
+      if(n[x_node][sp] > 1e10) {
+	Tmix += n[x_node][sp]*T[x_node][sp];
+	ntot += n[x_node][sp];
+      }
+    }
+
+    if(ntot == 0.0) {
+      printf("Error - zero number density in cell %d\n", x_node);
+      exit(37);
     }
     Tmix /= ntot;
     
     input_list[x_node].temperature = Tmix;
     
-    for(int sp=0; sp < nspec; sp++) {
-      input_list[x_node].density[sp] = n[x_node][sp];
-      input_list[x_node].charges[sp] = Z[x_node][sp];
-    }
     
   }
 
