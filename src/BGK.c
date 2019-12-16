@@ -590,8 +590,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu21 = nu_from_MD[j][i];
       } else if ((tauFlag == 2) || (tauFlag == 3) || (tauFlag == 4)) { // Note to self - need to fix to mixture temperature?
 	
-        nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot  
-	       * n[j] * (m[i] + m[j]) / Dij_from_MD[i][j];
+        nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
+	  * n[j] * (m[i] + m[j]) /  Dij_from_MD[i][j]; 
+        nu21 = nu12 * n[i] / n[j];
+	nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
+	  * n[i] * (m[i] + m[i]) /  Dij_from_MD[i][i]; 
 
 	printf("tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n", 1.0/nu11, 1.0/nu12, 1.0/nu21, i, j, Dij_from_MD[i][i], Dij_from_MD[i][j], Dij_from_MD[j][i]);
       }
@@ -672,11 +675,6 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         }
       }
 
-        nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
-	  * n[j] * (m[i] + m[j]) /  Dij_from_MD[i][j]; 
-        nu21 = nu12 * n[i] / n[j];
-	nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
-	  * n[i] * (m[i] + m[i]) /  Dij_from_MD[i][i]; 
     }
   }
 
