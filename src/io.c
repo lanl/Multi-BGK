@@ -8,6 +8,10 @@
 #include <sqlite3.h>
 #endif
 
+#ifndef NDENS_TOL
+#define NDENS_TOL 1e10
+#endif
+
 static int Nx;
 static int Nv;
 static int nspec;
@@ -276,7 +280,7 @@ void request_aldr_single(double *n, double *T, double *Z, char *tag, char *dbfil
   input.temperature = Tmix;
   
   for(int sp=0; sp < nspec; sp++) {
-    if(n[sp] > 1.0e10)
+    if(n[sp] > NDENS_TOL)
       input.density[sp] = n[sp];
     else
       input.density[sp] = 0.0;
@@ -286,7 +290,7 @@ void request_aldr_single(double *n, double *T, double *Z, char *tag, char *dbfil
 
   //Calculate mixture T
   for(int sp=0; sp < nspec; sp++) {
-    if(n[sp] > 1.0e10) {
+    if(n[sp] > NDENS_TOL) {
       Tmix += n[sp]*T[sp];
       ntot += n[sp];
     }
@@ -363,7 +367,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbf
     double ntot = 0.0;;
 
     for(int sp=0; sp < nspec; sp++) {
-      if(n[x_node][sp] > 1e10) {
+      if(n[x_node][sp] > NDENS_TOL) {
 	input_list[x_node].density[sp] = n[x_node][sp];
       }
       else {
@@ -374,7 +378,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbf
     
     //Calculate mixture T
     for(int sp=0; sp < nspec; sp++) {
-      if(n[x_node][sp] > 1e10) {
+      if(n[x_node][sp] > NDENS_TOL) {
 	Tmix += n[x_node][sp]*T[x_node][sp];
 	ntot += n[x_node][sp];
       }
