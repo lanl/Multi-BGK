@@ -623,8 +623,8 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
           for (int vz = 0; vz < Nv; vz++) {
             int index = vz + Nv * (vy + Nv * vx);
             c1_TNB[0] = c[sp][vx];
-            c1_TNB[0] = c[sp][vy];
-            c1_TNB[0] = c[sp][vz];
+            c1_TNB[1] = c[sp][vy];
+            c1_TNB[2] = c[sp][vz];
 
             // tail depletion
             f_out[sp][index] -=
@@ -656,7 +656,7 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
 }
 
 void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
-            double mu, double *n, double **v, double *T) {
+            double dt, double mu, double *n, double **v, double *T) {
 
   char buffer[50];
   double c1_TNB[3];
@@ -680,8 +680,8 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
 
             // tail depletion of D and T
             deplete = GetTNB_dt(mu, f[sp2], c1_TNB, sp, sp2);
-            f_out[sp][index] -= f[sp][index] * deplete;
-            f_out[sp2][index] -= f[sp2][index] * deplete;
+            f_out[sp][index] -= f[sp][index] * deplete * dt;
+            f_out[sp2][index] -= f[sp2][index] * deplete * dt;
           }
     }
 
