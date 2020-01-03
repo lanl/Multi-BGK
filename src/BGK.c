@@ -34,6 +34,9 @@ static double *T;
 static double *nu_tot, **nu;
 static double **nu_from_MD;
 
+//Number density under which we do not collide particles, due to lack of statistics
+#define EPS_COLL 1e6
+
 // parameters for Stanton-Murillo fit data
 static double a_1 = 1.4660;
 static double a_2 = -1.7836;
@@ -529,7 +532,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n[i] > 1.0e-10) && (n[j] > 1.0e-10)) {
+        if ((n[i] > EPS_COLL) && (n[j] > EPS_COLL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
@@ -557,7 +560,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= 1e-10) {
+        if (n[j] >= EPS_COLL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
@@ -565,7 +568,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
         }
       } else {
-        if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
+        if (!((n[i] < EPS_COLL) || (n[j] < EPS_COLL))) {
 
           // Get Maxwell cross terms
           mixU_sq = 0.0;
@@ -638,7 +641,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
       collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
 
-      if (n[j] > 1e-10) {
+      if (n[j] > EPS_COLL) {
 
         // Get Maxwell cross terms
 
@@ -986,7 +989,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n_linear[i] > 1.0e-10) && (n_linear[j] > 1.0e-10)) {
+        if ((n_linear[i] > EPS_COLL) && (n_linear[j] > EPS_COLL)) {
           getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, i, j);
         }
 
@@ -1007,15 +1010,18 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
   // Add the electron piece if needed
   if (ecouple == 1) {
     for (j = 0; j < nspec; j++) {
-      //-1 says the other species is electrons with a fixed temperature
-      getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
-
-      // Electron-ion collisions
-      nu_linear[j][nspec] = nu21;
-
-      // The ecouple 1 assumption has a specified background electron
-      // temperature, so the ions do not change it.
-      nu_linear[nspec][j] = 0.0;
+        if(n_linear[j] > EPS_COLL) {
+            //-1 says the other species is electrons with a fixed temperature
+            getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
+            
+            // Electron-ion collisions
+            nu_linear[j][nspec] = nu21;
+            nu_linear[nspec][j] = nu12;
+        }
+        else {
+            nu_linear[j][nspec] = 0.0;
+            nu_linear[nspec][j] = 0.0;
+        }
     }
     nu_linear[nspec][nspec] = 0.0;
   }
@@ -1164,7 +1170,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
-        if ((n[i] > 1.0e-10) && (n[j] > 1.0e-10)) {
+        if ((n[i] > EPS_COLL) && (n[j] > EPS_COLL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
@@ -1184,7 +1190,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= 1e-10) {
+        if (n[j] >= EPS_COLL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
@@ -1196,7 +1202,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
         } else
           f_err[i][j] = 0.0;
       } else {
-        if (!((n[i] < 1e-10) || (n[j] < 1e-10))) {
+        if (!((n[i] < EPS_COLL) || (n[j] < EPS_COLL))) {
 
           // Get Maxwell cross terms
           for (k = 0; k < 3; k++) {

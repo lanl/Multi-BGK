@@ -107,13 +107,9 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
   for (i = 0; i < nspec; i++) {
     rowsum = 0;
     for (j = 0; j < nspec; j++) {
-      if (conserveFlag == 1) { // electron background case
-        value = nu[i][j];
-      } else {
         value = nu[i][j] * gsl_matrix_get(alpha, j, i);
-      }
-      gsl_matrix_set(A, i, j, value);
-      rowsum += value;
+        gsl_matrix_set(A, i, j, value);
+        rowsum += value;
     }
     gsl_matrix_set(D, i, i, rowsum);
   }
@@ -172,11 +168,7 @@ void implicitTemperatureUpdate(double *Told, double *m, double *n,
     frictionVal = 0.0;
 
     for (j = 0; j < nspec; j++) {
-      if (conserveFlag == 1) {
-        valueB = nu[i][j];
-      } else {
         valueB = nu[i][j] * gsl_matrix_get(beta, j, i);
-      }
 
       rowvalB += valueB;
 
