@@ -30,8 +30,6 @@ static double collmin;
 static int tauFlag;
 static int TNBFlag;
 static double t;
-static int first_DD = 1;
-static int first_DT = 1;
 
 static double *n;
 static double *rho;
@@ -41,7 +39,9 @@ static double *nu_tot, **nu;
 static double **nu_from_MD;
 
 //Number density under which we do not collide particles, due to lack of statistics
+#ifndef EPS_COLL
 #define EPS_COLL 1e6
+#endif
 
 // parameters for Stanton-Murillo fit data
 static double a_1 = 1.4660;
@@ -490,8 +490,6 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 
   int i, j, k;
 
-  FILE *fpii, *fpij;
-
   // get moments
 
   ntot = 0.0;
@@ -573,68 +571,19 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= EPS_COLL) {
+        if (n[i] >= EPS_COLL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
-
-          // Check do see if this is DD
-          if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
-            double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
-            char buffer[50];
-            double c1_TNB[3];
-
-            R_BGK_DD_HE = GetReactivity_dd_He(mu, f[i], f[i], i, i);
-            R_BGK_DD_T = GetReactivity_dd_T(mu, f[i], f[i], i, i);
-            R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
-            printf("DD Reactivity: %g - n %g v %g, T %g \n", R_BGK_DD, n[j],
-                   v[j][0], T[j]);
-
-            if (TNBFlag == 2) {
-              for (int vx = 0; vx < Nv; vx++)
-                for (int vy = 0; vy < Nv; vy++)
-                  for (int vz = 0; vz < Nv; vz++) {
-                    int index = vz + Nv * (vy + Nv * vx);
-                    c1_TNB[0] = c[i][vx];
-                    c1_TNB[0] = c[i][vy];
-                    c1_TNB[0] = c[i][vz];
-
-                    // tail depletion
-                    f_out[i][index] -=
-                        f[i][index] * GetTNB_dd_He(mu, f[i], c1_TNB, i, i);
-                    f_out[i][index] -=
-                        f[i][index] * GetTNB_dd_T(mu, f[i], c1_TNB, i, i);
-                  }
-            }
-
-            sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
-            if (first_DD) {
-              fpii = fopen(buffer, "w");
-              first_DD = 0;
-            } else
-              fpii = fopen(buffer, "a");
-            fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j],
-                    R_BGK_DD_HE, R_BGK_DD_T);
-            fclose(fpii);
-          }
-        } else {
-          char buffer[50];
-
-          if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
-            sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
-
-            if (first_DD) {
-              fpii = fopen(buffer, "w");
-              first_DD = 0;
-            } else
-              fpii = fopen(buffer, "a");
-            fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[i], T[j], 0.0, 0.0);
-            fclose(fpii);
-          }
+          }          
+        // Check do see if this is DD, do TNB if needed
+        if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
+            TNB_DD(f, f_out, i, rank, TNBFlag, mu, n, v, T);
         }
-      } else {
+      }
+      else { // ij case
         if (!((n[i] < EPS_COLL) || (n[j] < EPS_COLL))) {
 
           // Get Maxwell cross terms
@@ -689,58 +638,18 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
 
-          // Check for DT reaction
-          if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
-            double R_BGK_DT = GetReactivity_dt(mu, f[i], f[j], i, j);
-            char buffer[50];
-            double c1_TNB[3];
-            double deplete = 0;
-
-            printf("DT Reactivity: %g\n", R_BGK_DT);
-
-            if (TNBFlag == 2) {
-              for (int vx = 0; vx < Nv; vx++)
-                for (int vy = 0; vy < Nv; vy++)
-                  for (int vz = 0; vz < Nv; vz++) {
-                    int index = vz + Nv * (vy + Nv * vx);
-                    c1_TNB[0] = c[i][vx];
-                    c1_TNB[0] = c[i][vy];
-                    c1_TNB[0] = c[i][vz];
-
-                    // tail depletion of D and T
-                    deplete = GetTNB_dt(mu, f[j], c1_TNB, i, j);
-                    f_out[i][index] -= f[i][index] * deplete;
-                    f_out[j][index] -= f[j][index] * deplete;
-                  }
-            }
-
-            sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-            if (first_DT) {
-              fpij = fopen(buffer, "w");
-              first_DT = 0;
-            } else
-              fpij = fopen(buffer, "a");
-
-            fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], R_BGK_DT);
-            fclose(fpij);
-          }
-        } else {
-          if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
-            char buffer[50];
-            sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-            if (first_DT) {
-              fpij = fopen(buffer, "w");
-              first_DT = 0;
-            } else
-              fpij = fopen(buffer, "a");
-
-            fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[i], T[j], 0.0);
-            fclose(fpij);
-          }
         }
-      }
+        
+        // Check for DT reaction
+        if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
+            TNB_DT(f, f_out, i, j, rank, TNBFlag, mu, n, v, T);
+        }
+
+      }  
+        
     }
   }
+  
 
   // now check to see if we are also colliding with untracked background
   // electrons
@@ -1197,57 +1106,13 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     }
   }
 
-  // TNB
-  if (TNBFlag == 1) {
-    // Check reactivity
-    double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
-    char buffer[50];
-    int sp, sp2;
-    FILE *fpii, *fpij;
-
-    for (sp = 0; sp < nspec; sp++) {
-
-      R_BGK_DD_HE =
-          GetReactivity_dd_He(0.5 * m[sp], f_out[sp], f_out[sp], sp, sp);
-      R_BGK_DD_T =
-          GetReactivity_dd_T(0.5 * m[sp], f_out[sp], f_out[sp], sp, sp);
-      R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
-
-      if (R_BGK_DD > 0) {
-        printf("DD Reactivity %g, mass %g\n", R_BGK_DD, 0.5 * m[sp]);
-
-        sprintf(buffer, "TNB_DD_%d.dat", rank);
-        if (first_DD) {
-          fpii = fopen(buffer, "w");
-          first_DD = 0;
-        } else
-          fpii = fopen(buffer, "a");
-        fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], R_BGK_DD_HE,
-                R_BGK_DD_T);
-        fclose(fpii);
+  if(TNBFlag > 0) {
+      for(sp = 0; sp < nspec; sp++) {          
+          TNB_DD(f, f_out, sp, rank, TNBFlag, 0.5*m[sp], n, v, T);
+          for(sp2 = sp; sp2 < nspec; sp2++) {
+              TNB_DT(f, f_out, sp, sp2, rank, TNBFlag, m[sp]*m[sp2] / (m[sp] + m[sp2]), n, v, T);
+          }
       }
-
-      for (sp2 = sp + 1; sp2 < nspec; sp2++) {
-        // printf("i %d j %d\n", sp, sp2);
-        double TNB_mu = m[sp] * m[sp2] / (m[sp] + m[sp2]);
-
-        double R_BGK_DT =
-            GetReactivity_dt(TNB_mu, f_out[sp2], f_out[sp2], sp, sp2);
-
-        if (R_BGK_DT > 0) {
-          printf("DT Reactivity %g, mass %g\n", R_BGK_DT, mu);
-
-          sprintf(buffer, "TNB_DT_%d.dat", rank);
-          if (first_DT) {
-            fpij = fopen(buffer, "w");
-            first_DT = 0;
-          } else
-            fpij = fopen(buffer, "a");
-          fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp2], T[sp2], R_BGK_DT);
-          fclose(fpij);
-        }
-      }
-    }
   }
 
   for (sp = 0; sp < nspec; sp++) {
