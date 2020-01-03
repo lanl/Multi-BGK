@@ -610,6 +610,8 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
   double c1_TNB[3];
   FILE *fpii;
 
+  sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
+  
   if (n[sp] > EPS_COLL) {
     R_BGK_DD_HE = GetReactivity_dd_He(mu, f[sp], f[sp], sp, sp);
     R_BGK_DD_T = GetReactivity_dd_T(mu, f[sp], f[sp], sp, sp);
@@ -634,7 +636,6 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
           }
     }
 
-    sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
     if (first_DD) {
       fpii = fopen(buffer, "w");
       first_DD = 0;
@@ -662,6 +663,8 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
   double c1_TNB[3];
   double deplete = 0;
 
+  sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
+
   FILE *fpij;
 
   if ((n[sp] > EPS_COLL) && (n[sp2] > EPS_COLL)) {
@@ -685,7 +688,6 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
           }
     }
 
-    sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
     if (first_DT) {
       fpij = fopen(buffer, "w");
       first_DT = 0;
