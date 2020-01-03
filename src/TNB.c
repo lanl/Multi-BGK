@@ -602,7 +602,7 @@ double GetReactivity_tt(double mu, double *in, double *in2, int sp, int sp2) {
   return result;
 }
 
-void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
+void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag, double dt,
             double mu, double *n, double **v, double *T) {
 
   double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
@@ -641,7 +641,7 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
       first_DD = 0;
     } else
       fpii = fopen(buffer, "a");
-    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], R_BGK_DD_HE,
+    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", n[sp], T[sp], R_BGK_DD_HE,
             R_BGK_DD_T);
     fclose(fpii);
   } else {
@@ -651,7 +651,7 @@ void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
     } else
       fpii = fopen(buffer, "a");
 
-    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], 0.0, 0.0);
+    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", n[sp], T[sp], 0.0, 0.0);
     fclose(fpii);
   }
 }
@@ -694,7 +694,7 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
     } else
       fpij = fopen(buffer, "a");
 
-    fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp], T[sp2], R_BGK_DT);
+    fprintf(fpij, "%5.2e %5.2e %5.2e %5.2e %10.6e \n", n[sp], n[sp2], T[sp], T[sp2], R_BGK_DT);
     fclose(fpij);
   } else {
     if (first_DT) {
@@ -702,7 +702,7 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
       first_DT = 0;
     } else
       fpij = fopen(buffer, "a");
-    fprintf(fpij, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp2], 0.0, 0.0);
+    fprintf(fpij, "%5.2e %5.2e% 5.2e %5.2e %10.6e %10.6e\n", n[sp], n[sp2], T[sp], T[sp2], 0.0, 0.0);
     fclose(fpij);
   }
 }
