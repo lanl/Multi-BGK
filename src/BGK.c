@@ -1102,9 +1102,16 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
 
   if (TNBFlag > 0) {
     for (sp = 0; sp < nspec; sp++) {
-      TNB_DD(f, f_out, sp, rank, TNBFlag, dt, 0.5 * m[sp], n_linear, v_linear, T_linear);
+
+      mu = 0.5 * m[sp];
+      if ((mu > 1.6e-24) && (mu < 1.7e-24))
+	TNB_DD(f, f_out, sp, rank, TNBFlag, dt, 0.5 * m[sp], n_linear, v_linear, T_linear);
+
       for (sp2 = sp; sp2 < nspec; sp2++) {
-        TNB_DT(f, f_out, sp, sp2, rank, TNBFlag, dt,
+	mu =  m[sp] * m[sp2] / (m[sp] + m[sp2]);
+	
+	if((mu > 1.8e-24) && (mu < 2.0e-24))
+	  TNB_DT(f, f_out, sp, sp2, rank, TNBFlag, dt,
                m[sp] * m[sp2] / (m[sp] + m[sp2]), n_linear, v_linear, T_linear);
       }
     }
