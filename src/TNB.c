@@ -670,7 +670,7 @@ void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
   if ((n[sp] > EPS_COLL) && (n[sp2] > EPS_COLL)) {
     double R_BGK_DT = GetReactivity_dt(mu, f[sp], f[sp2], sp, sp2);
 
-    printf("DT Reactivity: %g\n", R_BGK_DT);
+    printf("DT Reactivity: %g - ni %g nj %g, Ti %g Tj %g \n", R_BGK_DT, n[sp], n[sp2], T[sp], T[sp2]);
 
     if (TNBFlag == 2) {
       for (int vx = 0; vx < Nv; vx++)
