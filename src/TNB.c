@@ -602,108 +602,105 @@ double GetReactivity_tt(double mu, double *in, double *in2, int sp, int sp2) {
   return result;
 }
 
-void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag, double mu, double *n, double **v, double *T) {
+void TNB_DD(double **f, double **f_out, int sp, int rank, int TNBFlag,
+            double mu, double *n, double **v, double *T) {
 
-    double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
-    char buffer[50];
-    double c1_TNB[3];
-    FILE *fpii;
+  double R_BGK_DD_HE, R_BGK_DD_T, R_BGK_DD;
+  char buffer[50];
+  double c1_TNB[3];
+  FILE *fpii;
 
-    
-    if(n[sp] > EPS_COLL) {
-        R_BGK_DD_HE = GetReactivity_dd_He(mu, f[sp], f[sp], sp, sp);
-        R_BGK_DD_T = GetReactivity_dd_T(mu, f[sp], f[sp], sp, sp);
-        R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
-        printf("DD Reactivity: %g - n %g v %g, T %g \n", R_BGK_DD, n[sp],
-               v[sp][0], T[sp]);
-        
-        if (TNBFlag == 2) {
-            for (int vx = 0; vx < Nv; vx++)
-                for (int vy = 0; vy < Nv; vy++)
-                    for (int vz = 0; vz < Nv; vz++) {
-                        int index = vz + Nv * (vy + Nv * vx);
-                        c1_TNB[0] = c[sp][vx];
-                        c1_TNB[0] = c[sp][vy];
-                        c1_TNB[0] = c[sp][vz];
-                        
-                        // tail depletion
-                        f_out[sp][index] -=
-                            f[sp][index] * GetTNB_dd_He(mu, f[sp], c1_TNB, sp, sp);
-                        f_out[sp][index] -=
-                            f[sp][index] * GetTNB_dd_T(mu, f[sp], c1_TNB, sp, sp);
-                    }
-        }
-        
-        sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
-        if (first_DD) {
-            fpii = fopen(buffer, "w");
-            first_DD = 0;
-        } else
-            fpii = fopen(buffer, "a");
-        fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp],
-                R_BGK_DD_HE, R_BGK_DD_T);
-        fclose(fpii);    
+  if (n[sp] > EPS_COLL) {
+    R_BGK_DD_HE = GetReactivity_dd_He(mu, f[sp], f[sp], sp, sp);
+    R_BGK_DD_T = GetReactivity_dd_T(mu, f[sp], f[sp], sp, sp);
+    R_BGK_DD = R_BGK_DD_HE + R_BGK_DD_T;
+    printf("DD Reactivity: %g - n %g v %g, T %g \n", R_BGK_DD, n[sp], v[sp][0],
+           T[sp]);
+
+    if (TNBFlag == 2) {
+      for (int vx = 0; vx < Nv; vx++)
+        for (int vy = 0; vy < Nv; vy++)
+          for (int vz = 0; vz < Nv; vz++) {
+            int index = vz + Nv * (vy + Nv * vx);
+            c1_TNB[0] = c[sp][vx];
+            c1_TNB[0] = c[sp][vy];
+            c1_TNB[0] = c[sp][vz];
+
+            // tail depletion
+            f_out[sp][index] -=
+                f[sp][index] * GetTNB_dd_He(mu, f[sp], c1_TNB, sp, sp);
+            f_out[sp][index] -=
+                f[sp][index] * GetTNB_dd_T(mu, f[sp], c1_TNB, sp, sp);
+          }
     }
-    else {
-        if (first_DD) {
-            fpii = fopen(buffer, "w");
-            first_DD = 0;
-        } else
-            fpii = fopen(buffer, "a");
 
-        fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], 0.0, 0.0);
-        fclose(fpii);
-    }
+    sprintf(buffer, "Data/TNB_DD_%d.dat", rank);
+    if (first_DD) {
+      fpii = fopen(buffer, "w");
+      first_DD = 0;
+    } else
+      fpii = fopen(buffer, "a");
+    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], R_BGK_DD_HE,
+            R_BGK_DD_T);
+    fclose(fpii);
+  } else {
+    if (first_DD) {
+      fpii = fopen(buffer, "w");
+      first_DD = 0;
+    } else
+      fpii = fopen(buffer, "a");
+
+    fprintf(fpii, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp], 0.0, 0.0);
+    fclose(fpii);
+  }
 }
 
+void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag,
+            double mu, double *n, double **v, double *T) {
 
-void TNB_DT(double **f, double **f_out, int sp, int sp2, int rank, int TNBFlag, double mu, double *n, double **v, double *T)
-{
+  char buffer[50];
+  double c1_TNB[3];
+  double deplete = 0;
 
-   char buffer[50];
-   double c1_TNB[3];
-   double deplete = 0;
+  FILE *fpij;
 
-   FILE *fpij;
+  if ((n[sp] > EPS_COLL) && (n[sp2] > EPS_COLL)) {
+    double R_BGK_DT = GetReactivity_dt(mu, f[sp], f[sp2], sp, sp2);
 
-   if( (n[sp] > EPS_COLL) && (n[sp2] > EPS_COLL)) {
-       double R_BGK_DT = GetReactivity_dt(mu, f[sp], f[sp2], sp, sp2);
-       
-       printf("DT Reactivity: %g\n", R_BGK_DT);
-       
-       if (TNBFlag == 2) {
-           for (int vx = 0; vx < Nv; vx++)
-               for (int vy = 0; vy < Nv; vy++)
-                   for (int vz = 0; vz < Nv; vz++) {
-                       int index = vz + Nv * (vy + Nv * vx);
-                       c1_TNB[0] = c[sp][vx];
-                       c1_TNB[1] = c[sp][vy];
-                       c1_TNB[2] = c[sp][vz];
-                       
-                       // tail depletion of D and T
-                       deplete = GetTNB_dt(mu, f[sp2], c1_TNB, sp, sp2);
-                       f_out[sp][index]  -= f[sp][index] * deplete;
-                       f_out[sp2][index] -= f[sp2][index] * deplete;
-                   }
-       }
-       
-       sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
-       if (first_DT) {
-           fpij = fopen(buffer, "w");
-           first_DT = 0;
-       } else
-           fpij = fopen(buffer, "a");
-       
-       fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp], T[sp2], R_BGK_DT);
-       fclose(fpij);
-   }
-   else {
-       if (first_DT) {
-           fpij = fopen(buffer, "w");
-           first_DT = 0;
-       } else
-           fpij = fopen(buffer, "a");
-       fprintf(fpij, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp2], 0.0, 0.0);
-       fclose(fpij);
-   }
+    printf("DT Reactivity: %g\n", R_BGK_DT);
+
+    if (TNBFlag == 2) {
+      for (int vx = 0; vx < Nv; vx++)
+        for (int vy = 0; vy < Nv; vy++)
+          for (int vz = 0; vz < Nv; vz++) {
+            int index = vz + Nv * (vy + Nv * vx);
+            c1_TNB[0] = c[sp][vx];
+            c1_TNB[1] = c[sp][vy];
+            c1_TNB[2] = c[sp][vz];
+
+            // tail depletion of D and T
+            deplete = GetTNB_dt(mu, f[sp2], c1_TNB, sp, sp2);
+            f_out[sp][index] -= f[sp][index] * deplete;
+            f_out[sp2][index] -= f[sp2][index] * deplete;
+          }
+    }
+
+    sprintf(buffer, "Data/TNB_DT_%d.dat", rank);
+    if (first_DT) {
+      fpij = fopen(buffer, "w");
+      first_DT = 0;
+    } else
+      fpij = fopen(buffer, "a");
+
+    fprintf(fpij, "%5.2e %5.2e %10.6e \n", T[sp], T[sp2], R_BGK_DT);
+    fclose(fpij);
+  } else {
+    if (first_DT) {
+      fpij = fopen(buffer, "w");
+      first_DT = 0;
+    } else
+      fpij = fopen(buffer, "a");
+    fprintf(fpij, "%5.2e %5.2e %10.6e %10.6e\n", T[sp], T[sp2], 0.0, 0.0);
+    fclose(fpij);
+  }
 }
