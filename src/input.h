@@ -4,7 +4,7 @@
 #ifndef _INPUT_H
 #define _INPUT_H
 
-void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
+void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs, int *Nv,
                 double *v_sigma, int *discret, int *poissFlavor, double **m,
                 double **Z, int *order, int *im_ex, double *dt, double *tfinal,
                 int *numint, double **intervalLimits, double **ndens_in,
@@ -12,15 +12,15 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 double *Te_start, double *Te_end, int *CL_type, int *ion_type,
                 int *MT_or_TR, double **n, double **u, double **T,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
-                double *beta, int *hydro_flag, int *input_data_file_flag,
+                double *beta, int *hydro_flag, int *eqflag, double *eqrtol, int *input_data_file_flag,
                 char *input_file_data_filename, char *inputFilename);
 
-void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
+void set_default_values(int *Nx, double *Lx, int *bcs, int *Nv, double *v_sigma,
                         int *order, int *discret, int *im_ex, int *poissFlavor,
                         int *ecouple, int *ionFix, double *Te_start,
                         double *Te_end, int *CL_type, int *ion_type,
                         int *MT_or_TR, double *dt, double *tfinal,
-                        int *BGK_type, double *beta, int *hydro_flag,
+                        int *BGK_type, double *beta, int *hydro_flag, int *eqflag, double *eqrtol,
                         int *input_data_file_flag, int *dataFreq, int *dumpDist,
                         double *RHS_tol);
 

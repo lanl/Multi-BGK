@@ -8,8 +8,8 @@
  where A_ij is the usual discrete Laplcian on the 3-point stencil
  
 */
+#include "gsl/gsl_linalg.h"
 
-#include <gsl/gsl_linalg.h>
 
 /**************************************************************/
 /* PoissNonlinPeriodic1D                                      */
@@ -24,12 +24,12 @@
 /* phi: solution to the equation                              */
 /**************************************************************/
 
-void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx, double *phi, double *Te);
+void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, double Lx, double *phi, double *Te);
 
-void PoissLinPeriodic1D(int N, double *source, double dx, double Lx, double *phi, double *Te);
+void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double Lx, double *phi, double *Te);
 
-void PoissLinPeriodic1D_TF(int N, double *source, double dx, double Lx, double *phi, double *Te);
+void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, double Lx, double *phi, double *Te);
 
-void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx, double *phi, double *Te);
+void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, double Lx, double *phi, double *Te);
 
-void simplePoisson(int N, double *source, double dx, double Lx, double *phi);
+void simpleNonPeriodicPoisson(int N, double *source, double dx, double Lx, double *phi);

@@ -29,11 +29,13 @@ double getDensity(double *in, int sp)
   double result = 0.0;
   int i, j, k;
   
-  for(i=0;i<N;i++) 
-    for(j=0;j<N;j++)
-      for(k=0;k<N;k++)	
-	result += wts[sp][i]*wts[sp][j]*wts[sp][k]*in[k + N*(j + N*i)];		  
-
+  for(i=0;i<N;i++){ 
+    for(j=0;j<N;j++){
+      for(k=0;k<N;k++){	
+	      result += wts[sp][i]*wts[sp][j]*wts[sp][k]*in[k + N*(j + N*i)];
+      }
+    }
+  }
   return result;
 }
 

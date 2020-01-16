@@ -6,7 +6,9 @@
 #include "units/unit_data.c"
 #include "input.h"
 
-void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, int order, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) {
+void initialize_sol_inhom(int *rank, int *nRanks, double ***f, int nint, double *int_loc, double *ndens_in, double *v_in, double *T_in, int Nx, double *x, int nspec, int Nv, int order, double **c, double *m, 
+                          double **n_oned, double ***v_oned, double **T_oned) 
+{
 
   //accessing multid arrays
   //f - (Nx_rank+2*order) nspec Nv*Nv*Nv
@@ -17,59 +19,58 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc, double *ndens_
   //c - nspec nv
 
   int i,j,k,l,s;
-  int int_id;
+  int int_id, tmp_order, llim;
   int vIndex,inputIndex;
-
-  for(l=0;l<Nx;l++) {
+  llim = Nx + 2*order;
+  for(l=0;l<llim;l++) {
 
     //Figure out the interval
     //If no interval is found it defaults to zero
     int_id = 0; 
-    for(j=0;j<nint;j++)      
-      if(x[l+order] > int_loc[j])
-	int_id = j;
+    for(j=0;j<nint;j++){      
+      if(x[l] > int_loc[j]){
+        int_id = j;
+      }
+    }
     
     for(s=0;s<nspec;s++) {
       inputIndex = int_id*nspec + s;
 
       //set moment data
-      if(ndens_in[inputIndex] != 0) {
-	n_oned[l][s] = ndens_in[inputIndex];
-	v_oned[l][s][0] = v_in[inputIndex];
-	v_oned[l][s][1] = 0.0;
-	v_oned[l][s][2] = 0.0;
-	T_oned[l][s] = T_in[inputIndex];	
-      }
-      else {
-	n_oned[l][s] = 0.0;
-	v_oned[l][s][0] = 0.0;
-	v_oned[l][s][1] = 0.0;
-	v_oned[l][s][2] = 0.0;
-	T_oned[l][s] = 0.0;
-      }
-
+      if(l>order-1 && l<Nx+order){
+        if(ndens_in[inputIndex] != 0) {
+          n_oned[l-order][s] = ndens_in[inputIndex];
+          v_oned[l-order][s][0] = v_in[inputIndex];
+          v_oned[l-order][s][1] = 0.0;
+          v_oned[l-order][s][2] = 0.0;
+          T_oned[l-order][s] = T_in[inputIndex];	
+        } else {
+          n_oned[l-order][s] = 0.0;
+          v_oned[l-order][s][0] = 0.0;
+          v_oned[l-order][s][1] = 0.0;
+          v_oned[l-order][s][2] = 0.0;
+          T_oned[l-order][s] = 0.0;
+        }
+      }       
       //set distribution data
-      for(i=0;i<Nv;i++) 
-	for(j=0;j<Nv;j++)
-	  for(k=0;k<Nv;k++) {
-	    vIndex = k + Nv*(j + Nv*i);	    
-
- 	    if(ndens_in[inputIndex] != 0.0) {
-	      f[l+order][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
-		exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
-		    ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 
+      for(i=0;i<Nv;i++){
+	      for(j=0;j<Nv;j++){
+	        for(k=0;k<Nv;k++) {
+	          vIndex = k + Nv*(j + Nv*i);	    
+ 	          if(ndens_in[inputIndex] != 0.0) {
+               f[l][s][vIndex] =  ndens_in[inputIndex]*pow(m[s]/(2.0*M_PI*T_in[inputIndex]/ERG_TO_EV_CGS),1.5)*
+		           exp(-(0.5*m[s]/(T_in[inputIndex]/ERG_TO_EV_CGS))*
+		          ( (c[s][i]-v_in[inputIndex])*(c[s][i]-v_in[inputIndex]) 
 	            + (c[s][j]*c[s][j])
-		    + (c[s][k]*c[s][k]) ));
-	    }
-	    else {
-	      f[l+order][s][vIndex] = 0.0;
-	    }
-	  }	
+		          + (c[s][k]*c[s][k]) ));
+	          } else {
+	            f[l][s][vIndex] = 0.0;
+	          }
+          }
+        }
+      }
     }
   }
-
-
-  
 }
 
 
@@ -182,11 +183,12 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned, double *
   for(sp=0;sp<nspec;sp++) {
     printf("Species %d \n",sp);
     for(l=0;l<Nx;l++) {
-      printf("%d: n: %g v: %g T: %g\n",l,n_oned[l][sp],v_oned[l][sp][0],T_oned[l][sp]);
+      printf("%d: n: %g v: %g T: %g\n", l, n_oned[l][sp], v_oned[l][sp][0],T_oned[l][sp]);
     }
   }
-
 }
+
+
 void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, int order, double **c, double *m, double **n_oned, double ***v_oned, double **T_oned) 
 {
   //accessing multid arrays
@@ -202,25 +204,23 @@ void initialize_sol_inhom_file(double ***f, int Nx, int nspec, int Nv, int order
   for(l=0;l<Nx;l++) {
     for(s=0;s<nspec;s++) {
       //set distribution data
-      for(i=0;i<Nv;i++) 
-	for(j=0;j<Nv;j++)
-	  for(k=0;k<Nv;k++) {
-	    vIndex = k + Nv*(j + Nv*i);	    
+      for(i=0;i<Nv;i++){
+	      for(j=0;j<Nv;j++){
+	        for(k=0;k<Nv;k++) {
+	          vIndex = k + Nv*(j + Nv*i);	    
 
- 	    if(n_oned[l][s] != 0) {
-	      f[l+order][s][vIndex] =  n_oned[l][s]*pow(m[s]/(2.0*M_PI*T_oned[l][s]/ERG_TO_EV_CGS),1.5)*
-		exp(-(0.5*m[s]/(T_oned[l][s]/ERG_TO_EV_CGS))*
-		    ( (c[s][i]-v_oned[l][s][0])*(c[s][i]-v_oned[l][s][0]) 
-	            + (c[s][j]*c[s][j])
-    	            + (c[s][k]*c[s][k]) ));
-	    }
-	    else {
-	      f[l+order][s][vIndex] = 0.0;
-	    }
-	  }	
+     	      if(n_oned[l][s] != 0) {
+    	        f[l+order][s][vIndex] =  n_oned[l][s]*pow(m[s]/(2.0*M_PI*T_oned[l][s]/ERG_TO_EV_CGS),1.5)*
+        		  exp(-(0.5*m[s]/(T_oned[l][s]/ERG_TO_EV_CGS))*
+    		      ( (c[s][i]-v_oned[l][s][0])*(c[s][i]-v_oned[l][s][0]) 
+  	             + (c[s][j]*c[s][j])
+      	             + (c[s][k]*c[s][k]) ));
+  	        } else {
+             f[l+order][s][vIndex] = 0.0;
+	          }
+	        }
+        }	
+      }
     }
   }
-  
-
-
 }

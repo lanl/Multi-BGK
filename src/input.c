@@ -9,7 +9,7 @@
  *  This function reads the input file
  */
 
-void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
+void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *bcs,  int *Nv,
                 double *v_sigma, int *discret, int *poissFlavor, double **m,
                 double **Z, int *order, int *im_ex, double *dt, double *tfinal,
                 int *numint, double **intervalLimits, double **ndens_int,
@@ -17,7 +17,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
                 double *Te_start, double *Te_end, int *CL_type, int *ion_type,
                 int *MT_or_TR, double **n, double **u, double **T,
                 int *dataFreq, int *outputDist, double *RHS_tol, int *BGK_type,
-                double *beta, int *hydro_flag, int *input_file_data_flag,
+                double *beta, int *hydro_flag, int *eqflag, double *eqrtol, int *input_file_data_flag,
                 char *input_file_data_filename, char *inputFilename) {
 
   int rank;
@@ -31,9 +31,9 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
 
   /*Set input parameters to default values*/
 
-  set_default_values(Nx, Lx, Nv, v_sigma, order, discret, im_ex, poissFlavor,
+  set_default_values(Nx, Lx, bcs, Nv, v_sigma, order, discret, im_ex, poissFlavor,
                      ecouple, ionFix, Te_start, Te_end, CL_type, ion_type,
-                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag,
+                     MT_or_TR, dt, tfinal, BGK_type, beta, hydro_flag, eqflag, eqrtol,
                      input_file_data_flag, dataFreq, outputDist, RHS_tol);
 
   strcat(input_path, inputFilename);
@@ -81,6 +81,13 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *Lx = read_double(input_file);
       if (rank == 0)
         printf("%g\n", *Lx);
+    }
+
+    if(strcmp(line, "Bcs") == 0){
+      *bcs = read_int(input_file);
+      if(rank == 0){
+        printf("%d\n", *bcs);
+      }
     }
 
     /*Number of velocity nodes in each dimension*/
@@ -135,6 +142,20 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *hydro_flag = read_int(input_file);
       if (rank == 0)
         printf("%d\n", *hydro_flag);
+    }
+
+    //if eqflag >0, don't timestep, just run until the total entropy
+    //change is below a certain tolerance, relative to the previous entropy.
+    if (strcmp(line, "Equilibrate_flag") == 0) {
+      *eqflag = read_int(input_file);
+      if (rank == 0)
+        printf("%d\n", *eqflag);
+    }
+
+    if (strcmp(line, "Equilibrate_rtol") == 0) {
+      *eqrtol = read_double(input_file);
+      if (rank == 0)
+        printf("%g\n", *eqrtol);
     }
 
     /*Implicit solve (lagged) for the BGK operator*/
@@ -304,6 +325,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
     // code, for now) eV
     // set to 2 to indicate that species 0 is electrons and to use B-Y cross
     // section
+    // set to 3 for coupling with background electron field that matches mixture temp
     if (strcmp(line, "ecouple") == 0) {
       *ecouple = read_int(input_file);
       if (rank == 0)
@@ -374,7 +396,7 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
       *RHS_tol = read_double(input_file);
   }
 
-  if (rank == 0)
+  if(rank == 0)
     printf("done with input file\n");
   fflush(stdout);
 
@@ -385,12 +407,12 @@ void read_input(int *nspec, int *dims, int *Nx, double *Lx, int *Nv,
  *  This function sets the input parameters to their defualt values, and sets up
  * flags for a few if they are not set by the input file
  */
-void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
+void set_default_values(int *Nx, double *Lx, int *bcs, int *Nv, double *v_sigma,
                         int *order, int *discret, int *im_ex, int *poissFlavor,
                         int *ecouple, int *ionFix, double *Te_start,
                         double *Te_end, int *CL_type, int *ion_type,
                         int *MT_or_TR, double *dt, double *tfinal,
-                        int *BGK_type, double *beta, int *hydro_flag,
+                        int *BGK_type, double *beta, int *hydro_flag, int *eqflag, double *eqrtol,
                         int *input_file_data_flag, int *dataFreq, int *dumpDist,
                         double *RHS_tol) {
 
@@ -401,6 +423,8 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
 
   /*Length of physical domain in cm*/
   *Lx = 1000e-6; // 1000 nm;
+
+  *bcs = 0;
 
   /*Number of velocity nodes in each dimension*/
   *Nv = 40;
@@ -439,6 +463,9 @@ void set_default_values(int *Nx, double *Lx, int *Nv, double *v_sigma,
   *beta = 0;
 
   *hydro_flag = 0;
+  *eqflag = 0;
+  *eqrtol = 1e-8;
+
 
   *input_file_data_flag = 0;
 

@@ -1,12 +1,14 @@
-#include "poissonNonlinPeriodic.h"
+#include "poissonNonlinNonPeriodic.h"
 #include "units/unit_data.c"
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_sf_fermi_dirac.h>
+#include <gsl/gsl_roots.h>
 #include <gsl/gsl_vector.h>
 #include <math.h>
 
 // Adapted from Cory's matlab code
+// vandalized by Austin.
 
 static double absTol = 1e-8;
 static double relTol = 1e-8;
@@ -14,12 +16,13 @@ static int phiflag = 0;
 
 /***********************************************/
 
+
 // Declare nonlinear subroutines here for definiton later
-void electronSource(gsl_vector *phi, double *g, double *gPrime, double ne0,
+void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
                     double *Te);
-void electronSource_TF(gsl_vector *phi, double *g, double *gPrime, double mu,
+void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
                        double *Te);
-double chemPot_TF(double *source, int N, double *Te, double mu0);
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0);
 
 // subroutines for checking charge conservation
 double chargeTallyYukLin(gsl_vector *phi, double ne0, double Te);
@@ -60,45 +63,44 @@ T_e     : eV
 
 **************************************************************/
 
-void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
-                           double *phi, double *Te) {
+void PoissNonlinNonPeriodic1D(int N, int *order, double *source, double dx, double Lx,
+                               double *phi, double *Te) 
+{
 
   int i, loop;
 
   // Set up vectors
-  gsl_vector *phiVec = gsl_vector_calloc(N);
-  gsl_vector *phiNext = gsl_vector_calloc(N);
-  gsl_vector *dphi = gsl_vector_calloc(N);
-  gsl_vector *RHS = gsl_vector_calloc(N);
-  gsl_vector *phixx = gsl_vector_calloc(N);
-  double *g = malloc(N * sizeof(double));
-  double *gPrime = malloc(N * sizeof(double));
+  gsl_vector *phiVec = gsl_vector_calloc(N + 2);
+  gsl_vector *phiNext = gsl_vector_calloc(N + 2);
+  gsl_vector *dphi = gsl_vector_calloc(N + 2);
+  gsl_vector *RHS = gsl_vector_calloc(N + 2);
+  gsl_vector *phixx = gsl_vector_calloc(N + 2);
+  double *g = malloc((N+2) * sizeof(double));
+  double *gPrime = malloc((N+2) * sizeof(double));
 
   // initialize
   if (phiflag == 0) {
     phiflag = 1;
-    for (i = 0; i < N; i++)
+    for (i = 0; i < N + 2; i++)
       gsl_vector_set(phiVec, i, 1e-10);
   } else // use previous field as guess
-    for (i = 0; i < N; i++)
+    for (i = 0; i < N + 2; i++)
       gsl_vector_set(phiVec, i, phi[i]);
 
   // Set up matrices
-  gsl_matrix *A = gsl_matrix_calloc(N, N); //-d_xx operator
-  gsl_matrix *B = gsl_matrix_calloc(N, N); // Jacobian matrix
+  gsl_matrix *A = gsl_matrix_calloc(N+2, N+2); //-d_xx operator
+  gsl_matrix *B = gsl_matrix_calloc(N+2, N+2); // Jacobian matrix
 
   // initialize the matrix A
-  gsl_matrix_set(A, 0, 0, 2.0 / dx / dx);
+  gsl_matrix_set(A, 0, 0, 1.0 / dx / dx);
   gsl_matrix_set(A, 0, 1, -1.0 / dx / dx);
-  gsl_matrix_set(A, 0, N - 1, -1.0 / dx / dx);
-  for (i = 1; i < (N - 1); i++) {
+  for (i = 1; i < (N + 1); i++) {
     gsl_matrix_set(A, i, i, 2.0 / dx / dx);
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  gsl_matrix_set(A, N - 1, N - 1, 2.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, N - 2, -1.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, 0, -1.0 / dx / dx);
+  gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
+  gsl_matrix_set(A, N + 1, N + 1, 1.0 / dx / dx);
 
   gsl_matrix_memcpy(B, A);
 
@@ -107,17 +109,17 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   double absErr = absTol + 1.0;
 
   // Done with setup, start the iteration
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // Find total charge - for setting n_e0
   double Ci = 0;
 
-  for (i = 0; i < N; i++)
+  for (i =  0; i < N + 2; i++)
     Ci += source[i];
 
   // distribute charge evenly over each cell
-  double ne0 = (Ci * dx / Lx);
+  double ne0 = (Ci * dx / (Lx+2*dx));
 
   loop = 0;
 
@@ -166,9 +168,9 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   /* Faster version suggested by Cory */
 
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
-    electronSource(phiVec, g, gPrime, ne0, Te);
-
-    for (i = 0; i < N; i++) {
+    nonperiodic_electronSource(order, phiVec, g, gPrime, ne0, Te);
+    int j;
+    for (i = 0; i < N+2; i++) {
       gsl_matrix_set(
           B, i, i, gsl_matrix_get(A, i, i) + 4.0 * M_PI * E_02_CGS * gPrime[i]);
       gsl_vector_set(
@@ -203,7 +205,7 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   double ion_tot = 0.0;
   double e_tot = 0.0;
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N + 2; i++) {
     ion_tot += source[i] * dx;
     e_tot += ne0 * exp(gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
@@ -211,7 +213,7 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi, converted to ergs
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N + 2; i++)
     phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
 
   gsl_vector_free(phiVec);
@@ -226,7 +228,7 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   free(gPrime);
 }
 
-void electronSource(gsl_vector *phi, double *g, double *gPrime, double ne0,
+void nonperiodic_electronSource(int *order, gsl_vector *phi, double *g, double *gPrime, double ne0,
                     double *Te) {
 
   int N = (*phi).size;
@@ -263,52 +265,50 @@ eV / cm^2         eV-cm  eV  1/cc (eV   )       eV-cm  1/cc     1/cc
 
 **************************************************************/
 
-void PoissLinPeriodic1D(int N, double *source, double dx, double Lx,
-                        double *phi, double *Te) {
+void PoissLinNonPeriodic1D(int N, int *order, double *source, double dx, double Lx,
+                           double *phi, double *Te) {
 
   int i;
 
   // Set up vectors
-  gsl_vector *phiVec = gsl_vector_calloc(N);
-  gsl_vector *RHS = gsl_vector_calloc(N);
+  gsl_vector *phiVec = gsl_vector_calloc(N + 2);
+  gsl_vector *RHS = gsl_vector_calloc(N + 2);
 
   // initialize phi
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N+2; i++)
     gsl_vector_set(phiVec, i, 1.0);
 
   // Set up matrices
-  gsl_matrix *A = gsl_matrix_calloc(N, N);
+  gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find total charge
   double Ci = 0;
 
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N+2; i++)
     Ci += source[i];
 
   // distribute charge evenly over each cell
-  double ne0 = (Ci * dx / Lx);
+  double ne0 = (Ci * dx / (Lx+2*dx));
 
   double ne0_diag = (4.0 * M_PI * E_02_CGS) * ne0;
 
   // initialize the matrix A
-  gsl_matrix_set(A, 0, 0, 2.0 / dx / dx + ne0_diag / Te[0]);
+  gsl_matrix_set(A, 0, 0, 1.0 / dx / dx + ne0_diag / Te[0]);
   gsl_matrix_set(A, 0, 1, -1.0 / dx / dx);
-  gsl_matrix_set(A, 0, N - 1, -1.0 / dx / dx);
-  for (i = 1; i < (N - 1); i++) {
+  for (i = 1; i < (N + 1); i++) {
     gsl_matrix_set(A, i, i, 2.0 / dx / dx + ne0_diag / Te[i]);
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  gsl_matrix_set(A, N - 1, N - 1, 2.0 / dx / dx + ne0_diag / Te[N - 1]);
-  gsl_matrix_set(A, N - 1, N - 2, -1.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, 0, -1.0 / dx / dx);
+  gsl_matrix_set(A, N + 1, N + 1, 1.0 / dx / dx + ne0_diag / Te[N + 1]);
+  gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
 
   // set up RHS for solve
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N + 2; i++)
     gsl_vector_set(RHS, i, 4.0 * M_PI * E_02_CGS * (source[i] - ne0));
 
   // Set up the LA solve
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // solves A*phiVec = RHS
@@ -321,7 +321,7 @@ void PoissLinPeriodic1D(int N, double *source, double dx, double Lx,
   double ion_tot = 0.0;
   double e_tot = 0.0;
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     ion_tot += source[i] * dx;
     e_tot += ne0 * (1 + gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
@@ -329,7 +329,7 @@ void PoissLinPeriodic1D(int N, double *source, double dx, double Lx,
   // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi and convert to ergs
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
     phitot += phi[i] / Te[i];
   }
@@ -370,23 +370,23 @@ eV / cm^2     [       eV-cm   g        eV            eV-s              1/eV eV
 
 **************************************************************/
 
-void PoissLinPeriodic1D_TF(int N, double *source, double dx, double Lx,
+void PoissLinNonPeriodic1D_TF(int N, int *order, double *source, double dx, double Lx,
                            double *phi, double *Te) {
   int i;
 
   // Set up vectors
-  gsl_vector *phiVec = gsl_vector_calloc(N);
-  gsl_vector *RHS = gsl_vector_calloc(N);
+  gsl_vector *phiVec = gsl_vector_calloc(N+2);
+  gsl_vector *RHS = gsl_vector_calloc(N+2);
 
   // initialize phi
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N+2; i++)
     gsl_vector_set(phiVec, i, 1.0);
 
   // Set up matrices
-  gsl_matrix *A = gsl_matrix_calloc(N, N);
+  gsl_matrix *A = gsl_matrix_calloc(N+2, N+2);
 
   // Find average chemical potential
-  double mu = chemPot_TF(source, N, Te, 1.0); // eV
+  double mu = nonperiodic_chemPot_TF(order, source, N+2, Te, 1.0); // eV
 
   // Fermi integrals
   double F_mhalf;
@@ -405,24 +405,22 @@ void PoissLinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   // initialize the matrix A
   F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[0]);
   gsl_matrix_set(A, 0, 0,
-                 2.0 / dx / dx + diag * sqrt(Te[0]) * F_mhalf); // 1/cm^2
+                 1.0 / dx / dx + diag * sqrt(Te[0]) * F_mhalf); // 1/cm^2
   gsl_matrix_set(A, 0, 1, -1.0 / dx / dx);
-  gsl_matrix_set(A, 0, N - 1, -1.0 / dx / dx);
-  for (i = 1; i < (N - 1); i++) {
+  for (i = 1; i < (N + 1); i++) {
     F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[i]);
     gsl_matrix_set(A, i, i,
                    2.0 / dx / dx + diag * sqrt(Te[i]) * F_mhalf); // 1/cm^2
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[N - 1]);
-  gsl_matrix_set(A, N - 1, N - 1,
-                 2.0 / dx / dx + diag * sqrt(Te[N - 1]) * F_mhalf); // 1/cm^2
-  gsl_matrix_set(A, N - 1, N - 2, -1.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, 0, -1.0 / dx / dx);
+  F_mhalf = fdfac * gsl_sf_fermi_dirac_mhalf(mu / Te[N + 1]);
+  gsl_matrix_set(A, N + 1, N + 1,
+                 1.0 / dx / dx + diag * sqrt(Te[N + 1]) * F_mhalf); // 1/cm^2
+  gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
 
   // set up RHS for solve
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     F_half = fdfac * gsl_sf_fermi_dirac_half(mu / Te[i]);
     gsl_vector_set(
         RHS, i,
@@ -433,7 +431,7 @@ void PoissLinPeriodic1D_TF(int N, double *source, double dx, double Lx,
                  pow(2.0 * M_PI * HBAR_CGS, 3))); // eV /cm^2
   }
   // Set up the LA solve
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // solves A*phiVec = RHS
@@ -445,18 +443,18 @@ void PoissLinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   double ion_tot = 0.0;
   double e_tot = 0.0;
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     ion_tot += source[i] * dx;
     e_tot += (F_half + gsl_vector_get(phiVec, i) * F_mhalf / Te[i]) *
              (2.0 * pow(2.0 * M_PI * M_ELEC_CGS * Te[i] * ERG_TO_EV_CGS, 1.5) /
               pow(2.0 * M_PI * HBAR_CGS, 3)) *
              dx;
   }
-  // printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g
-  // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
+  printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g\n",
+         ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi and convert to ergs
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
     phitot += phi[i] / Te[i];
   }
@@ -494,19 +492,19 @@ F_(1/2)(beta (mu + e phi)) )
 
 **************************************************************/
 
-void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
+void PoissNonlinNonPeriodic1D_TF(int N, int *order, double *source, double dx, double Lx,
                               double *phi, double *Te) {
 
   int i, loop;
 
   // Set up vectors
-  gsl_vector *phiVec = gsl_vector_calloc(N);
-  gsl_vector *phiNext = gsl_vector_calloc(N);
-  gsl_vector *dphi = gsl_vector_calloc(N);
-  gsl_vector *RHS = gsl_vector_calloc(N);
-  gsl_vector *phixx = gsl_vector_calloc(N);
-  double *g = malloc(N * sizeof(double));
-  double *gPrime = malloc(N * sizeof(double));
+  gsl_vector *phiVec = gsl_vector_calloc(N+2);
+  gsl_vector *phiNext = gsl_vector_calloc(N+2);
+  gsl_vector *dphi = gsl_vector_calloc(N+2);
+  gsl_vector *RHS = gsl_vector_calloc(N+2);
+  gsl_vector *phixx = gsl_vector_calloc(N+2);
+  double *g = malloc((N+2) * sizeof(double));
+  double *gPrime = malloc((N+2) * sizeof(double));
 
   double fdfac = 0.5 * sqrt(M_PI);
 
@@ -514,28 +512,26 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   if (phiflag == 0) {
     printf("Initializing phi\n");
     phiflag = 1;
-    for (i = 0; i < N; i++)
-      gsl_vector_set(phiVec, i, 1e1);
+    for (i = 0; i < N+2; i++)
+      gsl_vector_set(phiVec, i, 1e0);
   } else // use previous field as guess
-    for (i = 0; i < N; i++)
+    for (i = 0; i < N+2; i++)
       gsl_vector_set(phiVec, i, phi[i]);
 
   // Set up matrices
-  gsl_matrix *A = gsl_matrix_calloc(N, N); //-d_xx operator
-  gsl_matrix *B = gsl_matrix_calloc(N, N); // Jacobian matrix
+  gsl_matrix *A = gsl_matrix_calloc(N+2, N+2); //-d_xx operator
+  gsl_matrix *B = gsl_matrix_calloc(N+2, N+2); // Jacobian matrix
 
   // initialize the matrix A
-  gsl_matrix_set(A, 0, 0, 2.0 / dx / dx);
+  gsl_matrix_set(A, 0, 0, 1.0 / dx / dx);
   gsl_matrix_set(A, 0, 1, -1.0 / dx / dx);
-  gsl_matrix_set(A, 0, N - 1, -1.0 / dx / dx);
-  for (i = 1; i < (N - 1); i++) {
+  for (i = 1; i < (N + 1); i++) {
     gsl_matrix_set(A, i, i, 2.0 / dx / dx);
     gsl_matrix_set(A, i, i - 1, -1.0 / dx / dx);
     gsl_matrix_set(A, i, i + 1, -1.0 / dx / dx);
   }
-  gsl_matrix_set(A, N - 1, N - 1, 2.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, N - 2, -1.0 / dx / dx);
-  gsl_matrix_set(A, N - 1, 0, -1.0 / dx / dx);
+  gsl_matrix_set(A, N + 1, N + 1, 1.0 / dx / dx);
+  gsl_matrix_set(A, N + 1, N, -1.0 / dx / dx);
 
   gsl_matrix_memcpy(B, A);
 
@@ -544,11 +540,11 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   double absErr = absTol + 1.0;
 
   // Done with setup, start the iteration
-  gsl_permutation *Permut = gsl_permutation_alloc(N);
+  gsl_permutation *Permut = gsl_permutation_alloc(N+2);
   int signum;
 
   // Get chemical potential approximation
-  double mu = chemPot_TF(source, N, Te, 1.0);
+  double mu = nonperiodic_chemPot_TF(order, source, N, Te, 0.0);
 
   loop = 0;
 
@@ -597,9 +593,10 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   /* Faster version suggested by Cory */
 
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
-    electronSource_TF(phiVec, g, gPrime, mu, Te);
+    printf("Loop %d\n", loop);
+    nonperiodic_electronSource_TF(order, phiVec, g, gPrime, mu, Te);
 
-    for (i = 0; i < N; i++) {
+    for (i = 0; i < N+2; i++) {
       gsl_matrix_set(
           B, i, i, gsl_matrix_get(A, i, i) + 4.0 * M_PI * E_02_CGS * gPrime[i]);
       gsl_vector_set(
@@ -635,7 +632,7 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   double ion_tot = 0.0;
   double e_tot = 0.0;
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     ion_tot += source[i] * dx;
     e_tot += fdfac *
              gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phiVec, i)) / Te[i]) *
@@ -643,10 +640,10 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
               pow(2.0 * M_PI * HBAR_CGS, 3)) *
              dx;
   }
-  printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
+  printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g\n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi, converted to ergs
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N+2; i++)
     phi[i] = gsl_vector_get(phiVec, i) / ERG_TO_EV_CGS;
 
   gsl_vector_free(phiVec);
@@ -661,7 +658,7 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   free(gPrime);
 }
 
-void simplePoisson(int N, double *source, double dx, double Lx, double *phi) {
+void simpleNonPeriodicPoisson(int N, double *source, double dx, double Lx, double *phi) {
   int i;
 
   // Set up vectors
@@ -713,7 +710,7 @@ void simplePoisson(int N, double *source, double dx, double Lx, double *phi) {
 // Calculates the average value of the chemical potential for all cells
 // by inverting the Fermi integral
 
-double chemPot_TF(double *source, int N, double *Te, double mu0) {
+double nonperiodic_chemPot_TF(int *order, double *source, int N, double *Te, double mu0) {
   double RHS;
   double RHS_prefac = 0.5 * pow(2.0 * M_PI * HBAR_CGS, 3) /
                       pow(2.0 * M_PI * M_ELEC_CGS * ERG_TO_EV_CGS, 1.5);
@@ -730,7 +727,7 @@ double chemPot_TF(double *source, int N, double *Te, double mu0) {
 
   double fdfac = 0.5 * sqrt(M_PI);
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N+2; i++) {
     x0 = mu0 / Te[i]; // eV / eV = unitless
     absErr = 1.0 + absTol;
     relErr = 1.0 + relTol;
@@ -749,15 +746,13 @@ double chemPot_TF(double *source, int N, double *Te, double mu0) {
       xn = xnp1;
       loop++;
     }
-
-    // printf("i %d loop %d mu %g abs %g rel %g\n",i,loop,xn, absErr, relErr);
     musum += xn * Te[i];
   }
 
-  return musum / (double)N;
+  return musum / ((double)N + 2.0);
 }
 
-void electronSource_TF(gsl_vector *phi, double *g, double *gPrime, double mu,
+void nonperiodic_electronSource_TF(int *order, gsl_vector *phi, double *g, double *gPrime, double mu,
                        double *Te) {
 
   int N = (*phi).size;
@@ -770,6 +765,11 @@ void electronSource_TF(gsl_vector *phi, double *g, double *gPrime, double mu,
                   pow(2.0 * M_PI * HBAR_CGS, 3);
 
   for (i = 0; i < N; i++) {
+    printf("i=%d\n", i);
+    printf("Te[i]=%e\n", Te[i]);
+    printf("mu: %e\n", mu);
+    double in = (mu + gsl_vector_get(phi, i))/Te[i];
+    printf("In: %e", in);
     g[i] = prefac * pow(Te[i], 1.5) *
            gsl_sf_fermi_dirac_half((mu + gsl_vector_get(phi, i)) / Te[i]);
     gPrime[i] = (1.0 / Te[i]) * prefac * pow(Te[i], 1.5) *
