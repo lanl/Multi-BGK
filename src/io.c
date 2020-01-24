@@ -393,12 +393,9 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
     D_ij[x_node][0][0] = output_list[x_node].diffusionCoefficient[0];
     D_ij[x_node][0][1] = output_list[x_node].diffusionCoefficient[1];
-    D_ij[x_node][1][1] = output_list[x_node].diffusionCoefficient[2];
-    // FIX LATER - hacky solution for how MD currently spits out binary mixture
-    // data
-
-    D_ij[x_node][0][2] = output_list[x_node].diffusionCoefficient[4];
+    D_ij[x_node][0][2] = output_list[x_node].diffusionCoefficient[2];
     D_ij[x_node][0][3] = output_list[x_node].diffusionCoefficient[3];
+    D_ij[x_node][1][1] = output_list[x_node].diffusionCoefficient[4];
     D_ij[x_node][1][2] = output_list[x_node].diffusionCoefficient[5];
     D_ij[x_node][1][3] = output_list[x_node].diffusionCoefficient[6];
     D_ij[x_node][2][2] = output_list[x_node].diffusionCoefficient[7];
