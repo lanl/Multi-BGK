@@ -1,4 +1,6 @@
 #include "io.h"
+#include "units/unit_data.c"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -320,13 +322,10 @@ void request_aldr_single(double *n, double *T, double *Z, char *tag,
   D_ij[3][2] = D_ij[2][3];
 }
 
-
 /*
-Calculates the species coupling parameters at the given density, temperature, and charge state
-Uses formulas
-rho_tot = \sum_j Z_j e n_j
-a_i = (3 Z_i e / (4 \pi \rho_tot)) ** (1/3)
-Gamma_i = (Z_i e)^2 / a_i T
+Calculates the species coupling parameters at the given density, temperature,
+and charge state Uses formulas rho_tot = \sum_j Z_j e n_j a_i = (3 Z_i e / (4
+\pi \rho_tot)) ** (1/3) Gamma_i = (Z_i e)^2 / a_i T
 */
 double get_max_coupling(double *n, double T, double *Z) {
 
@@ -335,17 +334,16 @@ double get_max_coupling(double *n, double T, double *Z) {
   double Gamma_i = 0.0;
   double a_i = 0.0;
 
-  for(int sp=0; sp < nspec; sp++) 
+  for (int sp = 0; sp < nspec; sp++)
     rho_tot += Z[sp] * n[sp];
 
-  for(int sp=0; sp < nspec; sp++) {
-    a_i = pow(3.0 * Z[sp] / (4.0 * M_PI * rho_tot), 1.0/3.0);
+  for (int sp = 0; sp < nspec; sp++) {
+    a_i = pow(3.0 * Z[sp] / (4.0 * M_PI * rho_tot), 1.0 / 3.0);
     Gamma_i = Z[sp] * Z[sp] * E_02_CGS / a_i / T;
     Gamma_max = Gamma_i > Gamma_max ? Gamma_i : Gamma_max;
   }
-  
-  return Gamma_max;
 
+  return Gamma_max;
 }
 
 // Sends a whole buncha results to the glue code
@@ -359,8 +357,8 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
   unsigned strongly_coupled_cells_count = 0;
   unsigned strongly_coupled_cells[Nx];
 
-  //Determine the number of strongly coupled cells
-  for(unsigned x_node = 0; x_node < Nx; ++ x_node) {
+  // Determine the number of strongly coupled cells
+  for (unsigned x_node = 0; x_node < Nx; ++x_node) {
 
     double Tmix = 0.0;
     double ntot = 0.0;
@@ -374,26 +372,24 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
     }
 
     Tmix /= ntot;
-    
+
     double Gamma_cell_max = get_max_coupling(n[x_node], Tmix, Z[x_node]);
-    if(Gamma_cell_max > 0.1) {
+    if (Gamma_cell_max > 0.1) {
       strongly_coupled_cells_count++;
       strongly_coupled_cells[x_node] = 1;
-    }
-    else
+    } else
       strongly_coupled_cells[x_node] = 0;
   }
 
-
-  input_list == malloc(strongly_coupled_cells_count * sizeof(bgk_request_t));
+  input_list = malloc(strongly_coupled_cells_count * sizeof(bgk_request_t));
 
   unsigned input_list_count = 0;
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
 
-    if(strongly_coupled_cells[x_node]) {
+    if (strongly_coupled_cells[x_node]) {
       double Tmix = 0.0;
       double ntot = 0.0;
-      
+
       for (int sp = 0; sp < nspec; sp++) {
         if (n[x_node][sp] > NDENS_TOL) {
           input_list[input_list_count].density[sp] = n[x_node][sp];
@@ -402,7 +398,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
         }
         input_list[input_list_count].charges[sp] = Z[x_node][sp];
       }
-      
+
       // Calculate mixture T
       for (int sp = 0; sp < nspec; sp++) {
         if (n[x_node][sp] > NDENS_TOL) {
@@ -410,31 +406,42 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
           ntot += n[x_node][sp];
         }
       }
-      
+
       Tmix /= ntot;
-      
+
       input_list[input_list_count].temperature = Tmix;
       input_list_count++;
     }
   }
 
-  output_list = bgk_req_batch(input_list, strongly_coupled_cells_count, 0, tag, db);
+  output_list =
+      bgk_req_batch(input_list, strongly_coupled_cells_count, 0, tag, db);
 
   // Store the results
   int output_list_index = 0;
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
-    if(strongly_coupled_cells[xnode]) { 
-      D_ij[x_node][0][0] = output_list[output_list_index].diffusionCoefficient[0];
-      D_ij[x_node][0][1] = output_list[output_list_index].diffusionCoefficient[1];
-      D_ij[x_node][0][2] = output_list[output_list_index].diffusionCoefficient[2];
-      D_ij[x_node][0][3] = output_list[output_list_index].diffusionCoefficient[3];
-      D_ij[x_node][1][1] = output_list[output_list_index].diffusionCoefficient[4];
-      D_ij[x_node][1][2] = output_list[output_list_index].diffusionCoefficient[5];
-      D_ij[x_node][1][3] = output_list[output_list_index].diffusionCoefficient[6];
-      D_ij[x_node][2][2] = output_list[output_list_index].diffusionCoefficient[7];
-      D_ij[x_node][2][3] = output_list[output_list_index].diffusionCoefficient[8];
-      D_ij[x_node][3][3] = output_list[output_list_index].diffusionCoefficient[9];
-      
+    if (strongly_coupled_cells[x_node]) {
+      D_ij[x_node][0][0] =
+          output_list[output_list_index].diffusionCoefficient[0];
+      D_ij[x_node][0][1] =
+          output_list[output_list_index].diffusionCoefficient[1];
+      D_ij[x_node][0][2] =
+          output_list[output_list_index].diffusionCoefficient[2];
+      D_ij[x_node][0][3] =
+          output_list[output_list_index].diffusionCoefficient[3];
+      D_ij[x_node][1][1] =
+          output_list[output_list_index].diffusionCoefficient[4];
+      D_ij[x_node][1][2] =
+          output_list[output_list_index].diffusionCoefficient[5];
+      D_ij[x_node][1][3] =
+          output_list[output_list_index].diffusionCoefficient[6];
+      D_ij[x_node][2][2] =
+          output_list[output_list_index].diffusionCoefficient[7];
+      D_ij[x_node][2][3] =
+          output_list[output_list_index].diffusionCoefficient[8];
+      D_ij[x_node][3][3] =
+          output_list[output_list_index].diffusionCoefficient[9];
+
       // Symmetric components
       D_ij[x_node][1][0] = D_ij[x_node][0][1];
       D_ij[x_node][2][0] = D_ij[x_node][0][2];
@@ -449,8 +456,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       for (int i = 0; i < 10; i++)
         printf("D[%d]: %g ", i, output_list[x_node].diffusionCoefficient[i]);
       printf("\n");
-    }
-    else { //USE SM, setting this to -1 is the flag
+    } else { // USE SM, setting this to -1 is the flag
       D_ij[x_node][0][0] = -1;
       printf("l: %d ", x_node);
       printf("Is using SM values\n");
