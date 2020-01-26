@@ -220,9 +220,8 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 
       b90_2 = closestApproach2(Z[j], T[j]);
 
-      logLam =
-          0.5 *
-          log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
+      logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
+                                 (lambda_db + b90_2)); // GMS CL
       logLam_ii = logLam;
       logLam_ij = logLam;
     } else if (CL_type == 1) { // NRL
@@ -360,9 +359,8 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
                     ERG_TO_EV_CGS; // de broglie wavelength squared - cm^2
 
         b90_2 = pow(Z[j] * E_02_CGS / T[j], 2); // closest approach - cm^2
-        logLam =
-            0.5 *
-            log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
+        logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
+                                   (lambda_db + b90_2)); // GMS CL
         logLam_ii = logLam;
         logLam_ij = logLam;
       } else if (CL_type == 1) { // NRL
@@ -416,16 +414,17 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 #ifdef ALDR_ON
 
 // This fills the Dij array
-void get_diffusion_from_MD_0d(double *n, double *T, double *Z, char *tag, char *dbname) {
+void get_diffusion_from_MD_0d(double *n, double *T, double *Z, char *tag,
+                              char *dbname) {
   request_aldr_single(n, T, Z, tag, dbname, Dij_from_MD);
 }
 
-
-//Sets the individual Dij array, since the BGK operator interface is geared to 0D
+// Sets the individual Dij array, since the BGK operator interface is geared to
+// 0D
 // Super kludgy...
 void set_diffusion_from_MD_1d(double **Dij_in) {
-  for(int i=0; i < 4; i++) {
-    for(int j=0; j < 4; j++) {
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
       Dij_from_MD[i][j] = Dij_in[i][j];
     }
   }
@@ -498,7 +497,6 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
       Dij_from_MD[i] = malloc(4 * sizeof(double));
     }
   }
-
 }
 
 // Does explicit update of the distribution functions f at a single grid point.
@@ -569,7 +567,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   if (tauFlag == 2) {
     load_diffusion_homog(Dij_from_MD, data_filename);
   }
-  
+
   // do ij and ji at the same time
   for (i = 0; i < nspec; i++) {
     for (j = i; j < nspec; j++) {
@@ -591,24 +589,27 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
         nu11 = nu_from_MD[i][i];
         nu12 = nu_from_MD[i][j];
         nu21 = nu_from_MD[j][i];
-      } else if ((tauFlag == 2) || (tauFlag == 3) || (tauFlag == 4)) { // Note to self - need to fix to mixture temperature?
+      } else if ((tauFlag == 2) || (tauFlag == 3) ||
+                 (tauFlag ==
+                  4)) { // Note to self - need to fix to mixture temperature?
         // Check to see if we should just do SM
-        if(Dij_from_MD[0][0] == -1) {
+        if (Dij_from_MD[0][0] == -1) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
-          if(i == j)
+          if (i == j)
             nu11 = nu12;
-        }
-        else {
-          nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
-            * n[j] * (m[i] + m[j]) /  Dij_from_MD[i][j]; 
+        } else {
+          nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
+                 (m[i] + m[j]) / Dij_from_MD[i][j];
           nu21 = nu12 * n[i] / n[j];
-          nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot 
-            * n[i] * (m[i] + m[i]) /  Dij_from_MD[i][i]; 
-          
-          printf("tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n", 1.0/nu11, 1.0/nu12, 1.0/nu21, i, j, Dij_from_MD[i][i], Dij_from_MD[i][j], Dij_from_MD[j][i]);
+          nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
+                 (m[i] + m[i]) / Dij_from_MD[i][i];
+
+          printf(
+              "tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n",
+              1.0 / nu11, 1.0 / nu12, 1.0 / nu21, i, j, Dij_from_MD[i][i],
+              Dij_from_MD[i][j], Dij_from_MD[j][i]);
         }
-      }
-      else {
+      } else {
         printf("Error: set tauflag to 0, 1, 2, 3. or 4\n");
         printf("Tauflag %d\n", tauFlag);
         exit(37);
@@ -646,10 +647,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           if (tauFlag == 1) {
             // original formula for mixT
             mixT = (n[i] * nu12 * T[i] + n[j] * nu21 * T[j]) /
-	      (n[i] * nu12 + n[j] * nu21) +
-	      ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
-                                    rho[j] * nu21 * (v2_2 - mixU_sq)) /
-	      (3.0 * (n[i] * nu12 + n[j] * nu21));
+                       (n[i] * nu12 + n[j] * nu21) +
+                   ERG_TO_EV_CGS *
+                       (rho[i] * nu12 * (v2_1 - mixU_sq) +
+                        rho[j] * nu21 * (v2_2 - mixU_sq)) /
+                       (3.0 * (n[i] * nu12 + n[j] * nu21));
           } else {
             // simplified formulas for mixT
             double vdiff2 = (v[i][0] - v[j][0]) * (v[i][0] - v[j][0]) +
@@ -661,9 +663,9 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                      (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
                          vdiff2;
             } else {
-              mixT = 0.5 * (T[i] + T[j]) +
-                     (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
-                         vdiff2;
+              mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) /
+                                               (6.0 * (m[i] + m[j])) *
+                                               ERG_TO_EV_CGS * vdiff2;
             }
           }
 
@@ -684,7 +686,6 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
         }
       }
-
     }
   }
 
@@ -1282,9 +1283,8 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
                 (m[j] * T[i] + m[i] * T[j]) / (m[i] + m[j]) +
                 (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
           } else {
-            mixT =
-                0.5 * (T[i] + T[j]) +
-                (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
+            mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) / (6.0 * (m[i] + m[j])) *
+                                             ERG_TO_EV_CGS * vdiff2;
           }
 
           if (mixT < 0) {
