@@ -1270,8 +1270,8 @@ int main(int argc, char **argv) {
       MPI_Barrier(MPI_COMM_WORLD);
 
       if (order == 1) {
-        // ADVECT
 
+        // ADVECT
         for (i = 0; i < nspec; i++) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
@@ -1280,19 +1280,63 @@ int main(int argc, char **argv) {
           // COLLIDE
           if (im_ex == 0) {
 
-            #ifdef ALDR_ON
-	    //Note - might want to update these moments first
-	    if(tauFlag == 4) {
-	      request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
-	    }
-	    #endif
-
-            for (l = 0; l < Nx_rank; l++) {
+#ifdef ALDR_ON
+              // Calculate moment data in all cells
+              for (l = 0; l < Nx_rank; l++) {
+                  
+                  ntot = 0.0;
+                  rhotot = 0.0;
+                  for (i = 0; i < nspec; i++) {
+                      n_oned[l][i] = getDensity(f[l + order][i], i);
+                      ntot += n_oned[l][i];
+                      rhotot += m[i] * n_oned[l][i];
+                      getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
+                      T_oned[l][i] =
+                          getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+                      
+                  }
+                  
+                  // get mixture mass avg velocity
+                  for (j = 0; j < 3; j++) {
+                      v0_oned[l][j] = 0.0;
+                      for (i = 0; i < nspec; i++)
+                          v0_oned[l][j] += m[i] * n_oned[l][i] * v_oned[l][i][j];
+                      v0_oned[l][j] = v0_oned[l][j] / rhotot;
+                  }
+              }
+              
+              // Set T0 in all cells
+              for (l = 0; l < Nx_rank; l++) {
+                  if (ecouple == 2)
+                      T0_oned[l] = T_oned[l][0];
+                  else {
+                      T0_oned[l] = 0.0;
+                      for (i = 0; i < nspec; i++) {
+                          if (n_oned[l][i] != 0.0) {
+                              T0_oned[l] += n_oned[l][i] * T_oned[l][i];
+                              for (j = 0; j < 3; j++)
+                                  T0_oned[l] += ERG_TO_EV_CGS * m[i] * n_oned[l][i] *
+                                      (v_oned[l][i][j] - v0_oned[l][j]) *
+                                      (v_oned[l][i][j] - v0_oned[l][j]) / 3.0;
+                          }
+                      }
+                      T0_oned[l] = T0_oned[l] / ntot;
+                  }
+              }
+              
+              //Note - might want to update these moments first
+              if(tauFlag == 4) {
+                  request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
+              }
+#endif
+              
+              for (l = 0; l < Nx_rank; l++) {
 	      
 	      #ifdef ALDR_ON
 	      if(tauFlag == 4) {
 		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
-		printf("l: %d Dij %g %g %g %g\n", l, Dij_from_MD_1d[l][0][0],
+		printf("l: %d Dij %g %g %g %g\n", l, 
+                       Dij_from_MD_1d[l][0][0],
 		       Dij_from_MD_1d[l][0][1],
 		       Dij_from_MD_1d[l][1][0],
 		       Dij_from_MD_1d[l][1][1]);
