@@ -383,6 +383,15 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
 
   input_list = malloc(strongly_coupled_cells_count * sizeof(bgk_request_t));
 
+  // Initialize input list to ensure zeros go in for unused species
+  for (unsigned i = 0; i < strongly_coupled_cells_count; i++) {
+    for (unsigned sp = 0; sp < 4; sp++) {
+      input_list[i].density[sp] = 0.0;
+      input_list[i].charges[sp] = 0.0;
+    }
+    input_list[i].temperature = 0.0;
+  }
+
   unsigned input_list_count = 0;
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
 
