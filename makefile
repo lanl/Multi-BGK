@@ -3,8 +3,6 @@ DIR=$(PWD)/
 EXECDIR=$(DIR)exec/
 OBJDIR=$(DIR)obj/
 SRCDIR=$(DIR)src/
-ALDR_GLUE_DIR=/Users/haack/ALDR/glueCode_proofOfConcept/
-SQL_DIR=/Users/haack/spack/opt/spack/darwin-highsierra-x86_64/clang-4/sqlite-3.26.0-pbpvhmzw5xp5abrxclqp4tjmdbeht2dz
 # GNU C compiler 
 CC=mpicc
 CC_AL=mpicc
