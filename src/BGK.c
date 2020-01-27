@@ -594,17 +594,38 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           if (i == j)
             nu11 = nu12;
-        } else {
-          nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
-                 (m[i] + m[j]) / Dij_from_MD[i][j];
-          nu21 = nu12 * n[i] / n[j];
-          nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
-                 (m[i] + m[i]) / Dij_from_MD[i][i];
 
-          printf(
-              "tauii %g tauij %g tauji %g -- %d %d\n Dii %g Dij %g Dji %g \n",
-              1.0 / nu11, 1.0 / nu12, 1.0 / nu21, i, j, Dij_from_MD[i][i],
-              Dij_from_MD[i][j], Dij_from_MD[j][i]);
+          if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
+              printf("Using SM \n");
+
+              if(i == j) {
+                  printf("tau%d%d \n",
+                     i, i, 1.0 / nu11);              
+              }
+              else {
+                  printf("tau%d%d %g tau%d%d %g \n",
+                         i, j, 1.0 / nu12, j,i, 1.0 / nu21);              
+              }
+          }
+        } else {
+
+          if(i == j) {
+              nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
+                 (m[i] + m[i]) / Dij_from_MD[i][i];                    
+
+              printf("Using MD\n"); 
+              printf("D%d%d: %g\n", i, i, Dij_from_MD[i][i]);
+              printf("tau%d%d %g \n", i, i, 1.0 / nu11); 
+          }
+          else {
+              nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
+                  (m[i] + m[j]) / Dij_from_MD[i][j];
+              nu21 = nu12 * n[i] / n[j];
+
+              printf("Using MD\n"); 
+              printf("D%d%d: %g D%d%d: %g \n", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
+              printf("tau%d%d %g tau%d%d %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
+          }
         }
       } else {
         printf("Error: set tauflag to 0, 1, 2, 3. or 4\n");
