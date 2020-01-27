@@ -342,7 +342,7 @@ double get_max_coupling(double *n, double T, double *Z) {
     Gamma_i = Z[sp] * Z[sp] * E_02_CGS / a_i / T;
 
     //Ignore this gamma if we're not going to do collisions with this species
-    if(n[i] > NDENS_TOL)
+    if(n[sp] > NDENS_TOL)
         Gamma_max = Gamma_i > Gamma_max ? Gamma_i : Gamma_max;
   }
 
