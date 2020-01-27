@@ -462,14 +462,40 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       D_ij[x_node][3][1] = D_ij[x_node][1][3];
       D_ij[x_node][3][2] = D_ij[x_node][2][3];
 
+      printf("l: %d ", x_node);
+      printf("Input struct for this MD zone: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
+             input_list[output_list_index].density[0],
+             input_list[output_list_index].density[1],
+             input_list[output_list_index].density[2],
+             input_list[output_list_index].density[3],
+             input_list[output_list_index].charges[0],
+             input_list[output_list_index].charges[1],
+             input_list[output_list_index].charges[2],
+             input_list[output_list_index].charges[3],
+             input_list[output_list_index].temperature);                   
+
       output_list_index++;
 
-      printf("l: %d ", x_node);
       for (int i = 0; i < 10; i++)
         printf("D[%d]: %g ", i, output_list[x_node].diffusionCoefficient[i]);
       printf("\n");
     } else { // USE SM, setting this to -1 is the flag
       D_ij[x_node][0][0] = -1;
+      D_ij[x_node][0][1] = -1;
+      D_ij[x_node][0][2] = -1;
+      D_ij[x_node][0][3] = -1;
+      D_ij[x_node][1][0] = -1;
+      D_ij[x_node][1][1] = -1;
+      D_ij[x_node][1][2] = -1;
+      D_ij[x_node][1][3] = -1;
+      D_ij[x_node][2][0] = -1;
+      D_ij[x_node][2][1] = -1;
+      D_ij[x_node][2][2] = -1;
+      D_ij[x_node][2][3] = -1;
+      D_ij[x_node][3][0] = -1;
+      D_ij[x_node][3][1] = -1;
+      D_ij[x_node][3][2] = -1;
+      D_ij[x_node][3][3] = -1;
       printf("l: %d ", x_node);
       printf("Is using SM values\n");
     }
