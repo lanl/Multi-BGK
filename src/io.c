@@ -474,11 +474,12 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
              input_list[output_list_index].charges[3],
              input_list[output_list_index].temperature);                   
 
+      for (int i = 0; i < 10; i++)
+        printf("D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
+      printf("\n");
+
       output_list_index++;
 
-      for (int i = 0; i < 10; i++)
-        printf("D[%d]: %g ", i, output_list[x_node].diffusionCoefficient[i]);
-      printf("\n");
     } else { // USE SM, setting this to -1 is the flag
       D_ij[x_node][0][0] = -1;
       D_ij[x_node][0][1] = -1;
