@@ -589,6 +589,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       } else if ((tauFlag == 2) || (tauFlag == 3) ||
                  (tauFlag ==
                   4)) { // Note to self - need to fix to mixture temperature?
+
         // Check to see if we should just do SM
         if (Dij_from_MD[0][0] == -1) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
@@ -608,24 +609,35 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
               }
           }
         } else {
-
-          if(i == j) {
-              nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
-                 (m[i] + m[i]) / Dij_from_MD[i][i];                    
-
-              printf("Using MD\n"); 
-              printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
-              printf("tau%d%d: %g \n", i, i, 1.0 / nu11); 
-          }
-          else {
-              nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
-                  (m[i] + m[j]) / Dij_from_MD[i][j];
-              nu21 = nu12 * n[i] / n[j];
-
-              printf("Using MD\n"); 
-              printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
-              printf("tau%d%d: %g tau%d%d: %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
-          }
+            //USE MD
+            if(i == j) {
+                if((n[i] > NDENS_TOL)) {
+                    
+                    nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
+                        (m[i] + m[i]) / Dij_from_MD[i][i];                    
+                    
+                    printf("Using MD\n"); 
+                    printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
+                    printf("tau%d%d: %g \n", i, i, 1.0 / nu11); 
+                }
+                else
+                    nu11 = 0.0;
+            }            
+            else {
+                if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
+                    nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
+                        (m[i] + m[j]) / Dij_from_MD[i][j];
+                    nu21 = nu12 * n[i] / n[j];
+                    
+                    printf("Using MD\n"); 
+                    printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
+                    printf("tau%d%d: %g tau%d%d: %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
+                }
+                else {
+                    nu12 = 0.0;
+                    nu21 = 0.0;
+                }
+            }
         }
       } else {
         printf("Error: set tauflag to 0, 1, 2, 3. or 4\n");
