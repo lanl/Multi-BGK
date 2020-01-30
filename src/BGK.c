@@ -1005,7 +1005,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
   double ntot, rhotot;
 
   // coll operator stuff
-  double nu12, nu21;
+  double nu11, nu12, nu21;
 
   // If electrons are a 'background' species, we need to include their moments
   // in the update vector
@@ -1090,11 +1090,64 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
           nu12 = 0.0;
           nu21 = 0.0;
         }
-      } else {
-        printf("Loading collision rates from MD is not implemented for "
-               "implicit solve\n");
+      } else if(tauFlag == 4) {
+        // Check to see if we should just do SM
+        if (Dij_from_MD[0][0] == -1) {
+          getColl(n, T, Te, Z, &nu12, &nu21, i, j);
+          if (i == j)
+            nu11 = nu12;
+
+          if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
+              printf("Using SM \n");
+
+              if(i == j) {
+                  printf("tau%d%d %g\n",
+                     i, i, 1.0 / nu11);              
+              }
+              else {
+                  printf("tau%d%d %g tau%d%d %g \n",
+                         i, j, 1.0 / nu12, j,i, 1.0 / nu21);              
+              }
+          }
+        } else {
+            //USE MD
+            if(i == j) {
+                if((n[i] > NDENS_TOL)) {
+                    
+                    nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
+                        (m[i] + m[i]) / Dij_from_MD[i][i];                    
+                    
+                    printf("Using MD\n"); 
+                    printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
+                    printf("tau%d%d: %g \n", i, i, 1.0 / nu11); 
+                }
+                else
+                    nu11 = 0.0;
+            }            
+            else {
+                if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
+                    nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
+                        (m[i] + m[j]) / Dij_from_MD[i][j];
+                    nu21 = nu12 * n[i] / n[j];
+                    
+                    printf("Using MD\n"); 
+                    printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
+                    printf("tau%d%d: %g tau%d%d: %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
+                }
+                else {
+                    nu12 = 0.0;
+                    nu21 = 0.0;
+                }
+            }
+        }
+          
+      }
+      else{
+        printf("Error in tauflag - implicit is only set up for tauglag = 0 (original) or 4 (batched MD)\n");
         exit(1);
       }
+
+
       nu_linear[i][j] = nu12;
       nu_linear[j][i] = nu21;
     }
