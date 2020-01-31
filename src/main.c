@@ -1402,6 +1402,18 @@ int main(int argc, char **argv) {
               }
 #endif
             for (l = 0; l < Nx_rank; l++) {
+
+              #ifdef ALDR_ON
+	      if(tauFlag == 4) {
+		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
+		printf("l: %d Dij %g %g %g %g\n", l, 
+                       Dij_from_MD_1d[l][0][0],
+		       Dij_from_MD_1d[l][0][1],
+		       Dij_from_MD_1d[l][1][0],
+		       Dij_from_MD_1d[l][1][1]);
+	      }
+	      #endif
+
               BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
                             Te_arr[l]);
               for (i = 0; i < nspec; i++)
