@@ -1093,11 +1093,11 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       } else if(tauFlag == 4) {
         // Check to see if we should just do SM
         if (Dij_from_MD[0][0] == -1) {
-          getColl(n, T, Te, Z, &nu12, &nu21, i, j);
+          getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, i, j);
           if (i == j)
             nu11 = nu12;
 
-          if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
+          if((n_linear[i] > NDENS_TOL) && (n_linear[j] > NDENS_TOL)) {
               printf("Using SM \n");
 
               if(i == j) {
@@ -1112,10 +1112,10 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
         } else {
             //USE MD
             if(i == j) {
-                if((n[i] > NDENS_TOL)) {
+                if((n_linear[i] > NDENS_TOL)) {
                     
-                    nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
-                        (m[i] + m[i]) / Dij_from_MD[i][i];                    
+                    nu11 = (ntot * T_linear[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n_linear[i] *
+                        (m_linear[i] + m_linear[i]) / Dij_from_MD[i][i];                    
                     
                     printf("Using MD\n"); 
                     printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
@@ -1125,10 +1125,10 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
                     nu11 = 0.0;
             }            
             else {
-                if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
-                    nu12 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[j] *
-                        (m[i] + m[j]) / Dij_from_MD[i][j];
-                    nu21 = nu12 * n[i] / n[j];
+                if((n_linear[i] > NDENS_TOL) && (n_linear[j] > NDENS_TOL)) {
+                    nu12 = (ntot * T_linear[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n_linear[j] *
+                        (m_linear[i] + m_linear[j]) / Dij_from_MD[i][j];
+                    nu21 = nu12 * n_linear[i] / n_linear[j];
                     
                     printf("Using MD\n"); 
                     printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
@@ -1146,7 +1146,6 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
         printf("Error in tauflag - implicit is only set up for tauglag = 0 (original) or 4 (batched MD)\n");
         exit(1);
       }
-
 
       nu_linear[i][j] = nu12;
       nu_linear[j][i] = nu21;
