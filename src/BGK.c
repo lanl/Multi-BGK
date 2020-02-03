@@ -596,6 +596,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
           if (i == j)
             nu11 = nu12;
 
+          /*
           if((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
               printf("Using SM \n");
 
@@ -608,6 +609,7 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                          i, j, 1.0 / nu12, j,i, 1.0 / nu21);              
               }
           }
+          */
         } else {
             //USE MD
             if(i == j) {
@@ -615,10 +617,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                     
                     nu11 = (ntot * T[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n[i] *
                         (m[i] + m[i]) / Dij_from_MD[i][i];                    
-                    
+                    /*
                     printf("Using MD\n"); 
                     printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
                     printf("tau%d%d: %g \n", i, i, 1.0 / nu11); 
+                    */
                 }
                 else
                     nu11 = 0.0;
@@ -629,9 +632,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                         (m[i] + m[j]) / Dij_from_MD[i][j];
                     nu21 = nu12 * n[i] / n[j];
                     
+                    /*
                     printf("Using MD\n"); 
                     printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
                     printf("tau%d%d: %g tau%d%d: %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
+                    */
                 }
                 else {
                     nu12 = 0.0;
@@ -1098,16 +1103,24 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
             nu11 = nu12;
 
           if((n_linear[i] > NDENS_TOL) && (n_linear[j] > NDENS_TOL)) {
+              /*
               printf("Using SM \n");
 
               if(i == j) {
                   printf("tau%d%d %g\n",
-                     i, i, 1.0 / nu11);              
+                         i, i, 1.0 / nu11);              
               }
               else {
                   printf("tau%d%d %g tau%d%d %g \n",
                          i, j, 1.0 / nu12, j,i, 1.0 / nu21);              
               }
+              */
+          }
+          else {
+              nu12 = 0.0;
+              nu21 = 0.0;
+              if(i == j)
+                  nu11 = 0.0;
           }
         } else {
             //USE MD
@@ -1116,13 +1129,19 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
                     
                     nu11 = (ntot * T_linear[i] / ERG_TO_EV_CGS) / rhotot / rhotot * n_linear[i] *
                         (m_linear[i] + m_linear[i]) / Dij_from_MD[i][i];                    
-                    
+                    /*
                     printf("Using MD\n"); 
                     printf("D%d%d: %g \n", i, i, Dij_from_MD[i][i]);
                     printf("tau%d%d: %g \n", i, i, 1.0 / nu11); 
+                    */
+                    nu12 = nu11;
+                    nu21 = nu11;
                 }
-                else
+                else {
                     nu11 = 0.0;
+                    nu12 = 0.0;
+                    nu21 = 0.0;
+                }
             }            
             else {
                 if((n_linear[i] > NDENS_TOL) && (n_linear[j] > NDENS_TOL)) {
@@ -1130,11 +1149,14 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
                         (m_linear[i] + m_linear[j]) / Dij_from_MD[i][j];
                     nu21 = nu12 * n_linear[i] / n_linear[j];
                     
+                    /*
                     printf("Using MD\n"); 
                     printf("D%d%d: %g D%d%d: %g ", i,j, Dij_from_MD[i][j], j, i, Dij_from_MD[j][i]);
                     printf("tau%d%d: %g tau%d%d: %g \n",i,j, 1.0 / nu12, j,i,1.0/nu21); 
+                    */
                 }
                 else {
+                    nu11 = 0.0;
                     nu12 = 0.0;
                     nu21 = 0.0;
                 }
@@ -1145,8 +1167,8 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       else{
         printf("Error in tauflag - implicit is only set up for tauglag = 0 (original) or 4 (batched MD)\n");
         exit(1);
-      }
-
+      }          
+                 
       nu_linear[i][j] = nu12;
       nu_linear[j][i] = nu21;
     }
@@ -1159,7 +1181,10 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
 
       // Electron-ion collisions
-      nu_linear[j][nspec] = nu21;
+      if(n_linear[j] > NDENS_TOL) 
+          nu_linear[j][nspec] = nu21;
+      else
+          nu_linear[j][nspec] = 0.0;
 
       // The ecouple 1 assumption has a specified background electron
       // temperature, so the ions do not change it.
@@ -1167,6 +1192,32 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     }
     nu_linear[nspec][nspec] = 0.0;
   }
+  
+  /*
+  //Print it all
+  printf("-----------------------\n");
+  for(i = 0; i < nspec; i++) {
+      printf("n%d: %g ", i, n_linear[i]);
+  }
+  printf("\n");
+  for(i = 0; i < nspec; i++) {
+      printf("T%d: %g ", i, T_linear[i]);
+  }
+  printf("\n");
+  for(i = 0; i < nspec; i++) {
+      printf("Z%d: %g ", i, Z[i]);
+  }
+  printf("\n");
+
+  for(i=0; i < nspec + (ecouple == 1 ? 1 : 0); i++) {
+      for(j=0; j < nspec + (ecouple == 1 ? 1 : 0); j++) {      
+          printf("nu%d%d: %g ", i, j, nu_linear[i][j]);
+      }
+      printf("\n");
+  }
+  printf("-----------------------\n");
+  */
+  
 
   // Now do the BGK update
 

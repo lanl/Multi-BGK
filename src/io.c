@@ -460,8 +460,10 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       D_ij[x_node][3][1] = D_ij[x_node][1][3];
       D_ij[x_node][3][2] = D_ij[x_node][2][3];
 
+      /*
       printf("l: %d ", x_node);
       printf("Input struct for this MD zone: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
+      */
              input_list[output_list_index].density[0],
              input_list[output_list_index].density[1],
              input_list[output_list_index].density[2],
@@ -472,10 +474,11 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
              input_list[output_list_index].charges[3],
              input_list[output_list_index].temperature);                   
 
+    /*
       for (int i = 0; i < 10; i++)
         printf("D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
       printf("\n");
-
+    */
       output_list_index++;
 
     } else { // USE SM, setting this to -1 is the flag
@@ -495,8 +498,10 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       D_ij[x_node][3][1] = -1;
       D_ij[x_node][3][2] = -1;
       D_ij[x_node][3][3] = -1;
-      printf("l: %d ", x_node);
+      /*
+        printf("l: %d ", x_node);
       printf("Is using SM values\n");
+      */
     }
   }
 
