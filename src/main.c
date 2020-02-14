@@ -1337,11 +1337,13 @@ int main(int argc, char **argv) {
 	      #ifdef ALDR_ON
 	      if(tauFlag == 4) {
 		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
-		printf("l: %d Dij %g %g %g %g\n", l, 
+		/*
+                  printf("l: %d D11 %g D12 %g D21 %g D22 %g\n", l, 
                        Dij_from_MD_1d[l][0][0],
 		       Dij_from_MD_1d[l][0][1],
 		       Dij_from_MD_1d[l][1][0],
 		       Dij_from_MD_1d[l][1][1]);
+                */
 	      }
 	      #endif
 	      

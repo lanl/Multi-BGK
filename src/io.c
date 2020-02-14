@@ -463,7 +463,43 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       /*
       printf("l: %d ", x_node);
       printf("Input struct for this MD zone: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
-      */
+      input_list[output_list_index].density[0],
+          input_list[output_list_index].density[1],
+          input_list[output_list_index].density[2],
+          input_list[output_list_index].density[3],
+          input_list[output_list_index].charges[0],
+          input_list[output_list_index].charges[1],
+          input_list[output_list_index].charges[2],
+          input_list[output_list_index].charges[3],
+          input_list[output_list_index].temperature);                   
+      */    
+
+      if(output_list[output_list_index].provenance == LAMMPS) {
+          printf("l :%d is using values from LAMMPS\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == MYSTIC) {
+          printf("l :%d is using values from Mystic\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == ACTIVELEARNER) {
+          printf("l :%d is using values from Active Learner\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == FAKE) {
+          printf("l :%d is using values from FAKE\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == DEFAULT) {
+          printf("l :%d is using values from DEFAULT\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == FASTLAMMPS) {
+          printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n", x_node);          
+      }
+      else if(output_list[output_list_index].provenance == KILL) {
+          printf("l :%d is using values from KILL?\n", x_node);          
+      }
+      else {
+          printf("l: %d, cannot determine provenance of these results\n", x_node);
+      }
+
+      printf("BGK request data for this cell: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
              input_list[output_list_index].density[0],
              input_list[output_list_index].density[1],
              input_list[output_list_index].density[2],
@@ -473,12 +509,11 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
              input_list[output_list_index].charges[2],
              input_list[output_list_index].charges[3],
              input_list[output_list_index].temperature);                   
-
-    /*
+      
       for (int i = 0; i < 10; i++)
-        printf("D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
+          printf("Output returned from Glue code D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
       printf("\n");
-    */
+      
       output_list_index++;
 
     } else { // USE SM, setting this to -1 is the flag
@@ -498,10 +533,8 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       D_ij[x_node][3][1] = -1;
       D_ij[x_node][3][2] = -1;
       D_ij[x_node][3][3] = -1;
-      /*
-        printf("l: %d ", x_node);
-      printf("Is using SM values\n");
-      */
+      printf("l: %d ", x_node);
+      printf("Is using SM values\n");      
     }
   }
 
