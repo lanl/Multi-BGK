@@ -349,7 +349,7 @@ double get_max_coupling(double *n, double T, double *Z) {
 
 // Sends a whole buncha results to the glue code
 void request_aldr_batch(double **n, double **T, double **Z, char *tag,
-                        char *dbfile, double ***D_ij) {
+                        char *dbfile, double ***D_ij, int *provenance_array) {
 
   bgk_request_t *input_list;
   bgk_result_t *output_list;
@@ -476,27 +476,36 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
 
       if(output_list[output_list_index].provenance == LAMMPS) {
           printf("l :%d is using values from LAMMPS\n", x_node);          
+          provenance_array[x_node] = 0;
       }
       else if(output_list[output_list_index].provenance == MYSTIC) {
           printf("l :%d is using values from Mystic\n", x_node);          
+          provenance_array[x_node] = 1;
       }
       else if(output_list[output_list_index].provenance == ACTIVELEARNER) {
           printf("l :%d is using values from Active Learner\n", x_node);          
+          provenance_array[x_node] = 2;                    
       }
       else if(output_list[output_list_index].provenance == FAKE) {
           printf("l :%d is using values from FAKE\n", x_node);          
+          provenance_array[x_node] = 3;
       }
       else if(output_list[output_list_index].provenance == DEFAULT) {
           printf("l :%d is using values from DEFAULT\n", x_node);          
+          provenance_array[x_node] = 4;
       }
       else if(output_list[output_list_index].provenance == FASTLAMMPS) {
           printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n", x_node);          
+          provenance_array[x_node] = 5;
+          
       }
       else if(output_list[output_list_index].provenance == KILL) {
           printf("l :%d is using values from KILL?\n", x_node);          
+          provenance_array[x_node] = 7;
       }
       else {
           printf("l: %d, cannot determine provenance of these results\n", x_node);
+          provenance_array[x_node] = 37;
       }
 
       printf("BGK request data for this cell: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
@@ -534,7 +543,8 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       D_ij[x_node][3][2] = -1;
       D_ij[x_node][3][3] = -1;
       printf("l: %d ", x_node);
-      printf("Is using SM values\n");      
+      printf("Is using SM values\n");  
+      provenance_array[x_node] = -1;
     }
   }
 

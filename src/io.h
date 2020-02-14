@@ -21,7 +21,7 @@ void load_diffusion_homog(double **nu, char *fileName);
 
 void request_aldr_single(double *n, double *T, double *Z, char *tag, char *dbfile, double **D_ij);
 
-void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbfile, double ***D_ij);
+void request_aldr_batch(double **n, double **T, double **Z, char *tag, char *dbfile, double ***D_ij, int *provenance);
 
 void test_aldr();
 
