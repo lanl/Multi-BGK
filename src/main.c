@@ -322,7 +322,7 @@ int main(int argc, char **argv) {
 #ifdef ALDR_ON
     strcpy(prov_path, output_path);
     strcpy(prov_path, "_provenance");
-    outputFileProvenance = fopen(name_tmp, "w");
+    outputFileProvenance = fopen(prov_path, "w");
 #endif
         
   }
