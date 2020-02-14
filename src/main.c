@@ -321,7 +321,7 @@ int main(int argc, char **argv) {
     //Store AL info
 #ifdef ALDR_ON
     strcpy(prov_path, output_path);
-    strcpy(prov_path, "_provenance");
+    strcat(prov_path, "_provenance");
     outputFileProvenance = fopen(prov_path, "w");
 #endif
         
