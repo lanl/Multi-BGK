@@ -92,6 +92,7 @@ int main(int argc, char **argv) {
 
   #ifdef ALDR_ON
   double ***Dij_from_MD_1d;
+  int *provenance_array_1d;
   #endif
   
   double T0;
@@ -203,6 +204,7 @@ int main(int argc, char **argv) {
   char BGK_path[100];
   char poiss_path[100];
   char x_path[100];
+  char prov_path[100];
   char name_tmp[100];
 
   FILE **outputFileDens = malloc(nspec * sizeof(FILE *));
@@ -213,6 +215,10 @@ int main(int argc, char **argv) {
   FILE *outputFileTime;
   FILE *outputFile_x;
   FILE *outputFilePoiss;
+  #ifdef ALDR_ON
+  FILE *outputFileProvenance;
+  #endif
+  
 
   H_spec = malloc(nspec * sizeof(double));
   H_spec_prev = malloc(nspec * sizeof(double));
@@ -232,6 +238,7 @@ int main(int argc, char **argv) {
 	Dij_from_MD_1d[xnode_dij][sp_dij] = malloc(4 * sizeof(double));
       }
     }
+    provenance_array_1d = malloc(Nx*sizeof(int));
   }
   #endif
   
@@ -309,6 +316,15 @@ int main(int argc, char **argv) {
     strcpy(x_path, output_path);
     strcat(x_path, "_x");
     outputFile_x = fopen(x_path, "w");
+
+
+    //Store AL info
+#ifdef ALDR_ON
+    strcpy(prov_path, output_path);
+    strcpy(prov_path, "_provenance");
+    outputFileProvenance = fopen(name_tmp, "w");
+#endif
+        
   }
 
   printf("Input file: %s\n", input_filename);
@@ -1328,24 +1344,25 @@ int main(int argc, char **argv) {
               
               //Note - might want to update these moments first
               if(tauFlag == 4) {
-                  request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
+                  request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d, provenance_array_1d);
               }
 #endif
               
               for (l = 0; l < Nx_rank; l++) {
 	      
-	      #ifdef ALDR_ON
-	      if(tauFlag == 4) {
-		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
-		/*
-                  printf("l: %d D11 %g D12 %g D21 %g D22 %g\n", l, 
-                       Dij_from_MD_1d[l][0][0],
-		       Dij_from_MD_1d[l][0][1],
-		       Dij_from_MD_1d[l][1][0],
-		       Dij_from_MD_1d[l][1][1]);
-                */
-	      }
-	      #endif
+#ifdef ALDR_ON
+                  if(tauFlag == 4) {
+                      set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
+                      /*
+                        printf("l: %d D11 %g D12 %g D21 %g D22 %g\n", l, 
+                        Dij_from_MD_1d[l][0][0],
+                        Dij_from_MD_1d[l][0][1],
+                        Dij_from_MD_1d[l][1][0],
+                        Dij_from_MD_1d[l][1][1]);
+                      */
+                      fprintf(outputFileProvenance, "%d ", provenance_array_1d[l]);
+                  }              
+#endif
 	      
               BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
               for (i = 0; i < nspec; i++)
@@ -1400,29 +1417,30 @@ int main(int argc, char **argv) {
               
               //Note - might want to update these moments first
               if(tauFlag == 4) {
-                  request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d);
+                  request_aldr_batch(n_oned, T_oned, Z_oned, "dummy", "dummy.db", Dij_from_MD_1d, provenance_array_1d);
               }
 #endif
             for (l = 0; l < Nx_rank; l++) {
 
-              #ifdef ALDR_ON
-	      if(tauFlag == 4) {
-		set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
-                /*
-		printf("l: %d Dij %g %g %g %g\n", l, 
-                       Dij_from_MD_1d[l][0][0],
-		       Dij_from_MD_1d[l][0][1],
-		       Dij_from_MD_1d[l][1][0],
-		       Dij_from_MD_1d[l][1][1]);
-                */
-	      }
-	      #endif
-
-              BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
-                            Te_arr[l]);
-              for (i = 0; i < nspec; i++)
-                for (j = 0; j < Nv * Nv * Nv; j++)
-                  f[l + order][i][j] = f_tmp[l + order][i][j];
+#ifdef ALDR_ON
+                if(tauFlag == 4) {
+                    set_diffusion_from_MD_1d(Dij_from_MD_1d[l]);
+                    /*
+                      printf("l: %d Dij %g %g %g %g\n", l, 
+                      Dij_from_MD_1d[l][0][0],
+                      Dij_from_MD_1d[l][0][1],
+                      Dij_from_MD_1d[l][1][0],
+                      Dij_from_MD_1d[l][1][1]);
+                    */
+                    fprintf(outputFileProvenance, "%d ", provenance_array_1d[l]);
+                }
+#endif
+                
+                BGK_im_linear(f[l + order], f_tmp[l + order], Z_oned[l], dt,
+                              Te_arr[l]);
+                for (i = 0; i < nspec; i++)
+                    for (j = 0; j < Nv * Nv * Nv; j++)
+                        f[l + order][i][j] = f_tmp[l + order][i][j];
             }
           } else if (im_ex == 2) {
             printf("Error - nonlinear implicit solve not implemented for 1D\n");
@@ -1441,7 +1459,6 @@ int main(int argc, char **argv) {
           }
         }
       }
-
       if (order == 2) {
         // ADVECT
 
@@ -2231,6 +2248,11 @@ int main(int argc, char **argv) {
                   0.25 * f_conv[l + order][i][j];
       }
     }
+    
+#ifdef ALDR_ON
+    fprintf(outputFileProvenance, "\n");
+#endif
+
     t += dt;
     nT++;
   }
