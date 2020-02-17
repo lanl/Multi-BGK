@@ -519,10 +519,12 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
              input_list[output_list_index].charges[3],
              input_list[output_list_index].temperature);                   
       
+      printf("Output returned from Glue code: ");
       for (int i = 0; i < 10; i++)
-          printf("Output returned from Glue code D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
+          printf(" D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
       printf("\n");
-      
+      fflush(stdout);
+
       output_list_index++;
 
     } else { // USE SM, setting this to -1 is the flag
@@ -545,6 +547,7 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
       printf("l: %d ", x_node);
       printf("Is using SM values\n");  
       provenance_array[x_node] = -1;
+      fflush(stdout);
     }
   }
 

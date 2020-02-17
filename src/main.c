@@ -795,6 +795,7 @@ int main(int argc, char **argv) {
 
     if (rank == 0) {
       printf("At time %g of %g\n", t, tfinal);
+      fflush(stdout);
     }
 
     if (dims == 0) {
@@ -1250,13 +1251,18 @@ int main(int argc, char **argv) {
                   (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
 
           fprintf(outputFilePoiss, "\n");
-
+	  fflush(outputFilePoiss);
+	  
           // Close out this timestep
           fprintf(outputFileTime, "%e\n", t);
+	  fflush(outputFileTime);
           for (i = 0; i < nspec; i++) {
             fprintf(outputFileDens[i], "\n");
+	    fflush(outputFileDens[i]);
             fprintf(outputFileVelo[i], "\n");
+	    fflush(outputFileVelo[i]);
             fprintf(outputFileTemp[i], "\n");
+	    fflush(outputFileTemp[i]);
           }
 
           if (outputDist == 1)
@@ -2251,6 +2257,7 @@ int main(int argc, char **argv) {
     
 #ifdef ALDR_ON
     fprintf(outputFileProvenance, "\n");
+    fflush(outputFileProvenance);
 #endif
 
     t += dt;
@@ -2302,10 +2309,14 @@ int main(int argc, char **argv) {
 
       // Close out this timestep
       fprintf(outputFileTime, "%e\n", t);
+      fflush(outputFileTime);
       for (i = 0; i < nspec; i++) {
         fprintf(outputFileDens[i], "\n");
+	fflush(outputFileDens[i]);
         fprintf(outputFileVelo[i], "\n");
+	fflush(outputFileVelo[i]);
         fprintf(outputFileTemp[i], "\n");
+	fflush(outputFileTemp[i]);
       }
 
       if (outputDist == 1)
