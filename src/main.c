@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
     io_init_homog(Nv, nspec, c);
 
     #ifdef ALDR_ON
-    if(tauflag == 4) 
+    if(tauFlag == 4) 
       io_init_db("dummy.db");
     #endif
 
