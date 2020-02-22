@@ -1184,19 +1184,19 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
 
       // Electron-ion collisions
-      if(n_linear[j] > NDENS_TOL) 
+      if(n_linear[j] > NDENS_TOL) {
           nu_linear[j][nspec] = nu21;
-      else
+	  nu_linear[nspec][j] = nu12;
+      }
+      else {
           nu_linear[j][nspec] = 0.0;
-
-      // The ecouple 1 assumption has a specified background electron
-      // temperature, so the ions do not change it.
-      nu_linear[nspec][j] = 0.0;
+          nu_linear[nspec][j] = 0.0;
+      }
     }
     nu_linear[nspec][nspec] = 0.0;
   }
   
-  /*
+  
   //Print it all
   printf("-----------------------\n");
   for(i = 0; i < nspec; i++) {
@@ -1219,7 +1219,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       printf("\n");
   }
   printf("-----------------------\n");
-  */
+  
   
 
   // Now do the BGK update
