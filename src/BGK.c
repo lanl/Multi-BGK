@@ -1193,7 +1193,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
     nu_linear[nspec][nspec] = 0.0;
   }
   
-  
+  /*
   //Print it all
   printf("-----------------------\n");
   for(i = 0; i < nspec; i++) {
@@ -1216,7 +1216,7 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
       printf("\n");
   }
   printf("-----------------------\n");
-  
+  */
   
 
   // Now do the BGK update
