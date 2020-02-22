@@ -107,13 +107,9 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
   for (i = 0; i < nspec; i++) {
     rowsum = 0;
     for (j = 0; j < nspec; j++) {
-      if (conserveFlag == 1) { // electron background case
-        value = nu[i][j];
-      } else {
         value = nu[i][j] * gsl_matrix_get(alpha, j, i);
-      }
-      gsl_matrix_set(A, i, j, value);
-      rowsum += value;
+        gsl_matrix_set(A, i, j, value);
+        rowsum += value;
     }
     gsl_matrix_set(D, i, i, rowsum);
   }
@@ -151,71 +147,76 @@ void implicitVelocityUpdate(double **v_old, double *rho, double **nu,
 }
 
 void implicitTemperatureUpdate(double *Told, double *m, double *n,
-                               double *v2old, double *v2new, double **v2mix,
-                               double **nu, gsl_matrix *beta, double dt,
-                               int nspec, int conserveFlag, double *Tnew) {
+                               double **vnew, double *v2old, double *v2new,
+                               double **v2mix, double **nu, gsl_matrix *alpha,
+                               gsl_matrix *beta, double dt, int nspec,
+                               int conserveFlag, double *Tnew) {
 
   int i, j;
-  double valueB, valueG, rowvalB, rowvalG;
+  double valueB, rowvalB;
+  double frictionVal, vdiff2;
 
   gsl_matrix *B = gsl_matrix_calloc(nspec, nspec);
-  gsl_matrix *G = gsl_matrix_calloc(nspec, nspec);
-  gsl_matrix *F = gsl_matrix_calloc(nspec, nspec);
+  gsl_matrix *D = gsl_matrix_calloc(nspec, nspec);
   gsl_matrix *M = gsl_matrix_calloc(nspec, nspec);
 
-  gsl_vector *S = gsl_vector_calloc(nspec);
+  gsl_vector *RHS = gsl_vector_calloc(nspec);
   gsl_vector *Tnew_vec = gsl_vector_calloc(nspec);
 
   for (i = 0; i < nspec; i++) {
     rowvalB = 0.0;
-    rowvalG = 0.0;
+    frictionVal = 0.0;
+
     for (j = 0; j < nspec; j++) {
-      if (conserveFlag == 1) {
-        valueB = nu[i][j];
-      } else {
         valueB = nu[i][j] * gsl_matrix_get(beta, j, i);
-      }
-      valueG = valueB * (-m[i] * (v2new[i] - v2mix[i][j]) +
-                         m[j] * (v2new[j] - v2mix[i][j]));
 
       rowvalB += valueB;
-      rowvalG += valueG;
+
+      // Term from integration of M_ij
+      frictionVal += m[i] / 3.0 * nu[i][j] * (v2mix[i][j] - v2new[i]);
+
+      // Term from T_ij definition
+      vdiff2 = (vnew[j][0] - vnew[i][0]) * (vnew[j][0] - vnew[i][0]) +
+               (vnew[j][1] - vnew[i][1]) * (vnew[j][1] - vnew[i][1]) +
+               (vnew[j][2] - vnew[i][2]) * (vnew[j][2] - vnew[i][2]);
+
+      frictionVal += m[i] / 3.0 * nu[i][j] * gsl_matrix_get(beta, i, j) *
+                     gsl_matrix_get(alpha, j, i) * vdiff2;
 
       gsl_matrix_set(B, i, j, valueB); // 1 / s
-      gsl_matrix_set(G, i, j, valueG); // erg / s
     }
-    gsl_vector_set(S, i,
-                   (m[i] * (v2old[i] - v2new[i]) + dt * rowvalG / 3.0) *
-                           ERG_TO_EV_CGS +
-                       Told[i]);
-    //                          erg                      erg             eV/erg
-    //                          eV
-    gsl_matrix_set(F, i, i, rowvalB); // 1 / s
+
+    gsl_vector_set(
+        RHS, i,
+        Told[i] +
+            (-m[i] / 3.0 * (v2new[i] - v2old[i]) + dt * frictionVal) *
+                ERG_TO_EV_CGS); // eV
+
+    gsl_matrix_set(D, i, i, rowvalB); // 1 / s
   }
 
-  // Form M = I + dt(F-B)
+  // Form M = I + dt(D-B)
   gsl_matrix_set_identity(M);
 
-  gsl_matrix_sub(F, B);
-  gsl_matrix_scale(F, dt);
-  gsl_matrix_add(M, F);
+  gsl_matrix_sub(D, B);
+  gsl_matrix_scale(D, dt);
+  gsl_matrix_add(M, D);
 
   int status;
   gsl_permutation *P = gsl_permutation_alloc(nspec);
   gsl_linalg_LU_decomp(M, P, &status);
 
   // Solve MT = S
-  gsl_linalg_LU_solve(M, P, S, Tnew_vec);
+  gsl_linalg_LU_solve(M, P, RHS, Tnew_vec);
 
   for (i = 0; i < nspec; i++)
     Tnew[i] = gsl_vector_get(Tnew_vec, i);
 
   // Clean up
   gsl_matrix_free(B);
-  gsl_matrix_free(G);
-  gsl_matrix_free(F);
+  gsl_matrix_free(D);
   gsl_matrix_free(M);
-  gsl_vector_free(S);
+  gsl_vector_free(RHS);
   gsl_vector_free(Tnew_vec);
   gsl_permutation_free(P);
 }
@@ -263,7 +264,7 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
     for (j = 0; j < nspec; j++) {
       v2mix[i][j] = 0.0;
       for (dim = 0; dim < 3; dim++)
-        v2mix[i][j] += vmix_new[i][j][dim];
+        v2mix[i][j] += vmix_new[i][j][dim] * vmix_new[i][j][dim];
     }
   }
 
@@ -271,8 +272,8 @@ void implicitGetVelocitiesTemperaturesLinear(double *n, double **v, double *T,
   beta = computeBeta(n, nu, nspec);
   gamma = computeGamma(m, beta, v2, v2mix, nspec);
 
-  implicitTemperatureUpdate(T, m, n, v2, v2new, v2mix, nu, beta, dt, nspec,
-                            conserveFlag, Tnew);
+  implicitTemperatureUpdate(T, m, n, vnew, v2, v2new, v2mix, nu, alpha, beta,
+                            dt, nspec, conserveFlag, Tnew);
 
   computeMixtureTemperatures(Tnew, beta, gamma, nspec, Tmix_new);
 
@@ -371,8 +372,8 @@ void implicitGetVelocitiesTemperaturesNonlinear(
     beta = computeBeta(n, nu, nspec);
     gamma = computeGamma(m, beta, v2, v2mix, nspec);
 
-    implicitTemperatureUpdate(T, m, n, v2, v2new, v2mix, nu, beta, dt, nspec,
-                              conserveFlag, Tnew);
+    implicitTemperatureUpdate(T, m, n, vnew, v2, v2new, v2mix, nu, alpha, beta,
+                              dt, nspec, conserveFlag, Tnew);
 
     computeMixtureTemperatures(Tnew, beta, gamma, nspec, Tmix_new);
 
