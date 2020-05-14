@@ -340,9 +340,9 @@ double get_max_coupling(double *n, double T, double *Z) {
     a_i = pow(3.0 * Z[sp] / (4.0 * M_PI * rho_tot), 1.0 / 3.0);
     Gamma_i = Z[sp] * Z[sp] * E_02_CGS / a_i / T;
 
-    //Ignore this gamma if we're not going to do collisions with this species
-    if(n[sp] > NDENS_TOL)
-        Gamma_max = Gamma_i > Gamma_max ? Gamma_i : Gamma_max;
+    // Ignore this gamma if we're not going to do collisions with this species
+    if (n[sp] > NDENS_TOL)
+      Gamma_max = Gamma_i > Gamma_max ? Gamma_i : Gamma_max;
   }
 
   return Gamma_max;
@@ -352,18 +352,31 @@ double get_max_coupling(double *n, double T, double *Z) {
 void request_aldr_batch(double **n, double **T, double **Z, char *tag,
                         char *dbfile, double ***D_ij, int *provenance_array) {
 
-  bgk_request_t *input_list;
-  bgk_result_t *output_list;
-  // bgk_result_t *output_list = malloc(Nx * sizeof(bgk_result_t));
+  bgk_request_t *input_list = malloc(Nx * sizeof(bgk_request_t));
+  bgk_result_t *output_list = malloc(Nx * sizeof(bgk_result_t));
 
-  unsigned strongly_coupled_cells_count = 0;
-  unsigned strongly_coupled_cells[Nx];
+  // Initialize input list to ensure zeros go in for unused species
+  for (unsigned i = 0; i < Nx; i++) {
+    for (unsigned sp = 0; sp < 4; sp++) {
+      input_list[i].density[sp] = 0.0;
+      input_list[i].charges[sp] = 0.0;
+    }
+    input_list[i].temperature = 0.0;
+  }
 
-  // Determine the number of strongly coupled cells
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
 
     double Tmix = 0.0;
     double ntot = 0.0;
+
+    for (int sp = 0; sp < nspec; sp++) {
+      if (n[x_node][sp] > NDENS_TOL) {
+        input_list[x_node].density[sp] = n[x_node][sp];
+      } else {
+        input_list[x_node].density[sp] = 0.0;
+      }
+      input_list[x_node].charges[sp] = Z[x_node][sp];
+    }
 
     // Calculate mixture T
     for (int sp = 0; sp < nspec; sp++) {
@@ -375,181 +388,87 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
 
     Tmix /= ntot;
 
-    double Gamma_cell_max = get_max_coupling(n[x_node], Tmix, Z[x_node]);
-    if (Gamma_cell_max > 0.1) {
-      strongly_coupled_cells_count++;
-      strongly_coupled_cells[x_node] = 1;
-    } else
-      strongly_coupled_cells[x_node] = 0;
+    input_list[x_node].temperature = Tmix;
   }
 
-  input_list = malloc(strongly_coupled_cells_count * sizeof(bgk_request_t));
-
-  // Initialize input list to ensure zeros go in for unused species
-  for (unsigned i = 0; i < strongly_coupled_cells_count; i++) {
-    for (unsigned sp = 0; sp < 4; sp++) {
-      input_list[i].density[sp] = 0.0;
-      input_list[i].charges[sp] = 0.0;
-    }
-    input_list[i].temperature = 0.0;
-  }
-
-  unsigned input_list_count = 0;
-  for (unsigned x_node = 0; x_node < Nx; ++x_node) {
-
-    if (strongly_coupled_cells[x_node]) {
-      double Tmix = 0.0;
-      double ntot = 0.0;
-
-      for (int sp = 0; sp < nspec; sp++) {
-        if (n[x_node][sp] > NDENS_TOL) {
-          input_list[input_list_count].density[sp] = n[x_node][sp];
-        } else {
-          input_list[input_list_count].density[sp] = 0.0;
-        }
-        input_list[input_list_count].charges[sp] = Z[x_node][sp];
-      }
-
-      // Calculate mixture T
-      for (int sp = 0; sp < nspec; sp++) {
-        if (n[x_node][sp] > NDENS_TOL) {
-          Tmix += n[x_node][sp] * T[x_node][sp];
-          ntot += n[x_node][sp];
-        }
-      }
-
-      Tmix /= ntot;
-
-      input_list[input_list_count].temperature = Tmix;
-      input_list_count++;
-    }
-  }
-
-  output_list =
-      bgk_req_batch(input_list, strongly_coupled_cells_count, 0, tag, db);
+  output_list = bgk_req_batch(input_list, Nx, 0, tag, db);
 
   // Store the results
-  int output_list_index = 0;
   for (unsigned x_node = 0; x_node < Nx; ++x_node) {
-    if (strongly_coupled_cells[x_node]) {
-      D_ij[x_node][0][0] =
-          output_list[output_list_index].diffusionCoefficient[0];
-      D_ij[x_node][0][1] =
-          output_list[output_list_index].diffusionCoefficient[1];
-      D_ij[x_node][0][2] =
-          output_list[output_list_index].diffusionCoefficient[2];
-      D_ij[x_node][0][3] =
-          output_list[output_list_index].diffusionCoefficient[3];
-      D_ij[x_node][1][1] =
-          output_list[output_list_index].diffusionCoefficient[4];
-      D_ij[x_node][1][2] =
-          output_list[output_list_index].diffusionCoefficient[5];
-      D_ij[x_node][1][3] =
-          output_list[output_list_index].diffusionCoefficient[6];
-      D_ij[x_node][2][2] =
-          output_list[output_list_index].diffusionCoefficient[7];
-      D_ij[x_node][2][3] =
-          output_list[output_list_index].diffusionCoefficient[8];
-      D_ij[x_node][3][3] =
-          output_list[output_list_index].diffusionCoefficient[9];
+    D_ij[x_node][0][0] = output_list[x_node].diffusionCoefficient[0];
+    D_ij[x_node][0][1] = output_list[x_node].diffusionCoefficient[1];
+    D_ij[x_node][0][2] = output_list[x_node].diffusionCoefficient[2];
+    D_ij[x_node][0][3] = output_list[x_node].diffusionCoefficient[3];
+    D_ij[x_node][1][1] = output_list[x_node].diffusionCoefficient[4];
+    D_ij[x_node][1][2] = output_list[x_node].diffusionCoefficient[5];
+    D_ij[x_node][1][3] = output_list[x_node].diffusionCoefficient[6];
+    D_ij[x_node][2][2] = output_list[x_node].diffusionCoefficient[7];
+    D_ij[x_node][2][3] = output_list[x_node].diffusionCoefficient[8];
+    D_ij[x_node][3][3] = output_list[x_node].diffusionCoefficient[9];
 
-      // Symmetric components
-      D_ij[x_node][1][0] = D_ij[x_node][0][1];
-      D_ij[x_node][2][0] = D_ij[x_node][0][2];
-      D_ij[x_node][3][0] = D_ij[x_node][0][3];
-      D_ij[x_node][2][1] = D_ij[x_node][1][2];
-      D_ij[x_node][3][1] = D_ij[x_node][1][3];
-      D_ij[x_node][3][2] = D_ij[x_node][2][3];
+    // Symmetric components
+    D_ij[x_node][1][0] = D_ij[x_node][0][1];
+    D_ij[x_node][2][0] = D_ij[x_node][0][2];
+    D_ij[x_node][3][0] = D_ij[x_node][0][3];
+    D_ij[x_node][2][1] = D_ij[x_node][1][2];
+    D_ij[x_node][3][1] = D_ij[x_node][1][3];
+    D_ij[x_node][3][2] = D_ij[x_node][2][3];
 
-      /*
-      printf("l: %d ", x_node);
-      printf("Input struct for this MD zone: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
-      input_list[output_list_index].density[0],
-          input_list[output_list_index].density[1],
-          input_list[output_list_index].density[2],
-          input_list[output_list_index].density[3],
-          input_list[output_list_index].charges[0],
-          input_list[output_list_index].charges[1],
-          input_list[output_list_index].charges[2],
-          input_list[output_list_index].charges[3],
-          input_list[output_list_index].temperature);                   
-      */    
+    /*
+    printf("l: %d ", x_node);
+    printf("Input struct for this MD zone: n: %g %g %g %g Z: %g %g %g %g T:
+    %g\n", input_list[x_node].density[0],
+        input_list[x_node].density[1],
+        input_list[x_node].density[2],
+        input_list[x_node].density[3],
+        input_list[x_node].charges[0],
+        input_list[x_node].charges[1],
+        input_list[x_node].charges[2],
+        input_list[x_node].charges[3],
+        input_list[x_node].temperature);
+    */
 
-      if(output_list[output_list_index].provenance == LAMMPS) {
-          printf("l :%d is using values from LAMMPS\n", x_node);          
-          provenance_array[x_node] = 0;
-      }
-      else if(output_list[output_list_index].provenance == MYSTIC) {
-          printf("l :%d is using values from Mystic\n", x_node);          
-          provenance_array[x_node] = 1;
-      }
-      else if(output_list[output_list_index].provenance == ACTIVELEARNER) {
-          printf("l :%d is using values from Active Learner\n", x_node);          
-          provenance_array[x_node] = 2;                    
-      }
-      else if(output_list[output_list_index].provenance == FAKE) {
-          printf("l :%d is using values from FAKE\n", x_node);          
-          provenance_array[x_node] = 3;
-      }
-      else if(output_list[output_list_index].provenance == DEFAULT) {
-          printf("l :%d is using values from DEFAULT\n", x_node);          
-          provenance_array[x_node] = 4;
-      }
-      else if(output_list[output_list_index].provenance == FASTLAMMPS) {
-          printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n", x_node);          
-          provenance_array[x_node] = 5;
-          
-      }
-      else if(output_list[output_list_index].provenance == KILL) {
-          printf("l :%d is using values from KILL?\n", x_node);          
-          provenance_array[x_node] = 7;
-      }
-      else {
-          printf("l: %d, cannot determine provenance of these results\n", x_node);
-          provenance_array[x_node] = 37;
-      }
+    if (output_list[x_node].provenance == LAMMPS) {
+      printf("l :%d is using values from LAMMPS\n", x_node);
+      provenance_array[x_node] = 0;
+    } else if (output_list[x_node].provenance == MYSTIC) {
+      printf("l :%d is using values from Mystic\n", x_node);
+      provenance_array[x_node] = 1;
+    } else if (output_list[x_node].provenance == ACTIVELEARNER) {
+      printf("l :%d is using values from Active Learner\n", x_node);
+      provenance_array[x_node] = 2;
+    } else if (output_list[x_node].provenance == FAKE) {
+      printf("l :%d is using values from FAKE\n", x_node);
+      provenance_array[x_node] = 3;
+    } else if (output_list[x_node].provenance == DEFAULT) {
+      printf("l :%d is using values from DEFAULT\n", x_node);
+      provenance_array[x_node] = 4;
+    } else if (output_list[x_node].provenance == FASTLAMMPS) {
+      printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n",
+             x_node);
+      provenance_array[x_node] = 5;
 
-      printf("BGK request data for this cell: n: %g %g %g %g Z: %g %g %g %g T: %g\n", 
-             input_list[output_list_index].density[0],
-             input_list[output_list_index].density[1],
-             input_list[output_list_index].density[2],
-             input_list[output_list_index].density[3],
-             input_list[output_list_index].charges[0],
-             input_list[output_list_index].charges[1],
-             input_list[output_list_index].charges[2],
-             input_list[output_list_index].charges[3],
-             input_list[output_list_index].temperature);                   
-      
-      printf("Output returned from Glue code: ");
-      for (int i = 0; i < 10; i++)
-          printf(" D[%d]: %g ", i, output_list[output_list_index].diffusionCoefficient[i]);
-      printf("\n");
-      fflush(stdout);
-
-      output_list_index++;
-
-    } else { // USE SM, setting this to -1 is the flag
-      D_ij[x_node][0][0] = -1;
-      D_ij[x_node][0][1] = -1;
-      D_ij[x_node][0][2] = -1;
-      D_ij[x_node][0][3] = -1;
-      D_ij[x_node][1][0] = -1;
-      D_ij[x_node][1][1] = -1;
-      D_ij[x_node][1][2] = -1;
-      D_ij[x_node][1][3] = -1;
-      D_ij[x_node][2][0] = -1;
-      D_ij[x_node][2][1] = -1;
-      D_ij[x_node][2][2] = -1;
-      D_ij[x_node][2][3] = -1;
-      D_ij[x_node][3][0] = -1;
-      D_ij[x_node][3][1] = -1;
-      D_ij[x_node][3][2] = -1;
-      D_ij[x_node][3][3] = -1;
-      printf("l: %d ", x_node);
-      printf("Is using SM values\n");  
-      provenance_array[x_node] = -1;
-      fflush(stdout);
+    } else if (output_list[x_node].provenance == KILL) {
+      printf("l :%d is using values from KILL?\n", x_node);
+      provenance_array[x_node] = 7;
+    } else {
+      printf("l: %d, cannot determine provenance of these results\n", x_node);
+      provenance_array[x_node] = 37;
     }
+
+    printf("BGK request data for this cell: n: %g %g %g %g Z: %g %g %g %g T: "
+           "%g\n",
+           input_list[x_node].density[0], input_list[x_node].density[1],
+           input_list[x_node].density[2], input_list[x_node].density[3],
+           input_list[x_node].charges[0], input_list[x_node].charges[1],
+           input_list[x_node].charges[2], input_list[x_node].charges[3],
+           input_list[x_node].temperature);
+
+    printf("Output returned from Glue code: ");
+    for (int i = 0; i < 10; i++)
+      printf(" D[%d]: %g ", i, output_list[x_node].diffusionCoefficient[i]);
+    printf("\n");
+    fflush(stdout);
   }
 
   free(input_list);
