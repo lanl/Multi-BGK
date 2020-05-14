@@ -428,29 +428,29 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
         input_list[x_node].temperature);
     */
 
-    if (output_list[x_node].provenance == LAMMPS) {
+    if (output_list[x_node].provenance == 0) {
       printf("l :%d is using values from LAMMPS\n", x_node);
       provenance_array[x_node] = 0;
-    } else if (output_list[x_node].provenance == MYSTIC) {
+    } else if (output_list[x_node].provenance == 1) {
       printf("l :%d is using values from Mystic\n", x_node);
       provenance_array[x_node] = 1;
-    } else if (output_list[x_node].provenance == ACTIVELEARNER) {
+    } else if (output_list[x_node].provenance == 2) {
       printf("l :%d is using values from Active Learner\n", x_node);
       provenance_array[x_node] = 2;
-    } else if (output_list[x_node].provenance == FAKE) {
+    } else if (output_list[x_node].provenance == 3) {
       printf("l :%d is using values from FAKE\n", x_node);
       provenance_array[x_node] = 3;
-    } else if (output_list[x_node].provenance == DEFAULT) {
-      printf("l :%d is using values from DEFAULT\n", x_node);
+    } else if (output_list[x_node].provenance == 4) {
+      printf("l :%d is using values from DB\n", x_node);
       provenance_array[x_node] = 4;
-    } else if (output_list[x_node].provenance == FASTLAMMPS) {
+    } else if (output_list[x_node].provenance == 5) {
       printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n",
              x_node);
       provenance_array[x_node] = 5;
 
-    } else if (output_list[x_node].provenance == KILL) {
+    } else if (output_list[x_node].provenance == 9) {
       printf("l :%d is using values from KILL?\n", x_node);
-      provenance_array[x_node] = 7;
+      provenance_array[x_node] = 9;
     } else {
       printf("l: %d, cannot determine provenance of these results\n", x_node);
       provenance_array[x_node] = 37;
