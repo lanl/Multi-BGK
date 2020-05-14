@@ -429,27 +429,30 @@ void request_aldr_batch(double **n, double **T, double **Z, char *tag,
         input_list[x_node].temperature);
     */
 
-    if (output_list[x_node].provenance == 0) {
+    if (output_list[x_node].provenance == FGS) {
       printf("l :%d is using values from LAMMPS\n", x_node);
       provenance_array[x_node] = 0;
-    } else if (output_list[x_node].provenance == 1) {
+    } else if (output_list[x_node].provenance == MYSTIC) {
       printf("l :%d is using values from Mystic\n", x_node);
       provenance_array[x_node] = 1;
-    } else if (output_list[x_node].provenance == 2) {
+    } else if (output_list[x_node].provenance == ACTIVELEARNER) {
       printf("l :%d is using values from Active Learner\n", x_node);
       provenance_array[x_node] = 2;
-    } else if (output_list[x_node].provenance == 3) {
+    } else if (output_list[x_node].provenance == FAKE) {
       printf("l :%d is using values from FAKE\n", x_node);
       provenance_array[x_node] = 3;
-    } else if (output_list[x_node].provenance == 4) {
+    } else if (output_list[x_node].provenance == DEFAULT) {
       printf("l :%d is using values from DB\n", x_node);
       provenance_array[x_node] = 4;
-    } else if (output_list[x_node].provenance == 5) {
+    } else if (output_list[x_node].provenance == FASTFGS) {
       printf("l :%d is using  (probably non-physical) values from FASTLAMMPS\n",
              x_node);
       provenance_array[x_node] = 5;
-
-    } else if (output_list[x_node].provenance == 9) {
+    } else if (output_list[x_node].provenance == ANALYTIC) {
+      printf("l :%d is using Analytic values from glue\n",
+             x_node);
+      provenance_array[x_node] = 6;
+    } else if (output_list[x_node].provenance == KILL) {
       printf("l :%d is using values from KILL?\n", x_node);
       provenance_array[x_node] = 9;
     } else {
