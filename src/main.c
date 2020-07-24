@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
   MPI_Status status;
   int rankCounter;
   int rankOffset;
-  double *momentBuffer;
+  double *momentBuffer, *momentBuffer2;
   int *Nx_ranks;
 
   // get input information, set up the problem
@@ -116,6 +116,8 @@ int main(int argc, char **argv) {
   double *T0_oned;
   double **T_for_zbar;
   double *T_max, T0_max;
+
+  double ***marginal_oned;
 
   // Velocity grid setup - 0D and 1D
   int Nv;
@@ -211,6 +213,7 @@ int main(int argc, char **argv) {
   FILE *outputFileTime;
   FILE *outputFile_x;
   FILE *outputFilePoiss;
+  FILE **outputFileMarginal = malloc(nspec * sizeof(FILE *));
 
   H_spec = malloc(nspec * sizeof(double));
   H_spec_prev = malloc(nspec * sizeof(double));
@@ -246,6 +249,14 @@ int main(int argc, char **argv) {
         outputFileTemp[i] = fopen(temp_path, "a");
       else
         outputFileTemp[i] = fopen(temp_path, "w");
+
+      strcpy(temp_path, output_path);
+      sprintf(name_tmp, "_marginal%d", i);
+      strcat(temp_path, name_tmp);
+      if ((restartFlag == 2) || (restartFlag == 4))
+        outputFileMarginal[i] = fopen(temp_path, "a");
+      else
+        outputFileMarginal[i] = fopen(temp_path, "w");
     }
   }
 
@@ -462,6 +473,7 @@ int main(int argc, char **argv) {
     // Physical grid allocation and initialization
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
+    momentBuffer2 = malloc(Nv * (Nx_rank + 1) * sizeof(double));
 
     dx = Lx / Nx;
 
@@ -509,6 +521,15 @@ int main(int argc, char **argv) {
       v0_oned[l][2] = 0.0;
 
       T0_oned[l] = 0.0;
+    }
+
+    if (outputDist == 2) {
+      marginal_oned = malloc(nspec * sizeof(double **));
+      for (s = 0; s < nspec; s++) {
+        marginal_oned[s] = malloc(Nx_rank * sizeof(double *));
+        for (j = 0; j < Nx_rank; j++)
+          marginal_oned[s][j] = malloc(Nv * sizeof(double));
+      }
     }
 
     if (input_file_data_flag) {
@@ -1201,6 +1222,13 @@ int main(int argc, char **argv) {
               fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
               fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
               fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
+              if (outputDist == 2) {
+                getMarginal(f[l + order][i], marginal_oned[i][l], i);
+                for (j = 0; j < Nv; ++j) {
+                  fprintf(outputFileMarginal[i], "%e ", marginal_oned[i][l][j]);
+                }
+                fprintf(outputFileMarginal[i], "\n");
+              }
             }
           }
 
@@ -1213,6 +1241,22 @@ int main(int argc, char **argv) {
                 fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
                 fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
                 fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
+              }
+            }
+          }
+
+          if (outputDist == 2) {
+            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+              for (s = 0; s < nspec; s++) {
+                MPI_Recv(momentBuffer, Nv * Nx_ranks[rankCounter], MPI_DOUBLE,
+                         rankCounter, 200 + s, MPI_COMM_WORLD, &status);
+              }
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                for (j = 0; j < Nv; j++) {
+                  fprintf(outputFileMarginal[s], "%e ",
+                          momentBuffer[j + Nv * l]);
+                }
+                fprintf(outputFileMarginal[s], "\n");
               }
             }
           }
@@ -1243,17 +1287,29 @@ int main(int argc, char **argv) {
         } else { // send to rank 0 for output purposes
           for (s = 0; s < nspec; s++) {
             for (l = 0; l < Nx_rank; l++) {
+              T_oned[l][s] =
+                  getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
               momentBuffer[0 + 3 * l] = n_oned[l][s];
               momentBuffer[1 + 3 * l] = v_oned[l][s][0];
               momentBuffer[2 + 3 * l] = T_oned[l][s];
             }
             MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                      MPI_COMM_WORLD);
+            if (outputDist == 2) {
+              for (s = 0; s < nspec; ++s) {
+                for (l = 0; l < Nx_rank; ++l) {
+                  getMarginal(f[l + order][s], marginal_oned[s][l], i);
+                  for (j = 0; j < Nv; ++j) {
+                    momentBuffer2[j + Nv * l] = marginal_oned[s][l][j];
+                  }
+                }
+                MPI_Send(momentBuffer2, Nv * Nx_rank, MPI_DOUBLE, 0, 200 + s,
+                         MPI_COMM_WORLD);
+              }
+            }
           }
-
           if (outputDist == 1)
             store_distributions_inhomog(f, input_filename, nT, t, rank);
-
           outcount = 0;
         }
       }
