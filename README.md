@@ -287,6 +287,7 @@ End_init
 `Dump_distro`            - Flag for outputting the full vdf for 1D-3V at the writing frequency rate
 
 * Set to 1 to include distribution functions whenever output is written to disk
+* Set to 2 to only output the marginal distrubution, i.e. f(vx) = \int f(vx,vy,fz) dvy dvz
 * default is 0
 * I think this is only implemented for 1D-3V right now
 * WARNING: this can generate a ton of data if you are not careful with how often you report your data. Make sure you do not have a writing frequency of e.g. 1 if you use this.
