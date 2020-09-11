@@ -1019,8 +1019,10 @@ int main(int argc, char **argv) {
       convenient for units issues
       ************/
 
-      if (ecouple == 1) { // electrons only in background
-        if (Te_start != Te_ref)
+      if (ecouple == 1) {    // electrons only in background
+        if (Te_start == 0) { // cubic case
+          get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+        } else if (Te_start != Te_ref)
           get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
         else
           get_uniform_Te(Te_arr, Nx_rank,
@@ -1698,8 +1700,10 @@ int main(int argc, char **argv) {
 
         // Recalc Poiss
 
-        if (ecouple == 1) { // electrons only in background
-          if (Te_start != Te_ref)
+        if (ecouple == 1) {    // electrons only in background
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1938,8 +1942,10 @@ int main(int argc, char **argv) {
 
         // Recalc Poiss
 
-        if (ecouple == 1) { // electrons only in background
-          if (Te_start != Te_ref)
+        if (ecouple == 1) {    // electrons only in background
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1990,8 +1996,8 @@ int main(int argc, char **argv) {
           if (numRanks > 1) {
             rankOffset = Nx_rank;
 
-            // Get the source/RHS value and electron temperatures from all the
-            // other ranks.
+            // Get the source/RHS value and electron temperatures from all
+            // the other ranks.
             for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
               MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
                        rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
