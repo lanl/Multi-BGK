@@ -806,6 +806,6 @@ void get_ramp_Te_cubic(double *Te, int Nx, double alpha, double shift,
                        double t) {
 
   for (int l = 0; l < Nx; ++l) {
-    Te[l] = alpha * pow(t + shift, 3);
+    Te[l] = alpha * pow((t + shift) / 1e-9, 3);
   }
 }
