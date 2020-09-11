@@ -742,9 +742,8 @@ double chemPot_TF(double *source, int N, double *Te, double mu0) {
     xn = x0;
 
     while (((absErr > absTol) || (relErr > relTol)) && (loop < 50)) {
-      xnp1 = xn -
-             (fdfac * gsl_sf_fermi_dirac_half(xn) - RHS) /
-                 (fdfac * gsl_sf_fermi_dirac_mhalf(xn));
+      xnp1 = xn - (fdfac * gsl_sf_fermi_dirac_half(xn) - RHS) /
+                      (fdfac * gsl_sf_fermi_dirac_mhalf(xn));
       absErr = fabs(xnp1 - xn);
       relErr = fabs((xnp1 - xn)) / fabs(xn);
       xn = xnp1;
@@ -800,5 +799,13 @@ void get_ramp_Te(double *Te, int Nx, double T_start, double T_end, double t,
 
   for (l = 0; l < Nx; l++) {
     Te[l] = rampTemp;
+  }
+}
+
+void get_ramp_Te_cubic(double *Te, int Nx, double alpha, double shift,
+                       double t) {
+
+  for (int l = 0; l < Nx; ++l) {
+    Te[l] = alpha * pow(t + shift, 3);
   }
 }

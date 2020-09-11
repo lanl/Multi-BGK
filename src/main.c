@@ -1389,7 +1389,9 @@ int main(int argc, char **argv) {
 
         if (ecouple == 1) { // electrons only in background
 
-          if (Te_start != Te_ref)
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
