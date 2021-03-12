@@ -4,7 +4,7 @@ edit stuff below
 
 Generates Gaussian with mean 0 and variance sigma (in cm) 
 
-f(x) = (\frac{1}{2\pi sigma})^{1/2} e^{-x^2 / 2 sigma^2}
+f(x) = \frac{1}{\sigma(2\pi)^{1/2}} e^{-x^2 / 2 sigma^2}
 
 input file layout  
 Do it by species, e.g. 
@@ -12,9 +12,9 @@ species
 0
 n
 1.0 1.0 1.0 ... 1.0
-v
+velocity
 1.0 1.0 1.0 ... 1.0
-T
+temperature
 1.0 1.0 1.0 ... 1.0
 
 """
@@ -56,13 +56,13 @@ for species in np.arange(0,nspec):
         fout.write(str(dens) + " ")
     fout.write("\n")
     
-    fout.write("v\n")
+    fout.write("velocity\n")
     for x in cellcenters:
         # Calculate Maxwellian        
         fout.write('0.0' + " ")
     fout.write("\n")
     
-    fout.write("T\n")
+    fout.write("temperature\n")
     for x in cellcenters:
         # Calculate Maxwellian        
         fout.write(str(Temps[species]) + " ")
