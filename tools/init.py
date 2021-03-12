@@ -68,3 +68,5 @@ for species in np.arange(0,nspec):
         fout.write(str(Temps[species]) + " ")
     fout.write("\n")
     
+fout.write("Stop\n")
+fout.close()
