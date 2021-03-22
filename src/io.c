@@ -13,6 +13,15 @@
 #define NDENS_TOL 1e10
 #endif
 
+#ifdef ALDR_ON
+#include <alInterface.h>
+#include <sqlite3.h>
+#endif
+
+#ifndef NDENS_TOL
+#define NDENS_TOL 1e10
+#endif
+
 static int Nx;
 static int Nv;
 static int nspec;
