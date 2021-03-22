@@ -39,9 +39,6 @@ static double *nu_tot, **nu;
 static double **nu_from_MD;
 static double **Dij_from_MD;
 
-//Number density under which we do not collide particles, due to lack of statistics
-#define EPS_COLL 1e6
-
 // parameters for Stanton-Murillo fit data
 static double a_1 = 1.4660;
 static double a_2 = -1.7836;
@@ -1366,6 +1363,7 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
     for (j = i; j < nspec; j++) {
 
       if (tauFlag == 0) {
+        if ((n[i] > NDENS_TOL) && (n[j] > NDENS_TOL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
           collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
           collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
