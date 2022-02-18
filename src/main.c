@@ -29,6 +29,7 @@
 
 // BGK/RHS packages
 #include "BGK.h"
+#include "TNB.h"
 
 int main(int argc, char **argv) {
 
@@ -40,7 +41,7 @@ int main(int argc, char **argv) {
   MPI_Status status;
   int rankCounter;
   int rankOffset;
-  double *momentBuffer;
+  double *momentBuffer, *momentBuffer2;
   int *Nx_ranks;
 
   // get input information, set up the problem
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
   // Flags for BGK collision rates
   int ecouple, CL_type, ion_type, MT_or_TR;
   int BGK_type;
+  int TNBFlag;
   double beta;
 
   // distribution functions
@@ -114,6 +116,8 @@ int main(int argc, char **argv) {
   double *T0_oned;
   double **T_for_zbar;
   double *T_max, T0_max;
+
+  double ***marginal_oned;
 
   // Velocity grid setup - 0D and 1D
   int Nv;
@@ -168,9 +172,9 @@ int main(int argc, char **argv) {
   read_input(&nspec, &dims, &Nx, &Lx, &Nv, &v_sigma, &discret, &poissFlavor, &m,
              &Z_max, &order, &im_ex, &dt, &tfinal, &numint, &intervalLimits,
              &ndens_int, &velo_int, &T_int, &ecouple, &ionFix, &Te_start,
-             &Te_ref, &CL_type, &ion_type, &MT_or_TR, &n_zerod, &v_val,
-             &T_zerod, &dataFreq, &outputDist, &RHS_tol, &BGK_type, &beta,
-             &hydro_kinscheme_flag, &input_file_data_flag,
+             &Te_ref, &CL_type, &ion_type, &MT_or_TR, &TNBFlag, &n_zerod,
+             &v_val, &T_zerod, &dataFreq, &outputDist, &RHS_tol, &BGK_type,
+             &beta, &hydro_kinscheme_flag, &input_file_data_flag,
              input_file_data_filename, input_filename);
 
   char output_path[100] = {"./Data/"};
@@ -209,6 +213,7 @@ int main(int argc, char **argv) {
   FILE *outputFileTime;
   FILE *outputFile_x;
   FILE *outputFilePoiss;
+  FILE **outputFileMarginal = malloc(nspec * sizeof(FILE *));
 
   H_spec = malloc(nspec * sizeof(double));
   H_spec_prev = malloc(nspec * sizeof(double));
@@ -244,6 +249,14 @@ int main(int argc, char **argv) {
         outputFileTemp[i] = fopen(temp_path, "a");
       else
         outputFileTemp[i] = fopen(temp_path, "w");
+
+      strcpy(temp_path, output_path);
+      sprintf(name_tmp, "_marginal%d", i);
+      strcat(temp_path, name_tmp);
+      if ((restartFlag == 2) || (restartFlag == 4))
+        outputFileMarginal[i] = fopen(temp_path, "a");
+      else
+        outputFileMarginal[i] = fopen(temp_path, "w");
     }
   }
 
@@ -452,9 +465,15 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
+    if (restartFlag == 2) {
+      load_time_inhomog(input_filename, &nT, &t);
+      printf("Initial timestep and time %d %lg\n", nT, t);
+    }
+
     // Physical grid allocation and initialization
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
+    momentBuffer2 = malloc(Nv * (Nx_rank + 1) * sizeof(double));
 
     dx = Lx / Nx;
 
@@ -502,6 +521,15 @@ int main(int argc, char **argv) {
       v0_oned[l][2] = 0.0;
 
       T0_oned[l] = 0.0;
+    }
+
+    if (outputDist == 2) {
+      marginal_oned = malloc(nspec * sizeof(double **));
+      for (s = 0; s < nspec; s++) {
+        marginal_oned[s] = malloc(Nx_rank * sizeof(double *));
+        for (j = 0; j < Nx_rank; j++)
+          marginal_oned[s][j] = malloc(Nv * sizeof(double));
+      }
     }
 
     if (input_file_data_flag) {
@@ -646,9 +674,9 @@ int main(int argc, char **argv) {
       free(GLWeights);
     }
 
-    io_init_inhomog(Nx_rank, Nv, nspec, c);
+    io_init_inhomog(Nx_rank, Nv, nspec, order, c, m);
     if (outputDist == 1) {
-      store_grid(input_filename);
+      store_grid_inhomog(input_filename, rank);
     }
 
     // Distribution function setup
@@ -721,6 +749,20 @@ int main(int argc, char **argv) {
                            T_int, Nx_rank, x, nspec, Nv, order, c, m, n_oned,
                            v_oned, T_oned);
 
+    if (restartFlag == 2) {
+      // initialize distribution function with something non-physical
+      for (l = 0; l < Nx_rank + 2 * order; l++) {
+        for (s = 0; s < nspec; s++) {
+          for (i = 0; i < Nv * Nv * Nv; i++) {
+            f[l][s][i] = -1.0;
+          }
+        }
+      }
+
+      // Now load the distros
+      load_distributions_inhomog(f, input_filename, nT, rank);
+    }
+
     if (rank == 0) {
       printf("Initial condition setup complete\n");
       fflush(stdout);
@@ -729,7 +771,10 @@ int main(int argc, char **argv) {
 
   initialize_moments(Nv, nspec, c, wts);
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
-                 tauFlag, input_filename);
+                 tauFlag, TNBFlag, input_filename);
+
+  if (TNBFlag)
+    initializeTNB(Nv, c, wts);
 
   if (!((restartFlag == 2) || (restartFlag == 4))) {
     t = 0.0;
@@ -909,6 +954,8 @@ int main(int argc, char **argv) {
           ntot += n_oned[l][i];
           rhotot += m[i] * n_oned[l][i];
           getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
+          T_oned[l][i] =
+              getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
         }
 
         // get mixture mass avg velocity
@@ -972,8 +1019,10 @@ int main(int argc, char **argv) {
       convenient for units issues
       ************/
 
-      if (ecouple == 1) { // electrons only in background
-        if (Te_start != Te_ref)
+      if (ecouple == 1) {    // electrons only in background
+        if (Te_start == 0) { // cubic case
+          get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+        } else if (Te_start != Te_ref)
           get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
         else
           get_uniform_Te(Te_arr, Nx_rank,
@@ -1172,11 +1221,16 @@ int main(int argc, char **argv) {
         if (rank == 0) {
           for (l = 0; l < Nx_rank; l++) {
             for (i = 0; i < nspec; i++) {
-              T_oned[l][i] =
-                  getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
               fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
               fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
               fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
+              if (outputDist == 2) {
+                getMarginal(f[l + order][i], marginal_oned[i][l], i);
+                for (j = 0; j < Nv; ++j) {
+                  fprintf(outputFileMarginal[i], "%e ", marginal_oned[i][l][j]);
+                }
+                fprintf(outputFileMarginal[i], "\n");
+              }
             }
           }
 
@@ -1189,6 +1243,22 @@ int main(int argc, char **argv) {
                 fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
                 fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
                 fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
+              }
+            }
+          }
+
+          if (outputDist == 2) {
+            for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
+              for (s = 0; s < nspec; s++) {
+                MPI_Recv(momentBuffer, Nv * Nx_ranks[rankCounter], MPI_DOUBLE,
+                         rankCounter, 200 + s, MPI_COMM_WORLD, &status);
+              }
+              for (l = 0; l < Nx_ranks[rankCounter]; l++) {
+                for (j = 0; j < Nv; j++) {
+                  fprintf(outputFileMarginal[s], "%e ",
+                          momentBuffer[j + Nv * l]);
+                }
+                fprintf(outputFileMarginal[s], "\n");
               }
             }
           }
@@ -1212,24 +1282,36 @@ int main(int argc, char **argv) {
             fprintf(outputFileVelo[i], "\n");
             fprintf(outputFileTemp[i], "\n");
           }
-
           if (outputDist == 1)
-            store_distributions_inhomog(f, input_filename, nT);
+            store_distributions_inhomog(f, input_filename, nT, t, rank);
 
           outcount = 0;
-        }
-
-        else { // send to rank 0 for output purposes
+        } else { // send to rank 0 for output purposes
           for (s = 0; s < nspec; s++) {
             for (l = 0; l < Nx_rank; l++) {
+              T_oned[l][s] =
+                  getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
               momentBuffer[0 + 3 * l] = n_oned[l][s];
               momentBuffer[1 + 3 * l] = v_oned[l][s][0];
               momentBuffer[2 + 3 * l] = T_oned[l][s];
             }
             MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                      MPI_COMM_WORLD);
+            if (outputDist == 2) {
+              for (s = 0; s < nspec; ++s) {
+                for (l = 0; l < Nx_rank; ++l) {
+                  getMarginal(f[l + order][s], marginal_oned[s][l], i);
+                  for (j = 0; j < Nv; ++j) {
+                    momentBuffer2[j + Nv * l] = marginal_oned[s][l][j];
+                  }
+                }
+                MPI_Send(momentBuffer2, Nv * Nx_rank, MPI_DOUBLE, 0, 200 + s,
+                         MPI_COMM_WORLD);
+              }
+            }
           }
-
+          if (outputDist == 1)
+            store_distributions_inhomog(f, input_filename, nT, t, rank);
           outcount = 0;
         }
       }
@@ -1309,7 +1391,9 @@ int main(int argc, char **argv) {
 
         if (ecouple == 1) { // electrons only in background
 
-          if (Te_start != Te_ref)
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1616,8 +1700,10 @@ int main(int argc, char **argv) {
 
         // Recalc Poiss
 
-        if (ecouple == 1) { // electrons only in background
-          if (Te_start != Te_ref)
+        if (ecouple == 1) {    // electrons only in background
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1856,8 +1942,10 @@ int main(int argc, char **argv) {
 
         // Recalc Poiss
 
-        if (ecouple == 1) { // electrons only in background
-          if (Te_start != Te_ref)
+        if (ecouple == 1) {    // electrons only in background
+          if (Te_start == 0) { // cubic case
+            get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1908,8 +1996,8 @@ int main(int argc, char **argv) {
           if (numRanks > 1) {
             rankOffset = Nx_rank;
 
-            // Get the source/RHS value and electron temperatures from all the
-            // other ranks.
+            // Get the source/RHS value and electron temperatures from all
+            // the other ranks.
             for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
               MPI_Recv(source_buf, 2 * Nx_ranks[rankCounter], MPI_DOUBLE,
                        rankCounter, 200 + rankCounter, MPI_COMM_WORLD, &status);
@@ -2068,11 +2156,11 @@ int main(int argc, char **argv) {
   }
 
   // Store final timstep data
-  
-  if(dims == 1) {
+
+  if (dims == 1) {
     // Calculate moment data in all cells
     for (l = 0; l < Nx_rank; l++) {
-      
+
       ntot = 0.0;
       rhotot = 0.0;
       for (i = 0; i < nspec; i++) {
@@ -2082,13 +2170,13 @@ int main(int argc, char **argv) {
         getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
         T_oned[l][i] =
             getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
-
       }
     }
-   
-    //moments calculated, now store final step. We are ignoring the e field here
 
-    if(rank == 0) {
+    // moments calculated, now store final step. We are ignoring the e field
+    // here
+
+    if (rank == 0) {
       for (l = 0; l < Nx_rank; l++) {
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
@@ -2096,7 +2184,7 @@ int main(int argc, char **argv) {
           fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
         }
       }
-      
+
       // get from other ranks
       for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
         for (s = 0; s < nspec; s++) {
@@ -2109,7 +2197,7 @@ int main(int argc, char **argv) {
           }
         }
       }
-      
+
       // Close out this timestep
       fprintf(outputFileTime, "%e\n", t);
       for (i = 0; i < nspec; i++) {
@@ -2117,12 +2205,11 @@ int main(int argc, char **argv) {
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
       }
-      
+
       if (outputDist == 1)
-        store_distributions_inhomog(f, input_filename, nT);
-      
-    }
-    else { // send to rank 0 for output purposes
+        store_distributions_inhomog(f, input_filename, nT, t, rank);
+
+    } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
         for (l = 0; l < Nx_rank; l++) {
           momentBuffer[0 + 3 * l] = n_oned[l][s];
@@ -2132,16 +2219,19 @@ int main(int argc, char **argv) {
         MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                  MPI_COMM_WORLD);
       }
-      
+      if (outputDist == 1)
+        store_distributions_inhomog(f, input_filename, nT, t, rank);
     }
-    
+
     MPI_Barrier(MPI_COMM_WORLD);
   }
-   
 
-
-  if ((dims == 0) && (restartFlag > 0))
-    store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
+  if (restartFlag > 0) {
+    if (dims == 0)
+      store_distributions_homog(f_zerod, t, -1 * nT, input_filename);
+    else
+      store_distributions_inhomog(f, input_filename, nT, t, rank);
+  }
 
   // clean up
 

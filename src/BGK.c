@@ -1,3 +1,4 @@
+#include "TNB.h"
 #include "implicit.h"
 #include "io.h"
 #include "momentRoutines.h"
@@ -6,6 +7,7 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_vector.h>
 #include <math.h>
+#include <mpi.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +16,7 @@ static double mu;
 static int Nv;
 static int nspec;
 static int order;
+static int rank;
 static double *m;
 static double m_e;
 static double **Q;
@@ -25,6 +28,7 @@ static int ion_type;
 static int MT_or_TR;
 static double collmin;
 static int tauFlag;
+static int TNBFlag;
 static double t;
 
 static double *n;
@@ -34,8 +38,11 @@ static double *T;
 static double *nu_tot, **nu;
 static double **nu_from_MD;
 
-//Number density under which we do not collide particles, due to lack of statistics
+// Number density under which we do not collide particles, due to lack of
+// statistics
+#ifndef EPS_COLL
 #define EPS_COLL 1e6
+#endif
 
 // parameters for Stanton-Murillo fit data
 static double a_1 = 1.4660;
@@ -213,9 +220,8 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 
       b90_2 = closestApproach2(Z[j], T[j]);
 
-      logLam =
-          0.5 *
-          log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
+      logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
+                                 (lambda_db + b90_2)); // GMS CL
       logLam_ii = logLam;
       logLam_ij = logLam;
     } else if (CL_type == 1) { // NRL
@@ -353,9 +359,8 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
                     ERG_TO_EV_CGS; // de broglie wavelength squared - cm^2
 
         b90_2 = pow(Z[j] * E_02_CGS / T[j], 2); // closest approach - cm^2
-        logLam =
-            0.5 *
-            log(1 + (lambda_eff + a_i * a_i) / (lambda_db + b90_2)); // GMS CL
+        logLam = 0.5 * log(1 + (lambda_eff + a_i * a_i) /
+                                   (lambda_db + b90_2)); // GMS CL
         logLam_ii = logLam;
         logLam_ij = logLam;
       } else if (CL_type == 1) { // NRL
@@ -407,7 +412,7 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
 }
 
 void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
-                    int ec, int CL, int itype, int MorT, int tFlag,
+                    int ec, int CL, int itype, int MorT, int tFlag, int TNB,
                     char *filename) {
   int i;
 
@@ -422,10 +427,13 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
   ion_type = itype;
   MT_or_TR = MorT;
   tauFlag = tFlag;
+  TNBFlag = TNB;
 
   collmin = 1.0;
 
   m_e = M_ELEC_CGS;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Allocate
 
@@ -531,6 +539,8 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
   for (i = 0; i < nspec; i++) {
     for (j = i; j < nspec; j++) {
 
+      mu = m[i] * m[j] / (m[i] + m[j]);
+
       if (tauFlag == 0) {
         if ((n[i] > EPS_COLL) && (n[j] > EPS_COLL)) {
           getColl(n, T, Te, Z, &nu12, &nu21, i, j);
@@ -560,14 +570,18 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // explicit first order update
 
       if (i == j) {
-        if (n[j] >= EPS_COLL) {
+        if (n[i] >= EPS_COLL) {
 
           GetMaxwell(m[i], n[i], v[i], T[i], M, i);
 #pragma omp parallel for private(k)
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[i][k] += nu11 * (M[k] - f[i][k]);
         }
-      } else {
+        // Check do see if this is DD, do TNB if needed
+        if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
+          TNB_DD(f, f_out, i, rank, TNBFlag, 1.0, mu, n, v, T);
+        }
+      } else { // ij case
         if (!((n[i] < EPS_COLL) || (n[j] < EPS_COLL))) {
 
           // Get Maxwell cross terms
@@ -586,8 +600,9 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
             // original formula for mixT
             mixT = (n[i] * nu12 * T[i] + n[j] * nu21 * T[j]) /
                        (n[i] * nu12 + n[j] * nu21) +
-                   ERG_TO_EV_CGS * (rho[i] * nu12 * (v2_1 - mixU_sq) +
-                                    rho[j] * nu21 * (v2_2 - mixU_sq)) /
+                   ERG_TO_EV_CGS *
+                       (rho[i] * nu12 * (v2_1 - mixU_sq) +
+                        rho[j] * nu21 * (v2_2 - mixU_sq)) /
                        (3.0 * (n[i] * nu12 + n[j] * nu21));
           } else {
             // simplified formulas for mixT
@@ -600,9 +615,9 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
                      (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
                          vdiff2;
             } else {
-              mixT = 0.5 * (T[i] + T[j]) +
-                     (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
-                         vdiff2;
+              mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) /
+                                               (6.0 * (m[i] + m[j])) *
+                                               ERG_TO_EV_CGS * vdiff2;
             }
           }
 
@@ -621,6 +636,11 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
 #pragma omp parallel for private(k)
           for (k = 0; k < Nv * Nv * Nv; k++)
             f_out[j][k] += nu21 * (M[k] - f[j][k]);
+        }
+
+        // Check for DT reaction
+        if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
+          TNB_DT(f, f_out, i, j, rank, TNBFlag, 1.0, mu, n, v, T);
         }
       }
     }
@@ -1010,18 +1030,17 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
   // Add the electron piece if needed
   if (ecouple == 1) {
     for (j = 0; j < nspec; j++) {
-        if(n_linear[j] > EPS_COLL) {
-            //-1 says the other species is electrons with a fixed temperature
-            getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
-            
-            // Electron-ion collisions
-            nu_linear[j][nspec] = nu21;
-            nu_linear[nspec][j] = nu12;
-        }
-        else {
-            nu_linear[j][nspec] = 0.0;
-            nu_linear[nspec][j] = 0.0;
-        }
+      if (n_linear[j] > EPS_COLL) {
+        //-1 says the other species is electrons with a fixed temperature
+        getColl(n_linear, T_linear, Te, Z, &nu12, &nu21, -1, j);
+
+        // Electron-ion collisions
+        nu_linear[j][nspec] = nu21;
+        nu_linear[nspec][j] = nu12;
+      } else {
+        nu_linear[j][nspec] = 0.0;
+        nu_linear[nspec][j] = 0.0;
+      }
     }
     nu_linear[nspec][nspec] = 0.0;
   }
@@ -1078,6 +1097,23 @@ void BGK_im_linear(double **f, double **f_out, double *Z, double dt,
 
       for (index = 0; index < Nv * Nv * Nv; index++)
         f_out[sp][index] += dtnu_over_dt_nui * M[index];
+    }
+  }
+
+  if (TNBFlag > 0) {
+    for (sp = 0; sp < nspec; sp++) {
+
+      mu = 0.5 * m[sp];
+      if ((mu > 1.6e-24) && (mu < 1.7e-24))
+	TNB_DD(f, f_out, sp, rank, TNBFlag, dt, 0.5 * m[sp], n_linear, v_linear, T_linear);
+
+      for (sp2 = sp; sp2 < nspec; sp2++) {
+	mu =  m[sp] * m[sp2] / (m[sp] + m[sp2]);
+	
+	if((mu > 1.8e-24) && (mu < 2.0e-24))
+	  TNB_DT(f, f_out, sp, sp2, rank, TNBFlag, dt,
+               m[sp] * m[sp2] / (m[sp] + m[sp2]), n_linear, v_linear, T_linear);
+      }
     }
   }
 
@@ -1220,9 +1256,8 @@ void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te) {
                 (m[j] * T[i] + m[i] * T[j]) / (m[i] + m[j]) +
                 (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
           } else {
-            mixT =
-                0.5 * (T[i] + T[j]) +
-                (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS * vdiff2;
+            mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) / (6.0 * (m[i] + m[j])) *
+                                             ERG_TO_EV_CGS * vdiff2;
           }
 
           if (mixT < 0) {
