@@ -1263,15 +1263,15 @@ int main(int argc, char **argv) {
             }
           }
 
-          // Print poisson information - TODO double check units
+          // Print poisson information - this produces eE in eV/cm
           fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx);
+                  (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx * ERG_TO_EV_CGS);
           for (l = 1; l < Nx - 1; l++) {
             fprintf(outputFilePoiss, "%e ",
-                    (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx);
+                    (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx * ERG_TO_EV_CGS);
           }
           fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx);
+                  (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx * ERG_TO_EV_CGS);
 
           fprintf(outputFilePoiss, "\n");
 
