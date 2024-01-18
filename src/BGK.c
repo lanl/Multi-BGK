@@ -41,7 +41,7 @@ static double **nu_from_MD;
 // Number density under which we do not collide particles, due to lack of
 // statistics
 #ifndef EPS_COLL
-#define EPS_COLL 1e6
+#define EPS_COLL 1e-2
 #endif
 
 // parameters for Stanton-Murillo fit data

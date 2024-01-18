@@ -27,15 +27,11 @@ Lx = 2.574                 #size of domain in cm
 Nx = 992
 nspec = 1
 
-outfile = 'scott_500_nocutout.init'  #Name of file to be written
-
+infile = 'scott_gap_231204.txt'
+outfile = 'scott_array_cutout_500.init'  #Name of file to be written
 
 # Data per species
-dens_max = [6.8e6]  #1/cm^3
 Temps = [8.61e-5]       #eV
-std_dev = [0.13]
-do_cutout = 0
-cutout_bound = 0.014
 
 #!-----------------------------!#
 
@@ -43,33 +39,31 @@ cutout_bound = 0.014
 #Create the grid on -Lx/2 : Lx/2
 dx = float(Lx) / float(Nx)
 cellcenters = np.linspace(-0.5*float(Lx) + 0.5*dx, 0.5*float(Lx) - 0.5*dx, Nx)
-print(cellcenters.size)
 
 # Create the file
 fout = open(outfile, 'w') 
-    
-for species in np.arange(0,nspec):
+
+densvals_file = np.loadtxt(infile,delimiter=',')
+print(densvals_file.shape)
+shift = int(Nx / 4)
+dens = np.zeros(Nx)
+
+for species in range(0,nspec):
     fout.write("species\n")
     fout.write(str(species) + "\n")
     
     fout.write("dens\n")
-    for x in cellcenters:
+    for i in range(Nx):
         # Calculate Maxwellian
-        dens = dens_max[species]*(1.0 / std_dev[species]) * (2.0 * np.pi) ** -0.5 * np.exp(-0.5 * (x / std_dev[species]) ** 2.0)
-        cutout_dens = 1.0e-6
-
-        if dens < 1.0e-6:
-            dens = 1.0e-6
-        
-        if(do_cutout):
-            if(np.abs(x) < cutout_bound):
-                print("cutting out, orig dens " + str(dens) + " new dens " + str(cutout_dens) + "\n")
-                fout.write(str(cutout_dens) + "\n")
-            else:
-                fout.write(str(dens) + "\n")
+        if(i < shift):
+            dens[i] = densvals_file[0][2]
+        elif(i > Nx - shift - 1):
+            dens[i] = densvals_file[-1][2]
         else:
-            fout.write(str(dens) + "\n")
-            
+            dens[i] = densvals_file[i - shift][2]         
+
+    for i in range(Nx):
+        fout.write(str(dens[i]) + "\n")            
     
     fout.write("velocity\n")
     for x in range(Nx):

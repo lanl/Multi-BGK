@@ -475,6 +475,11 @@ int main(int argc, char **argv) {
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
     momentBuffer2 = malloc(Nv * (Nx_rank + 1) * sizeof(double));
 
+    if(input_file_data_flag) {
+      intervalLimits = malloc(sizeof(double)); //we only care about the leftmost guy
+      intervalLimits[0] = x[order];
+    }
+    
     dx = Lx / Nx;
 
     // Write the full mesh for storage purposes
@@ -536,11 +541,11 @@ int main(int argc, char **argv) {
       if (rank == 0) {
         printf("input_file_data_flag: %d, filename: %s\n", input_file_data_flag,
                input_file_data_filename);
-      }
+      }      
 
-      initialize_sol_load_inhom_file(Nx, nspec, n_oned, v_oned, T_oned,
-                                     input_file_data_filename);
-
+      initialize_sol_load_inhom_file(rank, Nx_ranks, Nx, nspec, n_oned, v_oned, T_oned,
+                                     input_file_data_filename);      
+      
       // Find maximum temperature
       for (l = 0; l < Nx_rank; l++)
         for (s = 0; s < nspec; s++) {
@@ -563,6 +568,8 @@ int main(int argc, char **argv) {
         T0_max = Te_ref;
     }
 
+    printf("Setting up input done\n");
+    
     // Allocate for poisson calc
     PoisPot = malloc((Nx_rank + 2 * order) * sizeof(double));
     PoisPot_allranks = malloc(Nx * sizeof(double));

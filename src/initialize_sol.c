@@ -74,7 +74,7 @@ void initialize_sol_inhom(double ***f, int nint, double *int_loc,
   }
 }
 
-void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned,
+void initialize_sol_load_inhom_file(int rank, int *Nx_ranks, int Nx_total, int nspec, double **n_oned,
                                     double ***v_oned, double **T_oned,
                                     char *input_file_data_filename) {
 
@@ -99,12 +99,23 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned,
 
   char input_path[256] = "./input/";
 
+  int Nx = Nx_ranks[rank];
+  int start = 0;
+  for(int r = 0; r < rank; r++) {
+    start += Nx_ranks[r];
+  }
+  
+  
   printf("In load file, ready to load file %s\n", input_file_data_filename);
 
+  printf("rank %d, Nx %d, start %d\n", rank, Nx, start);
+  
   strcat(input_path, input_file_data_filename);
 
   printf("Input path: %s\n", input_path);
 
+  fflush(stdout);
+  
   FILE *data_file = fopen(input_path, "r");
 
   char line[10000] = {"dummy"};
@@ -117,42 +128,49 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned,
   while (!stopFlag) {
     read_line(data_file, line);
 
-    printf("%s\n", line);
-
+    //printf("%s\n", line);
+    //int lines_read = 0;
+    
     if (strcmp(line, "Stop") == 0)
       stopFlag = 1;
     else if (strcmp(line, "species") == 0) {
       sp = read_int(data_file);
 
       read_line(data_file, line);
-      printf("%s\n", line);
       if (strcmp(line, "dens") != 0) {
         printf("Error in initial condition data file - expected 'dens'\n");
         exit(1);
       } else {
-        read_line(data_file, line);
         token = strtok(line, " ");
+	for (l = 0; l < start; ++l) {
+	  read_line(data_file, line);
+	  //ignore all the previous ones
+	}
         for (l = 0; l < Nx; l++) {
-          n_oned[l][sp] = atof(token);
-          token = strtok(NULL, " ");
+	  read_line(data_file, line);
+          n_oned[l][sp] = atof(line);
         }
+	for(l = start + Nx; l < Nx_total; l++)
+	  read_line(data_file, line);	  
       }
 
       read_line(data_file, line);
-      printf("%s\n", line);
-
       if (strcmp(line, "velocity") != 0) {
         printf("Error in initial condition data file - expected 'velocity'\n");
         exit(1);
       } else {
-        read_line(data_file, line);
-        token = strtok(line, " ");
+	for (l = 0; l < start; ++l) {
+	  read_line(data_file, line);
+	  //ignore all the previous ones
+	}
         for (l = 0; l < Nx; l++) {
-          v_oned[l][sp][0] = atof(token);
+	  read_line(data_file, line);
+          v_oned[l][sp][0] = atof(line);
           v_oned[l][sp][0] = 0;
           v_oned[l][sp][0] = 0;
-          token = strtok(NULL, " ");
         }
+	for(l = start + Nx; l < Nx_total; l++)
+	  read_line(data_file, line);	  
       }
 
       read_line(data_file, line);
@@ -162,14 +180,18 @@ void initialize_sol_load_inhom_file(int Nx, int nspec, double **n_oned,
             "Error in initial condition data file - expected 'temperature'\n");
         exit(1);
       } else {
-        read_line(data_file, line);
-        token = strtok(line, " ");
+	for (l = 0; l < start; ++l) {
+	  read_line(data_file, line);
+	  //ignore all the previous ones
+	}	
         for (l = 0; l < Nx; l++) {
-          T_oned[l][sp] = atof(token);
-          token = strtok(NULL, " ");
+	  read_line(data_file, line);
+          T_oned[l][sp] = atof(line);
         }
+	for(l = start + Nx; l < Nx_total; l++)
+	  read_line(data_file, line);	  
       }
-
+      
     } else {
       printf("Error in initial condition data file - missed species block or "
              "Stop command\n");
