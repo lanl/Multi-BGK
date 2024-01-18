@@ -8,8 +8,8 @@ SRCDIR=$(DIR)src/
 CC=mpicc
 
 # Compiler flags
-CFLAGS= -O2 -fopenmp -Wall
-LIBFLAGS = -lm -lgsl -lgslcblas
+CFLAGS= -O2 -fopenmp -I${GSL_INC_DIR} -Wall
+LIBFLAGS = -lm -L${GSL_LIB_DIR} -lgsl -lgslcblas
 
 # Command definition
 RM=rm -f
