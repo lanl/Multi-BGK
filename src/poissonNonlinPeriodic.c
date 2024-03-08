@@ -168,9 +168,10 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
     electronSource(phiVec, g, gPrime, ne0, Te);
 
-    //get a fresh B to get off diagonal terms and remove changes done by LU decomp
-    gsl_matrix_memcpy(B, A);    
-    
+    // get a fresh B to get off diagonal terms and remove changes done by LU
+    // decomp
+    gsl_matrix_memcpy(B, A);
+
     for (i = 0; i < N; i++) {
       gsl_matrix_set(
           B, i, i, gsl_matrix_get(A, i, i) + 4.0 * M_PI * E_02_CGS * gPrime[i]);
@@ -210,7 +211,8 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
     ion_tot += source[i] * dx;
     e_tot += ne0 * exp(gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
-   printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
+  printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g \n", ion_tot,
+         e_tot, fabs(ion_tot - e_tot), fabs(ion_tot - e_tot) / ion_tot);
 
   // put results in phi, converted to ergs
   for (i = 0; i < N; i++)
@@ -601,8 +603,9 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   while (((relErr > relTol) || (absErr > absTol)) && (loop < 50)) {
     electronSource_TF(phiVec, g, gPrime, mu, Te);
 
-    //get a fresh B to get off diagonal terms and remove changes done by LU decomp
-    gsl_matrix_memcpy(B, A);    
+    // get a fresh B to get off diagonal terms and remove changes done by LU
+    // decomp
+    gsl_matrix_memcpy(B, A);
 
     for (i = 0; i < N; i++) {
       gsl_matrix_set(
