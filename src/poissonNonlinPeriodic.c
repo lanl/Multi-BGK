@@ -210,8 +210,7 @@ void PoissNonlinPeriodic1D(int N, double *source, double dx, double Lx,
     ion_tot += source[i] * dx;
     e_tot += ne0 * exp(gsl_vector_get(phiVec, i) / Te[i]) * dx;
   }
-  // printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g
-  // \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
+   printf("Charges:| ion: %g  electron %g abs diff %g reldiff %g \n",ion_tot,e_tot,fabs(ion_tot-e_tot),fabs(ion_tot-e_tot)/ion_tot);
 
   // put results in phi, converted to ergs
   for (i = 0; i < N; i++)

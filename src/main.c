@@ -202,6 +202,7 @@ int main(int argc, char **argv) {
   char H_path[100];
   char BGK_path[100];
   char poiss_path[100];
+  char phi_path[100];
   char x_path[100];
   char name_tmp[100];
 
@@ -213,6 +214,7 @@ int main(int argc, char **argv) {
   FILE *outputFileTime;
   FILE *outputFile_x;
   FILE *outputFilePoiss;
+  FILE *outputFilePhi;
   FILE **outputFileMarginal = malloc(nspec * sizeof(FILE *));
 
   H_spec = malloc(nspec * sizeof(double));
@@ -296,12 +298,17 @@ int main(int argc, char **argv) {
     // Set up file to store E-field
     strcpy(poiss_path, output_path);
     strcat(poiss_path, "_poiss");
+    strcpy(phi_path, output_path);
+    strcat(phi_path, "_phi");
 
-    if ((restartFlag == 2) || (restartFlag == 4))
+    if ((restartFlag == 2) || (restartFlag == 4)) {
       outputFilePoiss = fopen(poiss_path, "a");
-    else
+      outputFilePhi = fopen(phi_path, "a");
+    }
+    else {
       outputFilePoiss = fopen(poiss_path, "w");
-
+      outputFilePhi = fopen(phi_path, "w");
+    }
     // store physical mesh
     strcpy(x_path, output_path);
     strcat(x_path, "_x");
@@ -1037,36 +1044,37 @@ int main(int argc, char **argv) {
       } else
         Te_arr = T0_oned;
 
-      /*
+      
       if (ecouple == 2) {
         for (l = 0; l < Nx_rank; l++) {
           source[l] = 0.0;
           for (i = 1; i < nspec; i++) {
             source[l] +=
-                Z_oned[l][i] *
-                n_oned[l][i]; // total number of free electrons in each cell
+	      Z_oned[l][i] *
+	      n_oned[l][i]; // total number of free electrons in each cell
           }
           source[l] -= n_oned[l][0]; // electrons
         }
-
-        } else { */
-
-      // Calculate ionization data
-      for (l = 0; l < Nx_rank; l++) {
-        // Get ionization
-
-        if ((ecouple != 2) && (ionFix != 1))
-          zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
-        else
-          Z_oned[l] = Z_max;
-
-        // Set up local Poisson RHS vector
-        source[l] = 0.0;
-        for (i = 0; i < nspec; i++) {
-          source[l] +=
+      }
+      else { 
+	
+	// Calculate ionization data
+	for (l = 0; l < Nx_rank; l++) {
+	  // Get ionization
+	  
+	  if ((ecouple != 2) && (ionFix != 1))
+	    zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+	  else
+	    Z_oned[l] = Z_max;
+	  
+	  // Set up local Poisson RHS vector
+	  source[l] = 0.0;
+	  for (i = 0; i < nspec; i++) {
+	    source[l] +=
               Z_oned[l][i] *
-              n_oned[l][i]; // total number of free electrons in each cell
-        }
+	      n_oned[l][i]; // total number of free electrons in each cell
+	  }
+	}
       }
 
       // Set up the source/RHS array for the Poisson solve
@@ -1108,11 +1116,11 @@ int main(int argc, char **argv) {
 
       if (rank == 0) { // Rank 0 performs the Poisson Solve
 
-        /*if (ecouple == 2) {
+        if (ecouple == 2) {
           simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
-          } else {
-        */
-        if (poissFlavor == 0) { // no E-field
+	} else {
+	  
+	  if (poissFlavor == 0) { // no E-field
           for (l = 0; l < Nx; l++)
             PoisPot_allranks[l] = 0.0;
         } else if (poissFlavor == 11) // Linear Yukawa
@@ -1127,7 +1135,7 @@ int main(int argc, char **argv) {
         else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
           PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                    PoisPot_allranks, Te_arr_allranks);
-        //}
+        }
       }
 
       // Distribute back to the other ranks
@@ -1273,14 +1281,19 @@ int main(int argc, char **argv) {
           // Print poisson information - this produces eE in eV/cm
           fprintf(outputFilePoiss, "%e ",
                   (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx * ERG_TO_EV_CGS);
+          fprintf(outputFilePhi, "%e ", PoisPot_allranks[0] * ERG_TO_EV_CGS);
           for (l = 1; l < Nx - 1; l++) {
             fprintf(outputFilePoiss, "%e ",
                     (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx * ERG_TO_EV_CGS);
-          }
+
+	    fprintf(outputFilePhi, "%e ", PoisPot_allranks[l] * ERG_TO_EV_CGS);
+	  }
           fprintf(outputFilePoiss, "%e ",
                   (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx * ERG_TO_EV_CGS);
-
+          fprintf(outputFilePhi, "%e ", PoisPot_allranks[Nx - 1] * ERG_TO_EV_CGS);
+	  
           fprintf(outputFilePoiss, "\n");
+          fprintf(outputFilePhi, "\n");
 
           // Close out this timestep
           fprintf(outputFileTime, "%e\n", t);
@@ -1481,10 +1494,10 @@ int main(int argc, char **argv) {
 
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
-          /*if (ecouple == 2) {
+          if (ecouple == 2) {
           simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-          */
+        
           if (poissFlavor == 0) { // no E-field
             for (l = 0; l < Nx; l++)
               PoisPot_allranks[l] = 0.0;
@@ -1500,7 +1513,7 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
-          //}
+          }
         }
 
         // Distribute back to the other ranks
@@ -1820,10 +1833,10 @@ int main(int argc, char **argv) {
 
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
-          /*if (ecouple == 2) {
+          if (ecouple == 2) {
           simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-          */
+          
           if (poissFlavor == 0) { // no E-field
             for (l = 0; l < Nx; l++)
               PoisPot_allranks[l] = 0.0;
@@ -1839,7 +1852,7 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
-          //}
+          }
         }
 
         // Distribute back to the other ranks
@@ -2030,10 +2043,10 @@ int main(int argc, char **argv) {
 
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
-          /*if (ecouple == 2) {
+          if (ecouple == 2) {
           simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-          */
+          
           if (poissFlavor == 0) { // no E-field
             for (l = 0; l < Nx; l++)
               PoisPot_allranks[l] = 0.0;
@@ -2049,7 +2062,7 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
-          //}
+          }
         }
 
         // Distribute back to the other ranks
@@ -2276,6 +2289,7 @@ int main(int argc, char **argv) {
 
     if (rank == 0) {
       fclose(outputFilePoiss);
+      fclose(outputFilePhi);
     }
 
     for (l = 0; l < Nx_rank; l++) {
