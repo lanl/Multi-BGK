@@ -180,9 +180,14 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
   int sp;
 
   n_e = 0.0;
-  for (sp = 0; sp < nspec; sp++)
-    n_e += Z[sp] * n[sp];
-
+  if(ecouple == 2) {
+    n_e = n[0];
+  }
+  else {
+    for (sp = 0; sp < nspec; sp++)
+      n_e += Z[sp] * n[sp];
+  }
+  
   lam_eff = debyeLength(n, T, n_e, Te);
 
   // reduced mass

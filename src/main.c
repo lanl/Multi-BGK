@@ -1051,7 +1051,7 @@ int main(int argc, char **argv) {
           for (i = 1; i < nspec; i++) {
             source[l] +=
 	      Z_oned[l][i] *
-	      n_oned[l][i]; // total number of free electrons in each cell
+	      n_oned[l][i]; 
           }
           source[l] -= n_oned[l][0]; // electrons
         }
@@ -1117,7 +1117,7 @@ int main(int argc, char **argv) {
       if (rank == 0) { // Rank 0 performs the Poisson Solve
 
         if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+          simplePoisson(Nx, source_allranks, dx, Lx, PoisPot_allranks);
 	} else {
 	  
 	  if (poissFlavor == 0) { // no E-field

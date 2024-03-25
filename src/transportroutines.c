@@ -419,7 +419,7 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   // Get updated ghost solution
   fillGhostCellsPeriodic_firstorder(f_conv, sp);
 }
-
+0A
 // Computes the v direction first order upwind solution FOR A SINGLE SPECIES
 void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
                  double m, double *v, int sp) {

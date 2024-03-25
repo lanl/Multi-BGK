@@ -670,13 +670,24 @@ void PoissNonlinPeriodic1D_TF(int N, double *source, double dx, double Lx,
   free(gPrime);
 }
 
+/*
+The Poisson equation solved by this routine, for reference:
+
+-(e phi)_xx = 4 pi e^2 (sum_i Z_i n_i - n_e)
+                           source supplied by function call
+units:
+(e phi) : eV
+e^2     : eV-cm
+n_i     : 1/cm^3
+T_e     : eV
+*/
 void simplePoisson(int N, double *source, double dx, double Lx, double *phi) {
   int i;
 
   // Set up vectors
   gsl_vector *phiVec = gsl_vector_calloc(N);
   gsl_vector *RHS = gsl_vector_calloc(N);
-
+  
   // initialize phi
   for (i = 0; i < N; i++)
     gsl_vector_set(phiVec, i, 1.0);
@@ -697,8 +708,9 @@ void simplePoisson(int N, double *source, double dx, double Lx, double *phi) {
     gsl_matrix_set(A, N - 1, i, 1.0);
 
   // set up RHS for solve
-  for (i = 0; i < N; i++)
+  for (i = 0; i < N; i++) {
     gsl_vector_set(RHS, i, 4.0 * M_PI * E_02_CGS * source[i]);
+  }
   gsl_vector_set(RHS, N - 1, 0);
 
   // Set up the LA solve
