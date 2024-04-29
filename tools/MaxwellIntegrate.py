@@ -126,12 +126,12 @@ if __name__ == "__main__":
     amu = 1.6605e-27
     m1 = 1.0*amu
     m2 = 12.0*amu
-    n = 1.0                  #initial number density 1/cm^3
-    T = 537.0                 
-    T_low = 10.0
+    n = 1.2e9                  #initial number density 1/cm^3
+    T = 10e-2               
+    T_low = 1.0e-2
 
-    Nv = 128                #points per direction in velocity space
-    width = 8              #Multiple of thermal speeds to define edge of velocity space
+    Nv = 100                #points per direction in velocity space
+    width = 3               #Multiple of thermal speeds to define edge of velocity space
 
     c, c3 = getVeloGrid(m1,T,Nv,width)
 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
                    
 
     LightMaxwellian = buildMaxwellian(m1,n,T,c2)
-    print "Max speed:", c[-1]
+    print("Max speed:", c[-1])
 
     #First, check to see how well different temperatures can be represented for species 1 on this grid
 
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     print "Relative error", 100.*math.fabs(T_approx-T)/T
 
 
-    print "\n\nSame grid, low temperature for species 1\n\n"
+    print "\n\nSame grid, low temperature for species 1\n\n")
 
     LightMaxwellianLowTemp = buildMaxwellian(m1,n,T_low,c2)
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     
     #Next, check to see how well the grid defined by species 1 can represent a distribution function of species 2
 
-    print "\n \n Same grid, Heavy species \n\n"
+    print("\n \n Same grid, Heavy species \n\n")
 
     HeavyMaxwellian = buildMaxwellian(m2,n,T,c2)
 
