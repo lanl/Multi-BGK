@@ -5,7 +5,7 @@ OBJDIR=$(DIR)obj/
 SRCDIR=$(DIR)src/
 
 # GNU C compiler 
-CC=mpicc
+CC=cc
 
 # Compiler flags
 CFLAGS= -O2 -fopenmp -I${GSL_INC_DIR} -Wall
@@ -17,7 +17,7 @@ RM=rm -f
 # sources for main
 sources_main = $(SRCDIR)main.c
 
-objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o mesh.o implicit.o TNB.o
+objects_main = BGK.o momentRoutines.o transportroutines.o poissonNonlinPeriodic.o gauss_legendre.o input.o io.o zBar.o initialize_sol.o mesh.o implicit.o TNB.o fluid_electron.o
 
 pref_main_objects = $(addprefix $(OBJDIR), $(objects_main))
 

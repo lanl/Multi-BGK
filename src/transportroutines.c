@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "BGK.h"
 
 // Computes the transport term
 
@@ -16,6 +17,12 @@ static double h_v;
 static double dt;
 static double *x, *dx, **c;
 static double ***f_star;
+static int poissE;
+
+static double n_left_bc, n_right_bc;
+static double v_left_bc, v_right_bc;
+static double T_left_bc, T_right_bc;
+static double m_bc;
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
 double min(double in1, double in2) { return in1 < in2 ? in1 : in2; }
@@ -33,9 +40,22 @@ double minmod(double in1, double in2, double in3) {
     return 0;
 }
 
+//Sets maxwell BCs. ATM only works for one species
+void initialize_transport_max_bc(double *n, double *v, double *T, double m)
+{
+  n_left_bc = n[0];
+  n_right_bc = n[1];
+  v_left_bc = v[0];
+  v_right_bc = v[1];
+  T_left_bc = T[0];
+  T_right_bc = T[1];
+
+  m_bc = m;
+}
+
 void initialize_transport(int numV, int numX, int nspec, double *xnodes,
                           double *dxnodes, double Lx_val, double **vel, int ord,
-                          double timestep) {
+                          double timestep, int poiss_in) {
   N = numV;
   nX = numX; // Remember that this is nX in the rank
   x = xnodes;
@@ -43,6 +63,8 @@ void initialize_transport(int numV, int numX, int nspec, double *xnodes,
   ns = nspec;
   Lx = Lx_val;
 
+  poissE = poiss_in;
+  
   c = vel;
 
   order = ord;
@@ -56,13 +78,21 @@ void initialize_transport(int numV, int numX, int nspec, double *xnodes,
       f_star[l][i] = malloc(N * N * N * sizeof(double));
   }
 
+  n_left_bc = 0;
+  n_right_bc = 0;
+  v_left_bc = 0;
+  v_right_bc = 0;
+  T_left_bc = 0;
+  T_right_bc = 0;
+  m_bc = 1.0;
+  
   x = xnodes;
   dx = dxnodes;
 }
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
 void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
-
+  
   int rank, numRanks;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
@@ -78,7 +108,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
   double xlocal[N * N * N];
   double xremote[N * N * N];
-
+  
   // If just one rank, no MPI communication is needed
   if (numRanks == 1) {
     for (i = 0; i < N * N * N; i++) {
@@ -87,6 +117,10 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
     }
   } else {
 
+    /*
+    if(rank == 0) 
+      printf("WARNING - BCs NO LONGER PERIODIC TO BE FIXED LATER...\n");
+    */
     /* Processors 0 and 1 exchange, 2 and 3 exchange, etc.  Then
        1 and 2 exchange, 3 and 4, etc.  The formula for this is
        if (even) exchng up else down
@@ -105,18 +139,19 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
     if ((rank % 2) == 0) {
 
-      if (rank != numRanks - 1) {
-        for (i = 0; i < N * N * N; i++)
-          xlocal[i] = f[right_actual][sp][i];
-
-        /* exchange up */
-        MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, up_nbr, 1, MPI_COMM_WORLD);
-
-        MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, up_nbr, 2, MPI_COMM_WORLD,
-                 &status);
-
-        for (i = 0; i < N * N * N; i++)
-          f[right_ghost][sp][i] = xremote[i];
+      if(rank != numRanks - 1) {
+	
+	for (i = 0; i < N * N * N; i++)
+	  xlocal[i] = f[right_actual][sp][i];
+	
+	/* exchange up */
+	MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, up_nbr, 1, MPI_COMM_WORLD);
+	
+	MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, up_nbr, 2, MPI_COMM_WORLD,
+		 &status);
+	
+	for (i = 0; i < N * N * N; i++)
+	  f[right_ghost][sp][i] = xremote[i];
       }
     } else {
 
@@ -130,7 +165,7 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
       MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, down_nbr, 2, MPI_COMM_WORLD);
 
       for (i = 0; i < N * N * N; i++)
-        f[left_ghost][sp][i] = xremote[i];
+	f[left_ghost][sp][i] = xremote[i];
     }
 
     // Deal with edge case - boundary for odd numRanks case
@@ -145,8 +180,17 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
         MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, numRanks - 1, 2,
                  MPI_COMM_WORLD);
+
+	
+	//Maxwellian
+	/*
+	//Get the maxwellian, let's put it in xremote
+	double v_bc_tmp[3] = {v_left_bc, 0, 0};
+	GetMaxwell(m_bc, n_left_bc, v_bc_tmp, T_left_bc, xremote, 0);
+	*/
+	
         for (i = 0; i < N * N * N; i++)
-          f[left_ghost][sp][i] = xremote[i];
+	  f[left_ghost][sp][i] = xremote[i]; 
       } else if (rank == numRanks - 1) {
 
         for (i = 0; i < N * N * N; i++)
@@ -157,8 +201,16 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
         MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD,
                  &status);
 
+	/*
+	//Maxwellian
+	//Get the maxwellian, let's put it in xremote
+	double v_bc_tmp[3] = {v_right_bc, 0, 0};
+	GetMaxwell(m_bc, n_right_bc, v_bc_tmp, T_right_bc, xremote, 0);
+	*/
+	
         for (i = 0; i < N * N * N; i++)
-          f[right_ghost][sp][i] = xremote[i];
+          f[right_ghost][sp][i] = xremote[i]; 
+	
       }
     }
 
@@ -179,12 +231,19 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
       MPI_Recv(&xremote[0], N * N * N, MPI_DOUBLE, up_nbr, 4, MPI_COMM_WORLD,
                &status);
-
+      /*
+      //Maxwellian      
+      if(rank == numRanks - 1) {
+	double v_bc_tmp[3] = {v_right_bc, 0, 0};
+	GetMaxwell(m_bc, n_right_bc, v_bc_tmp, T_right_bc, xremote, 0);
+	} 
+      */           
+      
       for (i = 0; i < N * N * N; i++)
-        f[right_ghost][sp][i] = xremote[i];
-
+	  f[right_ghost][sp][i] = xremote[i];
+      
     } else {
-
+      
       if (!((numRanks % 2 == 1) &&
             (rank == 0))) { // this case was dealt with above
         for (i = 0; i < N * N * N; i++)
@@ -196,9 +255,15 @@ void fillGhostCellsPeriodic_firstorder(double ***f, int sp) {
 
         MPI_Send(&xlocal[0], N * N * N, MPI_DOUBLE, down_nbr, 4,
                  MPI_COMM_WORLD);
-
-        for (i = 0; i < N * N * N; i++)
-          f[left_ghost][sp][i] = xremote[i];
+	/*
+	//Maxwellian	
+	if(rank == 0) {	 
+	  double v_bc_tmp[3] = {v_left_bc, 0, 0};
+	  GetMaxwell(m_bc, n_left_bc, v_bc_tmp, T_left_bc, xremote, 0);	 
+	}       
+	*/
+	for (i = 0; i < N * N * N; i++)
+	  f[left_ghost][sp][i] = xremote[i];      
       }
     }
 
@@ -419,7 +484,7 @@ void upwindOne_x(double ***f, double ***f_conv, double *v, int sp) {
   // Get updated ghost solution
   fillGhostCellsPeriodic_firstorder(f_conv, sp);
 }
-0A
+
 // Computes the v direction first order upwind solution FOR A SINGLE SPECIES
 void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
                  double m, double *v, int sp) {
@@ -447,9 +512,16 @@ void upwindOne_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
   // Note that E is sized to nX+2 to ensure that l loop has enough memory
   // Also note that qm / Z is defined on nX, not nX+2
   double *E = malloc((nX + 2) * sizeof(double));
-  for (l = 1; l < nX + 1; l++) {
-    E[l] =
+  if(poissE != 42) {
+    for (l = 1; l < nX + 1; l++) {
+      E[l] =
         -qm[l - 1][sp] / m * (PoisPot[l + 1] - PoisPot[l - 1]) / (2.0 * dx[l]);
+    }
+  }
+  else {
+    for (l = 1; l < nX + 1; l++) {
+      E[l] = qm[l-1][sp] / m * PoisPot[l];
+    }
   }
 
   for (l = 1; l < nX + 1; l++) {
@@ -626,10 +698,16 @@ void upwindTwo_v(double ***f, double ***f_conv, double *PoisPot, double **qm,
 
   // Note - dx and qm do not have ghost cells
   double *E = malloc((nX + 4) * sizeof(double));
-  for (l = 2; l < nX + 2; l++) {
-    E[l] = -qm[l - 2][sp] / m * (PoisPot[l + 1] - PoisPot[l - 1]) /
-           (2.0 * dx[l - 2]);
+  if(poissE != 42) {
+    for (l = 2; l < nX + 2; l++) 
+      E[l] = -qm[l - 2][sp] / m * (PoisPot[l + 1] - PoisPot[l - 1]) /(2.0 * dx[l - 2]);
   }
+  else {
+    for (l = 2; l < nX + 2; l++) {
+      E[l] = qm[l-2][sp] / m * PoisPot[l];
+    }
+  }
+  
 
   if (fabs(v[2] - v[1] - h_v) > 1e-6) {
     printf("Error - you must use a uniform velocity grid for second order "

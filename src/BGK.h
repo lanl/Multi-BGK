@@ -1,3 +1,5 @@
+void getColl(double *n, double *T, double Te, double *Z, double *nuij,
+             double *nuji, int i, int j);
 
 void GetMaxwell(double m, double n, double *v, double T, double *M, int sp);
 

@@ -30,6 +30,7 @@
 // BGK/RHS packages
 #include "BGK.h"
 #include "TNB.h"
+#include "fluid_electron.h"
 
 int main(int argc, char **argv) {
 
@@ -260,6 +261,9 @@ int main(int argc, char **argv) {
       else
         outputFileMarginal[i] = fopen(temp_path, "w");
     }
+    
+    strcpy(temp_path, output_path);
+    sprintf(name_tmp, "_tempe");
   }
 
   // Set up file to store the times
@@ -481,7 +485,7 @@ int main(int argc, char **argv) {
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
     momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
     momentBuffer2 = malloc(Nv * (Nx_rank + 1) * sizeof(double));
-
+    
     if(input_file_data_flag) {
       intervalLimits = malloc(sizeof(double)); //we only care about the leftmost guy
       intervalLimits[0] = x[order];
@@ -576,7 +580,7 @@ int main(int argc, char **argv) {
     }
 
     printf("Setting up input done\n");
-    
+
     // Allocate for poisson calc
     PoisPot = malloc((Nx_rank + 2 * order) * sizeof(double));
     PoisPot_allranks = malloc(Nx * sizeof(double));
@@ -587,6 +591,12 @@ int main(int argc, char **argv) {
     Te_arr = malloc(Nx_rank * sizeof(double));
     Te_arr_allranks = malloc(Nx * sizeof(double));
 
+    //Initialize electron temperature for fluid electron case
+    if(Te_ref == 0) {
+      for(int Te_i = 0; Te_i < Nx_rank; Te_i++)
+	Te_arr[Te_i] = Te_start;
+    }
+    
     Z_oned = malloc(Nx_rank * sizeof(double *));
 
     for (l = 0; l < Nx_rank; l++) {
@@ -751,7 +761,14 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
-    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt);
+    //if(rank == 0)
+    //  printf("Warning: Maxwell BCs hacked in\n");
+    //double n_bc[2] = {1.0622425812505312e-10, 6.547270642496101e-12};
+    //double v_bc[2] = {0.0, 0.0};
+    //double T_bc[2] = {8.61e-5, 8.61e-5};
+    //initialize_transport_max_bc(n_bc, v_bc, T_bc, m[0]);
+      
+    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt, poissFlavor);
 
     // check if we are loading moment data from a file
     // Note: This is not yet MPI-ified
@@ -786,7 +803,9 @@ int main(int argc, char **argv) {
   initialize_moments(Nv, nspec, c, wts);
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
                  tauFlag, TNBFlag, input_filename);
+  initialize_fluid_electron(Nx_rank, nspec, dt);
 
+  
   if (TNBFlag)
     initializeTNB(Nv, c, wts);
 
@@ -884,7 +903,7 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_zerod[i]);
           fprintf(outputFileVelo[i], "%e ", v_zerod[i][0]);
-          fprintf(outputFileTemp[i], "%e ", T_zerod[i]);
+          fprintf(outputFileTemp[i], "%e ", T_zerod[i]);	  
           fprintf(outputFileH, "%e ", (H_spec[i] - H_spec_prev[i]) / dt);
           fprintf(outputFileDens[i], "\n");
           fprintf(outputFileVelo[i], "\n");
@@ -1032,11 +1051,16 @@ int main(int argc, char **argv) {
        Note that the poisson solve gives e*phi (in ergs), not phi, more
       convenient for units issues
       ************/
-
+      
       if (ecouple == 1) {    // electrons only in background
         if (Te_start == 0) { // cubic case
           get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-        } else if (Te_start != Te_ref)
+        }
+	else if (Te_ref == 0) { //coupled electron case, note only works for 1 spec + ecouple 1
+	  //no-op, will update this later
+	  //fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+	}
+	else if (Te_start != Te_ref)
           get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
         else
           get_uniform_Te(Te_arr, Nx_rank,
@@ -1135,6 +1159,8 @@ int main(int argc, char **argv) {
         else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
           PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                    PoisPot_allranks, Te_arr_allranks);
+	else if (poissFlavor == 42) // ohm law
+	  fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);	  
         }
       }
 
@@ -1144,11 +1170,11 @@ int main(int argc, char **argv) {
 
         // SET LOCAL GHOST CELLS
         if (order == 1) {
-          PoisPot[0] = PoisPot_allranks[Nx - 1];
+          PoisPot[0] = PoisPot_allranks[0]; //MODIFIED
           if (numRanks == 1)
             PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
           else
-            PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+            PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank + 1];
         } else if (order == 2) {
           PoisPot[0] = PoisPot_allranks[Nx - 2];
           PoisPot[1] = PoisPot_allranks[Nx - 1];
@@ -1202,7 +1228,7 @@ int main(int argc, char **argv) {
           // SET LOCAL GHOST CELLS
           if (order == 1) {
             source_buf[0] = PoisPot_allranks[rankOffset - 1];
-            source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+            source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1]; 
           } else if (order == 2) {
             source_buf[0] = PoisPot_allranks[rankOffset - 2];
             source_buf[1] = PoisPot_allranks[rankOffset - 1];
@@ -1228,7 +1254,7 @@ int main(int argc, char **argv) {
           PoisPot[l] = source_buf[l];
         }
       }
-
+      
       // Moments and initial electric field calculated - save if needed
 
       // MPI-ified output.
@@ -1279,19 +1305,26 @@ int main(int argc, char **argv) {
           }
 
           // Print poisson information - this produces eE in eV/cm
-          fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx * ERG_TO_EV_CGS);
-          fprintf(outputFilePhi, "%e ", PoisPot_allranks[0] * ERG_TO_EV_CGS);
-          for (l = 1; l < Nx - 1; l++) {
-            fprintf(outputFilePoiss, "%e ",
-                    (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx * ERG_TO_EV_CGS);
-
-	    fprintf(outputFilePhi, "%e ", PoisPot_allranks[l] * ERG_TO_EV_CGS);
+	  if(poissFlavor != 42) {
+	    fprintf(outputFilePoiss, "%e ",
+		    (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx * ERG_TO_EV_CGS);
+	    fprintf(outputFilePhi, "%e ", Te_arr_allranks[0]);
+	    for (l = 1; l < Nx - 1; l++) {
+	      fprintf(outputFilePoiss, "%e ",
+		      (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx * ERG_TO_EV_CGS);
+	      
+	      fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);
+	    }
+	    fprintf(outputFilePoiss, "%e ",
+		    (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx * ERG_TO_EV_CGS);
+	    fprintf(outputFilePhi, "%e ", Te_arr_allranks[Nx - 1]);
 	  }
-          fprintf(outputFilePoiss, "%e ",
-                  (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx * ERG_TO_EV_CGS);
-          fprintf(outputFilePhi, "%e ", PoisPot_allranks[Nx - 1] * ERG_TO_EV_CGS);
-	  
+	  else {
+	    for (l = 0; l < Nx; l++) {
+	      fprintf(outputFilePoiss, "%e ", PoisPot_allranks[l]  * ERG_TO_EV_CGS);
+	      fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);	      
+	    }
+	  }
           fprintf(outputFilePoiss, "\n");
           fprintf(outputFilePhi, "\n");
 
@@ -1348,6 +1381,10 @@ int main(int argc, char **argv) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
+	if(ecouple == 1 && Te_ref == 0) {
+	  fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
+	}
+	
         if (!(BGK_type < 0)) {
           // COLLIDE
           if (im_ex == 0) {
@@ -1380,6 +1417,10 @@ int main(int argc, char **argv) {
                    "file.\n");
             exit(1);
           }
+	  if(ecouple == 1 && Te_ref == 0) {
+	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+	  }
+
         }
       }
 
@@ -1413,7 +1454,11 @@ int main(int argc, char **argv) {
 
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          } else if (Te_start != Te_ref)
+          }
+	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
+	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+	  }
+	  else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1513,6 +1558,8 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
+	  else if (poissFlavor == 42) // ohm law
+	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
           }
         }
 
@@ -1522,11 +1569,11 @@ int main(int argc, char **argv) {
 
           // SET LOCAL GHOST CELLS
           if (order == 1) {
-            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            PoisPot[0] = PoisPot_allranks[0];
             if (numRanks == 1)
               PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
             else
-              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank + 1];
           } else if (order == 2) {
             PoisPot[0] = PoisPot_allranks[Nx - 2];
             PoisPot[1] = PoisPot_allranks[Nx - 1];
@@ -1580,7 +1627,7 @@ int main(int argc, char **argv) {
             // SET LOCAL GHOST CELLS
             if (order == 1) {
               source_buf[0] = PoisPot_allranks[rankOffset - 1];
-              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1]; //modified
             } else if (order == 2) {
               source_buf[0] = PoisPot_allranks[rankOffset - 2];
               source_buf[1] = PoisPot_allranks[rankOffset - 1];
@@ -1613,7 +1660,7 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++) {
           advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
         }
-
+		
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
             //#pragma omp parallel for private(j)
@@ -1621,7 +1668,7 @@ int main(int argc, char **argv) {
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
-
+	
         // Next strang step - x advection with timestep dt/2
 
         // RK2 Step 1
@@ -1649,6 +1696,10 @@ int main(int argc, char **argv) {
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
 
+	if(ecouple == 1 && Te_ref == 0) {
+	  fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
+	}
+	
         if (!(BGK_type == -1)) {
           // Next Strang step - RK2 for collision with timstep dt
           for (l = 0; l < Nx_rank; l++) {
@@ -1723,7 +1774,11 @@ int main(int argc, char **argv) {
         if (ecouple == 1) {    // electrons only in background
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          } else if (Te_start != Te_ref)
+          }
+	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
+	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+	  }	  
+	  else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1852,6 +1907,8 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
+	  else if (poissFlavor == 42) // ohm law
+	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
           }
         }
 
@@ -1861,11 +1918,11 @@ int main(int argc, char **argv) {
 
           // SET LOCAL GHOST CELLS
           if (order == 1) {
-            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            PoisPot[0] = PoisPot_allranks[0];
             if (numRanks == 1)
               PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
             else
-              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank + 1];
           } else if (order == 2) {
             PoisPot[0] = PoisPot_allranks[Nx - 2];
             PoisPot[1] = PoisPot_allranks[Nx - 1];
@@ -1919,7 +1976,7 @@ int main(int argc, char **argv) {
             // SET LOCAL GHOST CELLS
             if (order == 1) {
               source_buf[0] = PoisPot_allranks[rankOffset - 1];
-              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1];
             } else if (order == 2) {
               source_buf[0] = PoisPot_allranks[rankOffset - 2];
               source_buf[1] = PoisPot_allranks[rankOffset - 1];
@@ -1965,7 +2022,11 @@ int main(int argc, char **argv) {
         if (ecouple == 1) {    // electrons only in background
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          } else if (Te_start != Te_ref)
+          }
+	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
+	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+	  }
+	  else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -2062,6 +2123,8 @@ int main(int argc, char **argv) {
           else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
             PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
                                      PoisPot_allranks, Te_arr_allranks);
+	  else if (poissFlavor == 42) // ohm law
+	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
           }
         }
 
@@ -2071,11 +2134,11 @@ int main(int argc, char **argv) {
 
           // SET LOCAL GHOST CELLS
           if (order == 1) {
-            PoisPot[0] = PoisPot_allranks[Nx - 1];
+            PoisPot[0] = PoisPot_allranks[0];
             if (numRanks == 1)
               PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
             else
-              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank];
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank+1];
           } else if (order == 2) {
             PoisPot[0] = PoisPot_allranks[Nx - 2];
             PoisPot[1] = PoisPot_allranks[Nx - 1];
@@ -2129,7 +2192,7 @@ int main(int argc, char **argv) {
             // SET LOCAL GHOST CELLS
             if (order == 1) {
               source_buf[0] = PoisPot_allranks[rankOffset - 1];
-              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[0];
+              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1];
             } else if (order == 2) {
               source_buf[0] = PoisPot_allranks[rankOffset - 2];
               source_buf[1] = PoisPot_allranks[rankOffset - 1];

@@ -572,6 +572,15 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // printf("i: %d j: %d tauij: %g tauji: %g Te:
       // %g\n",i,j,1.0/nu12,1.0/nu21,Te);
 
+      /*
+      if(rank == 0) 
+	printf("WARNING: collision rates goosed 0.1x in BGK.c\n");
+
+      nu11 *= 0.1;
+      nu12 *= 0.1;
+      nu21 *= 0.1;
+      */
+      
       // explicit first order update
 
       if (i == j) {
