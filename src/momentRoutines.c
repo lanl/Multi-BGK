@@ -88,6 +88,75 @@ double getTemp(double m, double n, double *u, double *in, int sp) {
     return 0.0;
 }
 
+//gets directional temperature
+double getDirTemp(double m, double n, double *u, double *in, int sp, int dir) {
+  double result = 0.0;
+  
+  if ((dir < 0) || (dir > 2)) {
+    printf("Error calculating directional temperature, please set dir to 0 (x), 1 (y), or 2 (z)\n");
+    fflush(stdout);
+    exit(1);
+  }
+		    		   
+  int i, j, k, mydir;
+  for (i = 0; i < N; i++)
+    for (j = 0; j < N; j++)
+      for (k = 0; k < N; k++) {
+	if(dir == 0)
+	  mydir = i;
+	else if (dir == 1)
+	  mydir = j;
+	else
+	  mydir = k;
+	
+        result += wts[sp][i] * wts[sp][j] * wts[sp][k] *
+	          in[k + N * (j + N * i)] *
+      	          ((c[sp][mydir] - u[dir]) * (c[sp][mydir] - u[dir]));
+	  }
+  
+  // Int(|v-u|^2 f) = 3* nT/m
+
+  if (n != 0)
+    return result * m * ERG_TO_EV_CGS / n;
+  else
+    return 0.0;
+}
+
+//computes n Theta, the pressure/stress tensor
+void getStressTensor(double m, double n, double *u, double *in, double *out, int sp) {
+
+  for(int i = 0; i < 3; ++i) {
+    for(int j = 0; j < 3; ++j) {
+      double accum = 0;
+      int index1, index2;
+      for(int vx = 0; vx < N; ++vx)
+	for(int vy = 0; vy < N; ++vy)
+	  for(int vz = 0; vz < N; ++vz) {
+	    if(i == 0)
+	      index1 = vx;
+	    else if (i == 1)
+	      index1 = vy;
+	    else
+	      index1 = vz;
+		
+	    if(j == 0)
+	      index2 = vx;
+	    else if (j == 1)
+	      index2 = vy;
+	    else
+	      index2 = vz;
+
+	    //units are 1/cm^3 * cm^2/s^2 = 1/cm/s^2
+	    accum += wts[sp][vz] * wts[sp][vy] * wts[sp][vx] * in[vz + N * (vy + N*vx)] *
+	      ((c[sp][index1] - u[i]) * (c[sp][index2] - u[j]));
+	  }
+      out[j + 3*i] = m * accum; //units are g / cm / s^2 
+    }
+  }
+      
+  
+}
+
 double getH(double n, double *in, int sp) {
   double result = 0.0;
 

@@ -13,7 +13,9 @@
 //  vel - array of velocity grid points for one direction (full 3d velocity is just this tensored)
 //  IC - flag that tells type of problem being solved (and thus, boundary condition) - currently just set to 6 for periodic BCs, other options from before are removed
 //  TWall_in - specifies temperature of walls for certian BCs, can be ignored otherwise
-void initialize_transport(int numV, int numX, int nspec, double *xnodes, double *dxnodes, double Lx, double **vel, int ord, double timestep);
+void initialize_transport(int numV, int numX, int nspec, double *xnodes, double *dxnodes, double Lx, double **vel, int ord, double timestep, int poissflavor);
+
+void initialize_transport_max_bc(double *n, double *v, double *T, double m);
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
 //these are what you actually call from the outside

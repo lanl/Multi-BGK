@@ -1,3 +1,5 @@
+void getColl(double *n, double *T, double Te, double *Z, double *nuij,
+             double *nuji, int i, int j);
 
 void GetMaxwell(double m, double n, double *v, double T, double *M, int sp);
 
@@ -18,3 +20,5 @@ void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta,
 void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te);
 
 void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te);
+
+void ESBGK_ex(double **f, double **f_out, double *Z, double dt, double Te, double ESBGK_nu);

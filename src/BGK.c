@@ -41,7 +41,7 @@ static double **nu_from_MD;
 // Number density under which we do not collide particles, due to lack of
 // statistics
 #ifndef EPS_COLL
-#define EPS_COLL 1e-2
+#define EPS_COLL 1e-6
 #endif
 
 // parameters for Stanton-Murillo fit data
@@ -73,10 +73,34 @@ void GetMaxwell(double m, double n, double *v, double T, double *M, int sp) {
       for (j = 0; j < Nv; j++)
         for (k = 0; k < Nv; k++) {
           index = k + Nv * (j + Nv * i);
-          M[index] = M_prefac * exp(exp_prefac * (pow(c[sp][i] - v[0], 2.0) +
-                                                  pow(c[sp][j] - v[1], 2.0) +
-                                                  pow(c[sp][k] - v[2], 2.0)));
+	  M[index] = M_prefac * exp(exp_prefac * (pow(c[sp][i] - v[0], 2.0) +
+						  pow(c[sp][j] - v[1], 2.0) +
+						  pow(c[sp][k] - v[2], 2.0)));	  
         }
+}
+
+// Assumes units:       g      1/cc       cm/s        s^2 / cm^2   (cm^2 / s^2)^3
+void GetGaussian(double m, double n, double *v, double Tinv[3][3], double Tdet, double *M, int sp) {
+  int i, j, k, index;
+  //               1/cm^3                              1/(cm^3/s^3)
+  double M_prefac = n * pow(1.0 / (2.0 * M_PI), 1.5) * pow(Tdet,-0.5);
+  double exp_prefac = -0.5;
+
+  if(Tinv[0][0] == 0)
+    for (i = 0; i < Nv * Nv * Nv; i++)
+      M[i] = 0.0;
+  else   
+    for (i = 0; i < Nv; i++)
+      for (j = 0; j < Nv; j++)
+	for (k = 0; k < Nv; k++) {
+	  index = k + Nv * (j + Nv * i);
+	  double doublesum = 0;
+	  double sumv[3] = {c[sp][i] - v[0], c[sp][j] - v[1], c[sp][k] - v[2]};
+	  for(int sumi = 0; sumi < 3; ++sumi) 
+	    for(int sumj = 0; sumj < 3; ++sumj)
+	      doublesum += Tinv[sumi][sumj] * sumv[sumi] * sumv[sumj];
+          M[index] = M_prefac * exp(exp_prefac * doublesum);	  
+	}
 }
 
 // compute 2-norm of 3d distribution function f
@@ -180,9 +204,14 @@ void getColl(double *n, double *T, double Te, double *Z, double *nuij,
   int sp;
 
   n_e = 0.0;
-  for (sp = 0; sp < nspec; sp++)
-    n_e += Z[sp] * n[sp];
-
+  if(ecouple == 2) {
+    n_e = n[0];
+  }
+  else {
+    for (sp = 0; sp < nspec; sp++)
+      n_e += Z[sp] * n[sp];
+  }
+  
   lam_eff = debyeLength(n, T, n_e, Te);
 
   // reduced mass
@@ -456,7 +485,7 @@ void initialize_BGK(double ns, int numV, double *mass, double **vels, int ord,
     nu[i] = malloc(ns * sizeof(double));
   }
   T = malloc(ns * sizeof(double));
-
+  
   t = 0.0;
 
   // load taus from MD, if applicable
@@ -567,6 +596,15 @@ void BGK_ex(double **f, double **f_out, double *Z, double dt, double Te) {
       // printf("i: %d j: %d tauij: %g tauji: %g Te:
       // %g\n",i,j,1.0/nu12,1.0/nu21,Te);
 
+      /*
+      if(rank == 0) 
+	printf("WARNING: collision rates goosed 5x in BGK.c\n");
+
+      nu11 *= 5.0;
+      nu12 *= 5.0;
+      nu21 *= 5.0;
+      */
+      
       // explicit first order update
 
       if (i == j) {
@@ -1299,4 +1337,278 @@ void dealloc_BGK() {
 
   free(Q);
   free(M);
+}
+
+void ESBGK_ex(double **f, double **f_out, double *Z, double dt, double Te, double ESBGK_nu) {
+
+  double ntot, rhotot;
+
+  // Maxwellian params
+  double mixU[3], mixU_sq;
+
+  double mixT;
+  double v2_1, v2_2;
+
+  // coll operator stuff
+  double n_e;
+  double nu11, nu12, nu21;
+
+  int i, j, k;
+
+  // get moments
+
+  ntot = 0.0;
+  rhotot = 0.0;
+  for (i = 0; i < nspec; i++) {
+    n[i] = getDensity(f[i], i);
+    rho[i] = m[i] * n[i];
+    ntot += n[i];
+    rhotot += m[i] * n[i];
+
+    getBulkVel(f[i], v[i], n[i], i);
+  }
+
+  // Find temperatures BASED ON INDIVIDUAL SPECIES VELOCITY. Note - result is in
+  // eV
+  for (i = 0; i < nspec; i++) {
+    T[i] = getTemp(m[i], n[i], v[i], f[i], i);
+  }
+
+  //note units here are g / cm / s^ i.e. erg/cm^3
+  double ptensor[nspec][9];
+  for(i = 0; i < nspec; ++i) {
+    getStressTensor(m[i], n[i], v[i], f[i], ptensor[i], i);
+  }
+  
+  // check for blowup
+  if (isnan(n[0])) {
+    printf("Something weird is going on: What did Jan Say? The Michael Scott "
+           "Story. By Michael Scott. With Dwight Schrute.\n NaN detected in "
+           "BGK.c\n");
+    for (i = 0; i < nspec; i++) {
+      printf("%d n: %g v: %g T: %g Z: %g Te: %g\n", i, n[i], v[i][0], T[i],
+             Z[i], Te);
+    }
+    exit(1);
+  }
+
+  // Now generate the BGK operators
+
+  // explicit update
+
+  // initialize
+  for (i = 0; i < nspec; i++)
+    for (k = 0; k < Nv * Nv * Nv; k++)
+      f_out[i][k] = 0.0;
+
+  ////////////////////////////
+  // Find the collision rates//
+  ////////////////////////////
+
+  double *T_coll = malloc(nspec*sizeof(double));
+  for (i = 0; i < nspec; i++) {
+    T_coll[i] = ptensor[i][0] / n[i] * ERG_TO_EV_CGS;
+    //T_coll[i] = T[i];
+  }
+  // NOTE: this can probably be refactored/split off for clarity
+  
+  // do ij and ji at the same time
+  for (i = 0; i < nspec; i++) {
+    for (j = i; j < nspec; j++) {      
+      mu = m[i] * m[j] / (m[i] + m[j]);
+
+      if (tauFlag == 0) {
+        if ((n[i] > EPS_COLL) && (n[j] > EPS_COLL)) {
+          getColl(n, T_coll, Te, Z, &nu12, &nu21, i, j);
+          collmin = (collmin < 1.0 / nu12) ? collmin : 1.0 / nu12;
+          collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
+
+          if (i == j)
+            nu11 = nu12;
+        } else {
+          nu11 = 0.0;
+          nu12 = 0.0;
+          nu21 = 0.0;
+        }
+      } else if (tauFlag == 1) {
+        nu11 = nu_from_MD[i][i];
+        nu12 = nu_from_MD[i][j];
+        nu21 = nu_from_MD[j][i];
+      } else {
+        printf("Error: set tauflag to 0 or 1\n");
+        exit(37);
+      }
+
+      // if(i != j)
+      // printf("i: %d j: %d tauij: %g tauji: %g Te:
+      // %g\n",i,j,1.0/nu12,1.0/nu21,Te);
+
+      
+      //if(rank == 0) 
+      //printf("WARNING: collision rates goosed 100x in ESBGK.c\n");
+
+      //nu11 *= 100.0;
+      //nu12 *= 100.0;
+      //nu21 *= 100.0;
+      
+
+      //make the matrix to be inverted
+      double Tmat[3][3];
+      
+      //diagonal first
+      Tmat[0][0] = (1.0 - ESBGK_nu) * T[i] / m[i] / ERG_TO_EV_CGS + ESBGK_nu * ptensor[i][0] / m[i] / n[i];
+      Tmat[1][1] = (1.0 - ESBGK_nu) * T[i] / m[i] / ERG_TO_EV_CGS + ESBGK_nu * ptensor[i][4] / m[i] / n[i];
+      Tmat[2][2] = (1.0 - ESBGK_nu) * T[i] / m[i] / ERG_TO_EV_CGS + ESBGK_nu * ptensor[i][8] / m[i] / n[i];
+      //off diagonal
+      Tmat[0][1] = ESBGK_nu * ptensor[i][1] / m[i] / n[i];
+      Tmat[0][2] = ESBGK_nu * ptensor[i][2] / m[i] / n[i];
+      Tmat[1][0] = ESBGK_nu * ptensor[i][3] / m[i] / n[i];
+      Tmat[1][2] = ESBGK_nu * ptensor[i][5] / m[i] / n[i];
+      Tmat[2][0] = ESBGK_nu * ptensor[i][6] / m[i] / n[i];
+      Tmat[2][1] = ESBGK_nu * ptensor[i][7] / m[i] / n[i];
+      //T has units of erg / cm^3 / g * cm^3 = cm^2 / s^2 
+      
+      //invert matrix
+      // computes the inverse of a matrix m
+      double det = Tmat[0][0] * (Tmat[1][1] * Tmat[2][2] - Tmat[2][1] * Tmat[1][2]) -
+	Tmat[0][1] * (Tmat[1][0] * Tmat[2][2] - Tmat[1][2] * Tmat[2][0]) +
+	Tmat[0][2] * (Tmat[1][0] * Tmat[2][1] - Tmat[1][1] * Tmat[2][0]);
+      //det has units of T^3 = cm^6 / s^6
+
+      //has units s^6 / cm^6
+      double invdet = 1 / det;
+      double Tinv[3][3];  // inverse of matrix T
+      Tinv[0][0] = (Tmat[1][1] * Tmat[2][2] - Tmat[2][1] * Tmat[1][2]) * invdet;
+      Tinv[0][1] = (Tmat[0][2] * Tmat[2][1] - Tmat[0][1] * Tmat[2][2]) * invdet;
+      Tinv[0][2] = (Tmat[0][1] * Tmat[1][2] - Tmat[0][2] * Tmat[1][1]) * invdet;
+      Tinv[1][0] = (Tmat[1][2] * Tmat[2][0] - Tmat[1][0] * Tmat[2][2]) * invdet;
+      Tinv[1][1] = (Tmat[0][0] * Tmat[2][2] - Tmat[0][2] * Tmat[2][0]) * invdet;
+      Tinv[1][2] = (Tmat[1][0] * Tmat[0][2] - Tmat[0][0] * Tmat[1][2]) * invdet;
+      Tinv[2][0] = (Tmat[1][0] * Tmat[2][1] - Tmat[2][0] * Tmat[1][1]) * invdet;
+      Tinv[2][1] = (Tmat[2][0] * Tmat[0][1] - Tmat[0][0] * Tmat[2][1]) * invdet;
+      Tinv[2][2] = (Tmat[0][0] * Tmat[1][1] - Tmat[1][0] * Tmat[0][1]) * invdet;
+      
+      //Tinv has units of s^2 / cm^2
+      
+      // explicit first order update
+
+      if (i == j) {
+        if (n[i] >= EPS_COLL) {
+
+          GetGaussian(m[i], n[i], v[i], Tinv, det, M, i);
+#pragma omp parallel for private(k)
+          for (k = 0; k < Nv * Nv * Nv; k++)
+            f_out[i][k] += nu11 * (M[k] - f[i][k]);
+        }
+        // Check do see if this is DD, do TNB if needed
+        if ((TNBFlag > 0) && (mu > 1.6e-24) && (mu < 1.7e-24)) {
+          TNB_DD(f, f_out, i, rank, TNBFlag, 1.0, mu, n, v, T);
+        }
+      } else { // ij case
+	//printf("WARNING: ES-BGK only implemented for single species, falling back to 'regular' multi-BGK for cross terms\n");
+        if (!((n[i] < EPS_COLL) || (n[j] < EPS_COLL))) {
+
+          // Get Maxwell cross terms
+          mixU_sq = 0.0;
+          v2_1 = 0.0;
+          v2_2 = 0.0;
+          for (k = 0; k < 3; k++) {
+            mixU[k] = (rho[i] * nu12 * v[i][k] + rho[j] * nu21 * v[j][k]) /
+                      (rho[i] * nu12 + rho[j] * nu21);
+            mixU_sq += mixU[k] * mixU[k];
+            v2_1 += v[i][k] * v[i][k];
+            v2_2 += v[j][k] * v[j][k];
+          }
+
+          if (tauFlag == 1) {
+            // original formula for mixT
+            mixT = (n[i] * nu12 * T[i] + n[j] * nu21 * T[j]) /
+                       (n[i] * nu12 + n[j] * nu21) +
+                   ERG_TO_EV_CGS *
+                       (rho[i] * nu12 * (v2_1 - mixU_sq) +
+                        rho[j] * nu21 * (v2_2 - mixU_sq)) /
+                       (3.0 * (n[i] * nu12 + n[j] * nu21));
+          } else {
+            // simplified formulas for mixT
+            double vdiff2 = (v[i][0] - v[j][0]) * (v[i][0] - v[j][0]) +
+                            (v[i][1] - v[j][1]) * (v[i][1] - v[j][1]) +
+                            (v[i][2] - v[j][2]) * (v[i][2] - v[j][2]);
+
+            if (MT_or_TR == 0) {
+              mixT = (m[j] * T[i] + m[i] * T[j]) / (m[i] + m[j]) +
+                     (m[i] * m[j]) / (6.0 * (m[i] + m[j])) * ERG_TO_EV_CGS *
+                         vdiff2;
+            } else {
+              mixT = 0.5 * (T[i] + T[j]) + (m[i] * m[j]) /
+                                               (6.0 * (m[i] + m[j])) *
+                                               ERG_TO_EV_CGS * vdiff2;
+            }
+          }
+
+          if (mixT < 0) {
+            printf("Negative mixture temperature! Aborting.\n");
+            printf("%d %d %g %g %g %g %g\n", i, j, n[i], n[j], T[i], T[j], Te);
+            exit(37);
+          }
+
+          GetMaxwell(m[i], n[i], mixU, mixT, M, i);
+#pragma omp parallel for private(k)
+          for (k = 0; k < Nv * Nv * Nv; k++)
+            f_out[i][k] += nu12 * (M[k] - f[i][k]);
+
+          GetMaxwell(m[j], n[j], mixU, mixT, M, j);
+#pragma omp parallel for private(k)
+          for (k = 0; k < Nv * Nv * Nv; k++)
+            f_out[j][k] += nu21 * (M[k] - f[j][k]);
+        }
+
+        // Check for DT reaction
+        if ((TNBFlag > 0) && (mu > 1.8e-24) && (mu < 2.0e-24)) {
+          TNB_DT(f, f_out, i, j, rank, TNBFlag, 1.0, mu, n, v, T);
+        }
+      }
+    }
+  }
+
+  // now check to see if we are also colliding with untracked background
+  // electrons
+  if (ecouple == 1) {
+
+    n_e = 0.0;
+    for (i = 0; i < nspec; i++)
+      n_e += n[i] * Z[i];
+
+    for (j = 0; j < nspec; j++) {
+      getColl(
+          n, T, Te, Z, &nu12, &nu21, -1,
+          j); //-1 says the other species is electrons with a fixed temperature
+
+      collmin = (collmin < 1.0 / nu21) ? collmin : 1.0 / nu21;
+
+      if (n[j] > EPS_COLL) {
+
+        // Get Maxwell cross terms
+
+        // velocity - assume electron and ion velocities are the same.
+        for (k = 0; k < 3; k++)
+          mixU[k] = v[j][k];
+
+        // Temperature - electron temperature is fixed, velo terms go away.
+        mixT =
+            (n_e * nu12 * Te + n[j] * nu21 * T[j]) / (n_e * nu12 + n[j] * nu21);
+        // printf("Te %g Tj %g mix %g nu12 %g nu21
+        // %g\n",Te,T[j],mixT,1/nu12,1/nu21);
+
+        if (mixT < 0) {
+          printf("Negative mixture temperature! Aborting.\n");
+          exit(37);
+        }
+
+        GetMaxwell(m[j], n[j], mixU, mixT, M, j);
+#pragma omp parallel for private(k)
+        for (k = 0; k < Nv * Nv * Nv; k++)
+          f_out[j][k] += nu21 * (M[k] - f[j][k]);
+      }
+    }
+  }
 }
