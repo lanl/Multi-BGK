@@ -1,4 +1,4 @@
-// Multi-BGK Code
+// BGK Code
 // By Jeff Haack
 
 // All units are CGS unless otherwise noted.
@@ -29,6 +29,7 @@
 
 // BGK/RHS packages
 #include "BGK.h"
+#include "LB.h"
 #include "TNB.h"
 #include "fluid_electron.h"
 
@@ -114,9 +115,12 @@ int main(int argc, char **argv) {
 
   double *T_int;
   double **T_oned;
+  double ***T_dir_oned;
   double *T0_oned;
   double **T_for_zbar;
   double *T_max, T0_max;
+
+  double ***PTens_oned;
 
   double ***marginal_oned;
 
@@ -178,6 +182,11 @@ int main(int argc, char **argv) {
              &beta, &hydro_kinscheme_flag, &input_file_data_flag,
              input_file_data_filename, input_filename);
 
+  double ESBGK_nu = 0.5;
+  if (rank == 0) {
+    printf("NOTE: ESBGK_nu is hardcoded to 0.5 \n");
+  }
+
   char output_path[100] = {"./Data/"};
   strcat(output_path, argv[1]);
 
@@ -210,6 +219,8 @@ int main(int argc, char **argv) {
   FILE **outputFileDens = malloc(nspec * sizeof(FILE *));
   FILE **outputFileVelo = malloc(nspec * sizeof(FILE *));
   FILE **outputFileTemp = malloc(nspec * sizeof(FILE *));
+  FILE **outputFileDirTemp = malloc(nspec * sizeof(FILE *));
+  FILE **outputFilePTens = malloc(nspec * sizeof(FILE *));
   FILE *outputFileH;
   FILE *outputFileBGK;
   FILE *outputFileTime;
@@ -254,6 +265,16 @@ int main(int argc, char **argv) {
         outputFileTemp[i] = fopen(temp_path, "w");
 
       strcpy(temp_path, output_path);
+      sprintf(name_tmp, "_dirtemp%d", i);
+      strcat(temp_path, name_tmp);
+      outputFileDirTemp[i] = fopen(temp_path, "w");
+
+      strcpy(temp_path, output_path);
+      sprintf(name_tmp, "_PTens%d", i);
+      strcat(temp_path, name_tmp);
+      outputFilePTens[i] = fopen(temp_path, "w");
+
+      strcpy(temp_path, output_path);
       sprintf(name_tmp, "_marginal%d", i);
       strcat(temp_path, name_tmp);
       if ((restartFlag == 2) || (restartFlag == 4))
@@ -261,7 +282,7 @@ int main(int argc, char **argv) {
       else
         outputFileMarginal[i] = fopen(temp_path, "w");
     }
-    
+
     strcpy(temp_path, output_path);
     sprintf(name_tmp, "_tempe");
   }
@@ -276,7 +297,7 @@ int main(int argc, char **argv) {
   strcat(H_path, name_tmp);
 
   strcpy(BGK_path, output_path);
-  sprintf(name_tmp, "_BGK");
+  sprintf(name_tmp, "_BGK.%d", rank);
   strcat(BGK_path, name_tmp);
 
   if ((dims == 0) || (rank == 0)) {
@@ -308,8 +329,7 @@ int main(int argc, char **argv) {
     if ((restartFlag == 2) || (restartFlag == 4)) {
       outputFilePoiss = fopen(poiss_path, "a");
       outputFilePhi = fopen(phi_path, "a");
-    }
-    else {
+    } else {
       outputFilePoiss = fopen(poiss_path, "w");
       outputFilePhi = fopen(phi_path, "w");
     }
@@ -483,14 +503,15 @@ int main(int argc, char **argv) {
 
     // Physical grid allocation and initialization
     make_mesh(Nx, Lx, order, &Nx_rank, &Nx_ranks, &x, &dxarray);
-    momentBuffer = malloc(3 * (Nx_rank + 1) * sizeof(double));
+    momentBuffer = malloc(15 * (Nx_rank + 1) * sizeof(double));
     momentBuffer2 = malloc(Nv * (Nx_rank + 1) * sizeof(double));
-    
-    if(input_file_data_flag) {
-      intervalLimits = malloc(sizeof(double)); //we only care about the leftmost guy
+
+    if (input_file_data_flag) {
+      intervalLimits =
+          malloc(sizeof(double)); // we only care about the leftmost guy
       intervalLimits[0] = x[order];
     }
-    
+
     dx = Lx / Nx;
 
     // Write the full mesh for storage purposes
@@ -512,6 +533,8 @@ int main(int argc, char **argv) {
     n_oned = malloc(Nx_rank * sizeof(double *));
     v_oned = malloc(Nx_rank * sizeof(double **));
     T_oned = malloc(Nx_rank * sizeof(double *));
+    T_dir_oned = malloc(Nx_rank * sizeof(double **));
+    PTens_oned = malloc(Nx_rank * sizeof(double **));
 
     v0_oned = malloc(Nx_rank * sizeof(double *));
     T0_oned = malloc(Nx_rank * sizeof(double));
@@ -526,8 +549,13 @@ int main(int argc, char **argv) {
 
       n_oned[l] = malloc(nspec * sizeof(double));
       v_oned[l] = malloc(nspec * sizeof(double *));
-      for (i = 0; i < nspec; i++)
+      PTens_oned[l] = malloc(nspec * sizeof(double *));
+      T_dir_oned[l] = malloc(nspec * sizeof(double *));
+      for (i = 0; i < nspec; i++) {
         v_oned[l][i] = malloc(3 * sizeof(double));
+        T_dir_oned[l][i] = malloc(3 * sizeof(double));
+        PTens_oned[l][i] = malloc(9 * sizeof(double));
+      }
       T_oned[l] = malloc(nspec * sizeof(double));
 
       v0_oned[l] = malloc(3 * sizeof(double));
@@ -539,6 +567,7 @@ int main(int argc, char **argv) {
       T0_oned[l] = 0.0;
     }
 
+    printf("setting up marginals\n");
     if (outputDist == 2) {
       marginal_oned = malloc(nspec * sizeof(double **));
       for (s = 0; s < nspec; s++) {
@@ -547,16 +576,17 @@ int main(int argc, char **argv) {
           marginal_oned[s][j] = malloc(Nv * sizeof(double));
       }
     }
+    printf("done setting up marginals\n");
 
     if (input_file_data_flag) {
       if (rank == 0) {
         printf("input_file_data_flag: %d, filename: %s\n", input_file_data_flag,
                input_file_data_filename);
-      }      
+      }
 
-      initialize_sol_load_inhom_file(rank, Nx_ranks, Nx, nspec, n_oned, v_oned, T_oned,
-                                     input_file_data_filename);      
-      
+      initialize_sol_load_inhom_file(rank, Nx_ranks, Nx, nspec, n_oned, v_oned,
+                                     T_oned, input_file_data_filename);
+
       // Find maximum temperature
       for (l = 0; l < Nx_rank; l++)
         for (s = 0; s < nspec; s++) {
@@ -591,12 +621,12 @@ int main(int argc, char **argv) {
     Te_arr = malloc(Nx_rank * sizeof(double));
     Te_arr_allranks = malloc(Nx * sizeof(double));
 
-    //Initialize electron temperature for fluid electron case
-    if(Te_ref == 0) {
-      for(int Te_i = 0; Te_i < Nx_rank; Te_i++)
-	Te_arr[Te_i] = Te_start;
+    // Initialize electron temperature for fluid electron case
+    if (Te_ref == 0) {
+      for (int Te_i = 0; Te_i < Nx_rank; Te_i++)
+        Te_arr[Te_i] = Te_start;
     }
-    
+
     Z_oned = malloc(Nx_rank * sizeof(double *));
 
     for (l = 0; l < Nx_rank; l++) {
@@ -625,6 +655,8 @@ int main(int argc, char **argv) {
         vmax = vref[i];
 
       Lv[i] = v_sigma * vref[i];
+      if (rank == 0)
+        printf("Lv for species %d: %g\n", i, Lv[i]);
       c[i] = malloc(Nv * sizeof(double));
       wts[i] = malloc(Nv * sizeof(double));
     }
@@ -761,14 +793,15 @@ int main(int argc, char **argv) {
 
   if (dims == 1) {
 
-    //if(rank == 0)
-    //  printf("Warning: Maxwell BCs hacked in\n");
-    //double n_bc[2] = {1.0622425812505312e-10, 6.547270642496101e-12};
-    //double v_bc[2] = {0.0, 0.0};
-    //double T_bc[2] = {8.61e-5, 8.61e-5};
-    //initialize_transport_max_bc(n_bc, v_bc, T_bc, m[0]);
-      
-    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt, poissFlavor);
+    // if(rank == 0)
+    //   printf("Warning: Maxwell BCs hacked in\n");
+    // double n_bc[2] = {1.0622425812505312e-10, 6.547270642496101e-12};
+    // double v_bc[2] = {0.0, 0.0};
+    // double T_bc[2] = {8.61e-5, 8.61e-5};
+    // initialize_transport_max_bc(n_bc, v_bc, T_bc, m[0]);
+
+    initialize_transport(Nv, Nx_rank, nspec, x, dxarray, Lx, c, order, dt,
+                         poissFlavor);
 
     // check if we are loading moment data from a file
     // Note: This is not yet MPI-ified
@@ -803,9 +836,9 @@ int main(int argc, char **argv) {
   initialize_moments(Nv, nspec, c, wts);
   initialize_BGK(nspec, Nv, m, c, order, ecouple, CL_type, ion_type, MT_or_TR,
                  tauFlag, TNBFlag, input_filename);
+  initialize_LB(nspec, Nv, m, c);
   initialize_fluid_electron(Nx_rank, nspec, dt);
 
-  
   if (TNBFlag)
     initializeTNB(Nv, c, wts);
 
@@ -898,12 +931,12 @@ int main(int argc, char **argv) {
 
       BGK_norm(f_zerod, BGK_f_minus_eq, Z_zerod, dt, T0);
 
-      if (outcount == dataFreq) {
+      if (outcount == dataFreq || (t == 0)) {
         fprintf(outputFileTime, "%e\n", t);
         for (i = 0; i < nspec; i++) {
           fprintf(outputFileDens[i], "%e ", n_zerod[i]);
           fprintf(outputFileVelo[i], "%e ", v_zerod[i][0]);
-          fprintf(outputFileTemp[i], "%e ", T_zerod[i]);	  
+          fprintf(outputFileTemp[i], "%e ", T_zerod[i]);
           fprintf(outputFileH, "%e ", (H_spec[i] - H_spec_prev[i]) / dt);
           fprintf(outputFileDens[i], "\n");
           fprintf(outputFileVelo[i], "\n");
@@ -977,6 +1010,7 @@ int main(int argc, char **argv) {
       }
     } else if (dims == 1) {
 
+      Htot = 0.0;
       // Calculate moment data in all cells
       for (l = 0; l < Nx_rank; l++) {
 
@@ -989,8 +1023,19 @@ int main(int argc, char **argv) {
           getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
           T_oned[l][i] =
               getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+          for (int idir = 0; idir < 3; ++idir) {
+            T_dir_oned[l][i][idir] = getDirTemp(
+                m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i, idir);
+          }
         }
-
+	
+        // calculate cross moment data
+        if (BGK_type == 22) {
+          for (int sp = 0; sp < nspec; sp++)
+	    getStressTensor(m[sp], n_oned[l][sp], v_oned[l][sp],
+                            f[l + order][sp], PTens_oned[l][sp], sp);
+        }
+	
         // get mixture mass avg velocity
         for (j = 0; j < 3; j++) {
           v0_oned[l][j] = 0.0;
@@ -1051,16 +1096,15 @@ int main(int argc, char **argv) {
        Note that the poisson solve gives e*phi (in ergs), not phi, more
       convenient for units issues
       ************/
-      
+
       if (ecouple == 1) {    // electrons only in background
         if (Te_start == 0) { // cubic case
           get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-        }
-	else if (Te_ref == 0) { //coupled electron case, note only works for 1 spec + ecouple 1
-	  //no-op, will update this later
-	  //fluid_electron_coll_only(n_oned, Te_arr, T_oned);
-	}
-	else if (Te_start != Te_ref)
+        } else if (Te_ref == 0) { // coupled electron case, note only works for
+                                  // 1 spec + ecouple 1
+          // no-op, will update this later
+          // fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+        } else if (Te_start != Te_ref)
           get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
         else
           get_uniform_Te(Te_arr, Nx_rank,
@@ -1068,37 +1112,33 @@ int main(int argc, char **argv) {
       } else
         Te_arr = T0_oned;
 
-      
       if (ecouple == 2) {
         for (l = 0; l < Nx_rank; l++) {
           source[l] = 0.0;
           for (i = 1; i < nspec; i++) {
-            source[l] +=
-	      Z_oned[l][i] *
-	      n_oned[l][i]; 
+            source[l] += Z_oned[l][i] * n_oned[l][i];
           }
           source[l] -= n_oned[l][0]; // electrons
         }
-      }
-      else { 
-	
-	// Calculate ionization data
-	for (l = 0; l < Nx_rank; l++) {
-	  // Get ionization
-	  
-	  if ((ecouple != 2) && (ionFix != 1))
-	    zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
-	  else
-	    Z_oned[l] = Z_max;
-	  
-	  // Set up local Poisson RHS vector
-	  source[l] = 0.0;
-	  for (i = 0; i < nspec; i++) {
-	    source[l] +=
-              Z_oned[l][i] *
-	      n_oned[l][i]; // total number of free electrons in each cell
-	  }
-	}
+      } else {
+
+        // Calculate ionization data
+        for (l = 0; l < Nx_rank; l++) {
+          // Get ionization
+
+          if ((ecouple != 2) && (ionFix != 1))
+            zBarFunc2(nspec, Te_arr[l], Z_max, n_oned[l], Z_oned[l]);
+          else
+            Z_oned[l] = Z_max;
+
+          // Set up local Poisson RHS vector
+          source[l] = 0.0;
+          for (i = 0; i < nspec; i++) {
+            source[l] +=
+                Z_oned[l][i] *
+                n_oned[l][i]; // total number of free electrons in each cell
+          }
+        }
       }
 
       // Set up the source/RHS array for the Poisson solve
@@ -1142,25 +1182,26 @@ int main(int argc, char **argv) {
 
         if (ecouple == 2) {
           simplePoisson(Nx, source_allranks, dx, Lx, PoisPot_allranks);
-	} else {
-	  
-	  if (poissFlavor == 0) { // no E-field
-          for (l = 0; l < Nx; l++)
-            PoisPot_allranks[l] = 0.0;
-        } else if (poissFlavor == 11) // Linear Yukawa
-          PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                             Te_arr_allranks);
-        else if (poissFlavor == 12) // Nonlinear Yukawa
-          PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                Te_arr_allranks);
-        else if (poissFlavor == 21) // Linear Thomas-Fermi
-          PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                Te_arr_allranks);
-        else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-          PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
-                                   PoisPot_allranks, Te_arr_allranks);
-	else if (poissFlavor == 42) // ohm law
-	  fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);	  
+        } else {
+
+          if (poissFlavor == 0) { // no E-field
+            for (l = 0; l < Nx; l++)
+              PoisPot_allranks[l] = 0.0;
+          } else if (poissFlavor == 11) // Linear Yukawa
+            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                               Te_arr_allranks);
+          else if (poissFlavor == 12) // Nonlinear Yukawa
+            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 21) // Linear Thomas-Fermi
+            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                  Te_arr_allranks);
+          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                     PoisPot_allranks, Te_arr_allranks);
+          else if (poissFlavor == 42) // ohm law
+            fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks,
+                                  Te_arr_allranks);
         }
       }
 
@@ -1170,7 +1211,7 @@ int main(int argc, char **argv) {
 
         // SET LOCAL GHOST CELLS
         if (order == 1) {
-          PoisPot[0] = PoisPot_allranks[0]; //MODIFIED
+          PoisPot[0] = PoisPot_allranks[0]; // MODIFIED
           if (numRanks == 1)
             PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
           else
@@ -1228,7 +1269,7 @@ int main(int argc, char **argv) {
           // SET LOCAL GHOST CELLS
           if (order == 1) {
             source_buf[0] = PoisPot_allranks[rankOffset - 1];
-            source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1]; 
+            source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1];
           } else if (order == 2) {
             source_buf[0] = PoisPot_allranks[rankOffset - 2];
             source_buf[1] = PoisPot_allranks[rankOffset - 1];
@@ -1254,8 +1295,13 @@ int main(int argc, char **argv) {
           PoisPot[l] = source_buf[l];
         }
       }
-      
+
       // Moments and initial electric field calculated - save if needed
+
+      if (rank == 0) {
+        printf("Calculating moments for output\n");
+	fflush(stdout);
+      }
 
       // MPI-ified output.
       if (outcount == dataFreq) {
@@ -1265,6 +1311,14 @@ int main(int argc, char **argv) {
               fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
               fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
               fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
+              fprintf(outputFileDirTemp[i], "%e %e %e ", T_dir_oned[l][i][0],
+                      T_dir_oned[l][i][1], T_dir_oned[l][i][2]);
+              fprintf(outputFilePTens[i], "%e %e %e %e %e %e %e %e %e ",
+                      PTens_oned[l][i][0], PTens_oned[l][i][1],
+                      PTens_oned[l][i][2], PTens_oned[l][i][3],
+                      PTens_oned[l][i][4], PTens_oned[l][i][5],
+                      PTens_oned[l][i][6], PTens_oned[l][i][7],
+                      PTens_oned[l][i][8]);	    
               if (outputDist == 2) {
                 getMarginal(f[l + order][i], marginal_oned[i][l], i);
                 for (j = 0; j < Nv; ++j) {
@@ -1278,12 +1332,22 @@ int main(int argc, char **argv) {
           // get from other ranks
           for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
             for (s = 0; s < nspec; s++) {
-              MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
+              MPI_Recv(momentBuffer, 15 * Nx_ranks[rankCounter], MPI_DOUBLE,
                        rankCounter, 100 + s, MPI_COMM_WORLD, &status);
               for (l = 0; l < Nx_ranks[rankCounter]; l++) {
-                fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
-                fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
-                fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
+                fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 15 * l]);
+                fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 15 * l]);
+                fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 15 * l]);
+                fprintf(outputFileDirTemp[s], "%e %e %e ",
+                        momentBuffer[3 + 15 * l], momentBuffer[4 + 15 * l],
+                        momentBuffer[5 + 15 * l]);
+
+                fprintf(outputFilePTens[s], "%e %e %e %e %e %e %e %e %e",
+                        momentBuffer[6 + 15 * l], momentBuffer[7 + 15 * l],
+                        momentBuffer[8 + 15 * l], momentBuffer[9 + 15 * l],
+                        momentBuffer[10 + 15 * l], momentBuffer[11 + 15 * l],
+                        momentBuffer[12 + 15 * l], momentBuffer[13 + 15 * l],
+                        momentBuffer[14 + 15 * l]);
               }
             }
           }
@@ -1291,40 +1355,44 @@ int main(int argc, char **argv) {
           if (outputDist == 2) {
             for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
               for (s = 0; s < nspec; s++) {
-                MPI_Recv(momentBuffer, Nv * Nx_ranks[rankCounter], MPI_DOUBLE,
+                MPI_Recv(momentBuffer2, Nv * Nx_ranks[rankCounter], MPI_DOUBLE,
                          rankCounter, 200 + s, MPI_COMM_WORLD, &status);
               }
+              printf("setting up marginal output, rank %d \n", rank);
               for (l = 0; l < Nx_ranks[rankCounter]; l++) {
                 for (j = 0; j < Nv; j++) {
                   fprintf(outputFileMarginal[s], "%e ",
-                          momentBuffer[j + Nv * l]);
+                          momentBuffer2[j + Nv * l]);
                 }
                 fprintf(outputFileMarginal[s], "\n");
               }
             }
           }
 
-          // Print poisson information - this produces eE in eV/cm
-	  if(poissFlavor != 42) {
-	    fprintf(outputFilePoiss, "%e ",
-		    (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx * ERG_TO_EV_CGS);
-	    fprintf(outputFilePhi, "%e ", Te_arr_allranks[0]);
-	    for (l = 1; l < Nx - 1; l++) {
-	      fprintf(outputFilePoiss, "%e ",
-		      (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx * ERG_TO_EV_CGS);
-	      
-	      fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);
-	    }
-	    fprintf(outputFilePoiss, "%e ",
-		    (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx * ERG_TO_EV_CGS);
-	    fprintf(outputFilePhi, "%e ", Te_arr_allranks[Nx - 1]);
-	  }
-	  else {
-	    for (l = 0; l < Nx; l++) {
-	      fprintf(outputFilePoiss, "%e ", PoisPot_allranks[l]  * ERG_TO_EV_CGS);
-	      fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);	      
-	    }
-	  }
+          // Print poisson information - this produces eE in V / m
+          if (poissFlavor != 42) {
+            fprintf(outputFilePoiss, "%e ",
+                    -50 * (PoisPot_allranks[1] - PoisPot_allranks[Nx - 1]) / dx *
+                        ERG_TO_EV_CGS);
+            fprintf(outputFilePhi, "%e ", Te_arr_allranks[0]);
+            for (l = 1; l < Nx - 1; l++) {
+              fprintf(outputFilePoiss, "%e ",
+                      -50 * (PoisPot_allranks[l + 1] - PoisPot_allranks[l - 1]) / dx *
+                          ERG_TO_EV_CGS);
+
+              fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);
+            }
+            fprintf(outputFilePoiss, "%e ",
+                    -50 * (PoisPot_allranks[0] - PoisPot_allranks[Nx - 2]) / dx *
+                        ERG_TO_EV_CGS);
+            fprintf(outputFilePhi, "%e ", Te_arr_allranks[Nx - 1]);
+          } else {
+            for (l = 0; l < Nx; l++) {
+              fprintf(outputFilePoiss, "%e ",
+                     50 *  PoisPot_allranks[l] * ERG_TO_EV_CGS);
+              fprintf(outputFilePhi, "%e ", Te_arr_allranks[l]);
+            }
+          }
           fprintf(outputFilePoiss, "\n");
           fprintf(outputFilePhi, "\n");
 
@@ -1334,9 +1402,24 @@ int main(int argc, char **argv) {
             fprintf(outputFileDens[i], "\n");
             fprintf(outputFileVelo[i], "\n");
             fprintf(outputFileTemp[i], "\n");
+            fprintf(outputFileDirTemp[i], "\n");
+            fprintf(outputFilePTens[i], "\n");
           }
-          if (outputDist == 1)
+          if (outputDist > 1)
             store_distributions_inhomog(f, input_filename, nT, t, rank);
+          if (outputDist == 3) {
+            char BGK_name_buffer[256];
+            for (int s = 0; s < nspec; ++s) {
+              sprintf(BGK_name_buffer, "Data/%s_spec%d.step%d_rank%d_BGK.dat",
+                      input_filename, s, nT, rank);
+              FILE *fid_store = fopen(BGK_name_buffer, "w");
+              for (int xj = 0; xj < Nx_rank; ++xj) {
+                fwrite(f_tmp[xj + order][s], sizeof(double), Nv * Nv * Nv,
+                       fid_store);
+              }
+              fclose(fid_store);
+            }
+          }
 
           outcount = 0;
         } else { // send to rank 0 for output purposes
@@ -1344,11 +1427,27 @@ int main(int argc, char **argv) {
             for (l = 0; l < Nx_rank; l++) {
               T_oned[l][s] =
                   getTemp(m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s);
-              momentBuffer[0 + 3 * l] = n_oned[l][s];
-              momentBuffer[1 + 3 * l] = v_oned[l][s][0];
-              momentBuffer[2 + 3 * l] = T_oned[l][s];
+              for (int idir = 0; idir < 3; ++idir)
+                T_dir_oned[l][s][idir] = getDirTemp(
+                    m[s], n_oned[l][s], v_oned[l][s], f[l + order][s], s, idir);
+
+              momentBuffer[0 + 15 * l] = n_oned[l][s];
+              momentBuffer[1 + 15 * l] = v_oned[l][s][0];
+              momentBuffer[2 + 15 * l] = T_oned[l][s];
+              momentBuffer[3 + 15 * l] = T_dir_oned[l][s][0];
+              momentBuffer[4 + 15 * l] = T_dir_oned[l][s][1];
+              momentBuffer[5 + 15 * l] = T_dir_oned[l][s][2];
+              momentBuffer[6 + 15 * l] = PTens_oned[l][s][0];
+              momentBuffer[7 + 15 * l] = PTens_oned[l][s][1];
+              momentBuffer[8 + 15 * l] = PTens_oned[l][s][2];
+              momentBuffer[9 + 15 * l] = PTens_oned[l][s][3];
+              momentBuffer[10 + 15 * l] = PTens_oned[l][s][4];
+              momentBuffer[11 + 15 * l] = PTens_oned[l][s][5];
+              momentBuffer[12 + 15 * l] = PTens_oned[l][s][6];
+              momentBuffer[13 + 15 * l] = PTens_oned[l][s][7];
+              momentBuffer[14 + 15 * l] = PTens_oned[l][s][8];
             }
-            MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
+            MPI_Send(momentBuffer, 15 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                      MPI_COMM_WORLD);
             if (outputDist == 2) {
               for (s = 0; s < nspec; ++s) {
@@ -1363,15 +1462,32 @@ int main(int argc, char **argv) {
               }
             }
           }
-          if (outputDist == 1)
+          if (outputDist > 0)
             store_distributions_inhomog(f, input_filename, nT, t, rank);
+          if (outputDist == 3) {
+            char BGK_name_buffer[256];
+            for (int s = 0; s < nspec; ++s) {
+              sprintf(BGK_name_buffer, "Data/%s_spec%d.step%d_rank%d_BGK.dat",
+                      input_filename, s, nT, rank);
+              FILE *fid_store = fopen(BGK_name_buffer, "w");
+              for (int xj = 0; xj < Nx_rank; ++xj) {
+                fwrite(f_tmp[xj + order][s], sizeof(double), Nv * Nv * Nv,
+                       fid_store);
+              }
+              fclose(fid_store);
+            }
+          }
           outcount = 0;
         }
       }
       outcount += 1;
 
       // IO done, advance to the actual solution...
-
+      if(rank == 0) {
+	printf("IO done, now solving\n");
+	fflush(stdout);
+      }
+      
       MPI_Barrier(MPI_COMM_WORLD);
 
       if (order == 1) {
@@ -1381,15 +1497,23 @@ int main(int argc, char **argv) {
           advectOne(f, PoisPot, Z_oned, m[i], i);
         }
 
-	if(ecouple == 1 && Te_ref == 0) {
-	  fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
-	}
-	
+        if (ecouple == 1 && Te_ref == 0) {
+          fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
+        }
+
         if (!(BGK_type < 0)) {
           // COLLIDE
           if (im_ex == 0) {
             for (l = 0; l < Nx_rank; l++) {
-              BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
+              if (BGK_type == 0)
+                BGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt,
+                       Te_arr[l]);
+              else if (BGK_type == 11)
+                LB_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt, Te_arr[l]);
+              else if (BGK_type == 22)
+                ESBGK_ex(f[l + order], f_tmp[l + order], Z_oned[l], dt,
+                         Te_arr[l], ESBGK_nu);
+
               for (i = 0; i < nspec; i++)
                 for (j = 0; j < Nv * Nv * Nv; j++)
                   f[l + order][i][j] += dt * f_tmp[l + order][i][j];
@@ -1417,10 +1541,9 @@ int main(int argc, char **argv) {
                    "file.\n");
             exit(1);
           }
-	  if(ecouple == 1 && Te_ref == 0) {
-	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
-	  }
-
+          if (ecouple == 1 && Te_ref == 0) {
+            fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+          }
         }
       }
 
@@ -1442,7 +1565,7 @@ int main(int argc, char **argv) {
 
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
@@ -1454,11 +1577,10 @@ int main(int argc, char **argv) {
 
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          }
-	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
-	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
-	  }
-	  else if (Te_start != Te_ref)
+          } else if (Te_ref ==
+                     0) { // coupled electron case, note only works for 2 spec
+            fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1540,26 +1662,27 @@ int main(int argc, char **argv) {
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
           if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+            simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-        
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx; l++)
-              PoisPot_allranks[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                               Te_arr_allranks);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
-                                     PoisPot_allranks, Te_arr_allranks);
-	  else if (poissFlavor == 42) // ohm law
-	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
+
+            if (poissFlavor == 0) { // no E-field
+              for (l = 0; l < Nx; l++)
+                PoisPot_allranks[l] = 0.0;
+            } else if (poissFlavor == 11) // Linear Yukawa
+              PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                 Te_arr_allranks);
+            else if (poissFlavor == 12) // Nonlinear Yukawa
+              PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 21) // Linear Thomas-Fermi
+              PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+              PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                       PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 42) // ohm law
+              fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks,
+                                    Te_arr_allranks);
           }
         }
 
@@ -1627,7 +1750,8 @@ int main(int argc, char **argv) {
             // SET LOCAL GHOST CELLS
             if (order == 1) {
               source_buf[0] = PoisPot_allranks[rankOffset - 1];
-              source_buf[Nx_ranks[numRanks - 1] + 1] = PoisPot_allranks[Nx - 1]; //modified
+              source_buf[Nx_ranks[numRanks - 1] + 1] =
+                  PoisPot_allranks[Nx - 1]; // modified
             } else if (order == 2) {
               source_buf[0] = PoisPot_allranks[rankOffset - 2];
               source_buf[1] = PoisPot_allranks[rankOffset - 1];
@@ -1660,15 +1784,15 @@ int main(int argc, char **argv) {
         for (i = 0; i < nspec; i++) {
           advectTwo_v(f_tmp, f_conv, PoisPot, Z_oned, m[i], i);
         }
-		
+
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
-	
+
         // Next strang step - x advection with timestep dt/2
 
         // RK2 Step 1
@@ -1678,7 +1802,7 @@ int main(int argc, char **argv) {
 
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
@@ -1690,16 +1814,16 @@ int main(int argc, char **argv) {
 
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
                   0.25 * f_conv[l + order][i][j];
 
-	if(ecouple == 1 && Te_ref == 0) {
-	  fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
-	}
-	
+        if (ecouple == 1 && Te_ref == 0) {
+          fluid_electron_ohmic_term(n_oned, v_oned, Te_arr, PoisPot, Z_oned);
+        }
+
         if (!(BGK_type == -1)) {
           // Next Strang step - RK2 for collision with timstep dt
           for (l = 0; l < Nx_rank; l++) {
@@ -1750,7 +1874,7 @@ int main(int argc, char **argv) {
 
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
@@ -1761,7 +1885,7 @@ int main(int argc, char **argv) {
         }
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
@@ -1774,11 +1898,10 @@ int main(int argc, char **argv) {
         if (ecouple == 1) {    // electrons only in background
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          }
-	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
-	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
-	  }	  
-	  else if (Te_start != Te_ref)
+          } else if (Te_ref ==
+                     0) { // coupled electron case, note only works for 2 spec
+            fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -1889,26 +2012,27 @@ int main(int argc, char **argv) {
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
           if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+            simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-          
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx; l++)
-              PoisPot_allranks[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                               Te_arr_allranks);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
-                                     PoisPot_allranks, Te_arr_allranks);
-	  else if (poissFlavor == 42) // ohm law
-	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
+
+            if (poissFlavor == 0) { // no E-field
+              for (l = 0; l < Nx; l++)
+                PoisPot_allranks[l] = 0.0;
+            } else if (poissFlavor == 11) // Linear Yukawa
+              PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                 Te_arr_allranks);
+            else if (poissFlavor == 12) // Nonlinear Yukawa
+              PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 21) // Linear Thomas-Fermi
+              PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+              PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                       PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 42) // ohm law
+              fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks,
+                                    Te_arr_allranks);
           }
         }
 
@@ -2012,7 +2136,7 @@ int main(int argc, char **argv) {
 
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f_tmp[l + order][i][j] =
                   f[l + order][i][j] + 0.5 * f_conv[l + order][i][j];
@@ -2022,11 +2146,10 @@ int main(int argc, char **argv) {
         if (ecouple == 1) {    // electrons only in background
           if (Te_start == 0) { // cubic case
             get_ramp_Te_cubic(Te_arr, Nx_rank, 7.481, 1e-9, t);
-          }
-	  else if (Te_ref == 0) { //coupled electron case, note only works for 2 spec
-	    fluid_electron_coll_only(n_oned, Te_arr, T_oned);
-	  }
-	  else if (Te_start != Te_ref)
+          } else if (Te_ref ==
+                     0) { // coupled electron case, note only works for 2 spec
+            fluid_electron_coll_only(n_oned, Te_arr, T_oned);
+          } else if (Te_start != Te_ref)
             get_ramp_Te(Te_arr, Nx_rank, Te_start, Te_ref, t, tfinal);
           else
             get_uniform_Te(Te_arr, Nx_rank,
@@ -2105,26 +2228,27 @@ int main(int argc, char **argv) {
         if (rank == 0) { // Rank 0 performs the Poisson Solve
 
           if (ecouple == 2) {
-          simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
+            simplePoisson(Nx_rank, source, dx, Lx, PoisPot);
           } else {
-          
-          if (poissFlavor == 0) { // no E-field
-            for (l = 0; l < Nx; l++)
-              PoisPot_allranks[l] = 0.0;
-          } else if (poissFlavor == 11) // Linear Yukawa
-            PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                               Te_arr_allranks);
-          else if (poissFlavor == 12) // Nonlinear Yukawa
-            PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 21) // Linear Thomas-Fermi
-            PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx, PoisPot_allranks,
-                                  Te_arr_allranks);
-          else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
-            PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
-                                     PoisPot_allranks, Te_arr_allranks);
-	  else if (poissFlavor == 42) // ohm law
-	    fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks, Te_arr_allranks);
+
+            if (poissFlavor == 0) { // no E-field
+              for (l = 0; l < Nx; l++)
+                PoisPot_allranks[l] = 0.0;
+            } else if (poissFlavor == 11) // Linear Yukawa
+              PoissLinPeriodic1D(Nx, source_allranks, dx, Lx, PoisPot_allranks,
+                                 Te_arr_allranks);
+            else if (poissFlavor == 12) // Nonlinear Yukawa
+              PoissNonlinPeriodic1D(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 21) // Linear Thomas-Fermi
+              PoissLinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                    PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 22) // Nonlinear Thomas-Fermi
+              PoissNonlinPeriodic1D_TF(Nx, source_allranks, dx, Lx,
+                                       PoisPot_allranks, Te_arr_allranks);
+            else if (poissFlavor == 42) // ohm law
+              fluid_electron_get_eE(Nx, source_allranks, dx, PoisPot_allranks,
+                                    Te_arr_allranks);
           }
         }
 
@@ -2138,7 +2262,7 @@ int main(int argc, char **argv) {
             if (numRanks == 1)
               PoisPot[Nx_rank + 1] = PoisPot_allranks[0];
             else
-              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank+1];
+              PoisPot[Nx_rank + 1] = PoisPot_allranks[Nx_rank + 1];
           } else if (order == 2) {
             PoisPot[0] = PoisPot_allranks[Nx - 2];
             PoisPot[1] = PoisPot_allranks[Nx - 1];
@@ -2227,7 +2351,7 @@ int main(int argc, char **argv) {
         }
         for (l = 0; l < Nx_rank; l++)
           for (i = 0; i < nspec; i++)
-            //#pragma omp parallel for private(j)
+            // #pragma omp parallel for private(j)
             for (j = 0; j < Nv * Nv * Nv; j++)
               f[l + order][i][j] =
                   0.5 * (f[l + order][i][j] + f_tmp[l + order][i][j]) +
@@ -2253,6 +2377,10 @@ int main(int argc, char **argv) {
         getBulkVel(f[l + order][i], v_oned[l][i], n_oned[l][i], i);
         T_oned[l][i] =
             getTemp(m[i], n_oned[l][i], v_oned[l][i], f[l + order][i], i);
+        for (int idim = 0; idim < 3; ++idim) {
+          T_dir_oned[l][i][idim] = getDirTemp(m[i], n_oned[l][i], v_oned[l][i],
+                                              f[l + order][i], i, idim);
+        }
       }
     }
 
@@ -2265,18 +2393,22 @@ int main(int argc, char **argv) {
           fprintf(outputFileDens[i], "%e ", n_oned[l][i]);
           fprintf(outputFileVelo[i], "%e ", v_oned[l][i][0]);
           fprintf(outputFileTemp[i], "%e ", T_oned[l][i]);
+          fprintf(outputFileDirTemp[i], "%e %e %e ", T_dir_oned[l][i][0],
+                  T_dir_oned[l][i][1], T_dir_oned[l][i][2]);
         }
       }
 
       // get from other ranks
       for (rankCounter = 1; rankCounter < numRanks; rankCounter++) {
         for (s = 0; s < nspec; s++) {
-          MPI_Recv(momentBuffer, 3 * Nx_ranks[rankCounter], MPI_DOUBLE,
+          MPI_Recv(momentBuffer, 6 * Nx_ranks[rankCounter], MPI_DOUBLE,
                    rankCounter, 100 + s, MPI_COMM_WORLD, &status);
           for (l = 0; l < Nx_ranks[rankCounter]; l++) {
-            fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 3 * l]);
-            fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 3 * l]);
-            fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 3 * l]);
+            fprintf(outputFileDens[s], "%e ", momentBuffer[0 + 6 * l]);
+            fprintf(outputFileVelo[s], "%e ", momentBuffer[1 + 6 * l]);
+            fprintf(outputFileTemp[s], "%e ", momentBuffer[2 + 6 * l]);
+            fprintf(outputFileDirTemp[s], "%e %e %e ", momentBuffer[3 + 6 * l],
+                    momentBuffer[4 + 6 * l], momentBuffer[5 + 6 * l]);
           }
         }
       }
@@ -2287,23 +2419,52 @@ int main(int argc, char **argv) {
         fprintf(outputFileDens[i], "\n");
         fprintf(outputFileVelo[i], "\n");
         fprintf(outputFileTemp[i], "\n");
+        fprintf(outputFileDirTemp[i], "\n");
       }
 
-      if (outputDist == 1)
+      if (outputDist > 0) {
         store_distributions_inhomog(f, input_filename, nT, t, rank);
-
+      }
+      if (outputDist == 3) {
+        char BGK_name_buffer[256];
+        for (int s = 0; s < nspec; ++s) {
+          sprintf(BGK_name_buffer, "Data/%s_spec%d.step%d_rank%d_BGK.dat",
+                  input_filename, s, nT, rank);
+          FILE *fid_store = fopen(BGK_name_buffer, "w");
+          for (int xj = 0; xj < Nx_rank; ++xj) {
+            fwrite(f_tmp[xj + order][s], sizeof(double), Nv * Nv * Nv,
+                   fid_store);
+          }
+          fclose(fid_store);
+        }
+      }
     } else { // send to rank 0 for output purposes
       for (s = 0; s < nspec; s++) {
         for (l = 0; l < Nx_rank; l++) {
-          momentBuffer[0 + 3 * l] = n_oned[l][s];
-          momentBuffer[1 + 3 * l] = v_oned[l][s][0];
-          momentBuffer[2 + 3 * l] = T_oned[l][s];
+          momentBuffer[0 + 6 * l] = n_oned[l][s];
+          momentBuffer[1 + 6 * l] = v_oned[l][s][0];
+          momentBuffer[2 + 6 * l] = T_oned[l][s];
+          momentBuffer[3 + 6 * l] = T_dir_oned[l][s][0];
+          momentBuffer[4 + 6 * l] = T_dir_oned[l][s][1];
+          momentBuffer[5 + 6 * l] = T_dir_oned[l][s][2];
         }
-        MPI_Send(momentBuffer, 3 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
+        MPI_Send(momentBuffer, 6 * Nx_rank, MPI_DOUBLE, 0, 100 + s,
                  MPI_COMM_WORLD);
       }
-      if (outputDist == 1)
+      if (outputDist > 0)
         store_distributions_inhomog(f, input_filename, nT, t, rank);
+      if (outputDist == 3) {
+        char BGK_name_buffer[256];
+        for (s = 0; s < nspec; ++s) {
+          sprintf(BGK_name_buffer, "Data/%s_spec%d.step%d_rank%d_BGK.dat",
+                  input_filename, s, nT, rank);
+          FILE *fid_store = fopen(BGK_name_buffer, "w");
+          for (int xj = 0; xj < Nx_rank; ++xj) {
+            fwrite(f_tmp[xj + order][s], sizeof(double), Nv * Nv * Nv,
+                   fid_store);
+          }
+        }
+      }
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -2333,10 +2494,12 @@ int main(int argc, char **argv) {
       fclose(outputFileDens[i]);
       fclose(outputFileVelo[i]);
       fclose(outputFileTemp[i]);
+      fclose(outputFileDirTemp[i]);
     }
     free(outputFileDens);
     free(outputFileVelo);
     free(outputFileTemp);
+    free(outputFileDirTemp);
   }
 
   if (dims == 0) {
@@ -2361,11 +2524,13 @@ int main(int argc, char **argv) {
       free(v0_oned[l]);
       for (i = 0; i < nspec; i++) {
         free(v_oned[l][i]);
+        free(PTens_oned[l][i]);
         free(f[l][i]);
         free(f_tmp[l][i]);
         free(f_conv[l][i]);
       }
       free(v_oned[l]);
+      free(PTens_oned[l]);
 
       free(f[l]);
       free(f_tmp[l]);
@@ -2377,6 +2542,7 @@ int main(int argc, char **argv) {
     free(f_conv);
     free(n_oned);
     free(v_oned);
+    free(PTens_oned);
     free(v0_oned);
     free(T_oned);
     free(T0_oned);

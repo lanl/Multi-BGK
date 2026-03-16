@@ -20,3 +20,5 @@ void BGK_Greene(double **f, double **f_out, double *Z, double dt, double beta,
 void BGK_NRL(double **f, double **f_out, double *Z, double dt, double Te);
 
 void BGK_norm(double **f, double **f_err, double *Z, double dt, double Te);
+
+void ESBGK_ex(double **f, double **f_out, double *Z, double dt, double Te, double ESBGK_nu);

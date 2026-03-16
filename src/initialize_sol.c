@@ -137,22 +137,28 @@ void initialize_sol_load_inhom_file(int rank, int *Nx_ranks, int Nx_total, int n
       sp = read_int(data_file);
 
       read_line(data_file, line);
-      printf("%s\n", line);
+      printf("reading %s\n", line);
       if (strcmp(line, "dens") != 0) {
         printf("Error in initial condition data file - expected 'dens'\n");
         exit(1);
       } else {
+	printf("%d %d %d\n", start, Nx, Nx_total);
         token = strtok(line, " ");
 	for (l = 0; l < start; ++l) {
 	  read_line(data_file, line);
+	  //printf("early %s\n", line);
 	  //ignore all the previous ones
-	}
+	}	
         for (l = 0; l < Nx; l++) {
 	  read_line(data_file, line);
           n_oned[l][sp] = atof(line);
+	  //printf("middle %s\n", line);
+	  //fflush(stdout);
         }
-	for(l = start + Nx; l < Nx_total; l++)
-	  read_line(data_file, line);	  
+	for(l = start + Nx; l < Nx_total; l++) {
+	  read_line(data_file, line);
+	  //printf("end %s\n", line);
+	  }
       }
 
       read_line(data_file, line);
@@ -202,7 +208,7 @@ void initialize_sol_load_inhom_file(int rank, int *Nx_ranks, int Nx_total, int n
   }
 
   // check data load
-  /*
+  
   for (sp = 0; sp < nspec; sp++) {
     printf("Species %d \n", sp);
     for (l = 0; l < Nx; l++) {
@@ -211,7 +217,7 @@ void initialize_sol_load_inhom_file(int rank, int *Nx_ranks, int Nx_total, int n
     }
   }
   fflush(stdout);
-  */
+  
 }
 
 
